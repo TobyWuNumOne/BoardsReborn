@@ -13,7 +13,7 @@
 
 - 相關產品脈絡：
 - 相關使用者：
-- 目前已知現況：
+- 目前已知現況：優先參考 `docs/progress.md`，不要自行重寫一份可能過時的 repo 現況。
 
 ## 限制
 
@@ -36,6 +36,7 @@
 
 ## 相關檔案
 
+- `docs/progress.md`
 - `docs/product.md`
 - `docs/domain-model.md`
 - `docs/api-contract.md`
@@ -62,6 +63,7 @@
 ## 完成回報格式
 
 - 變更摘要：
+- 進度文件更新摘要：是否更新 `docs/progress.md`，若無請說明原因。
 - 測試摘要：
 - Migration 摘要：
 - API contract 摘要：

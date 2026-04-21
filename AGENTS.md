@@ -2,19 +2,27 @@
 
 ## Project State
 
-- This repository is documentation-first, but it now includes a minimal Nuxt app scaffold and base frontend toolchain.
-- Supabase migrations, seed data, product API handlers, auth flows, print-agent implementation, and production workflows are not built yet.
+- The authoritative source for current implementation status, completed milestones, and next steps is [docs/progress.md](docs/progress.md).
+- This repository combines documentation-first specs with a minimal Nuxt scaffold; do not present planned product implementation details as if they are already built.
 - Treat Supabase commands in [README.md](README.md) as planned workflow until `supabase/config.toml`, migrations, and seed files exist.
-- Do not present planned product implementation details as if they are already built.
 
 ## Read First
 
+- Use [docs/progress.md](docs/progress.md) for the current repo state, milestone progress, and next steps.
 - Start with [docs/ai-dev-rules.md](docs/ai-dev-rules.md). Its rules are binding.
 - Use [docs/product.md](docs/product.md) for MVP scope, user flows, and out-of-scope features.
 - Use [docs/domain-model.md](docs/domain-model.md) for schema, enums, status rules, and storage boundaries.
 - Use [docs/api-contract.md](docs/api-contract.md) for endpoint shapes, auth, pagination, and error format.
 - Use [docs/barcode-printing.md](docs/barcode-printing.md) for barcode payload, async print jobs, and Print Agent responsibilities.
 - Use [docs/task-template.md](docs/task-template.md) when a task needs explicit acceptance criteria or completion-report structure.
+
+## Progress Workflow
+
+- Before changing code or docs, read [docs/progress.md](docs/progress.md) to confirm the current phase, completed work, next steps, and open risks.
+- After finishing a change, revisit [docs/progress.md](docs/progress.md) and update any affected milestone status, completed items, next steps, blockers, or last-updated date.
+- A task that changes what is implemented, pending, or blocked is not complete until the relevant progress update is written to [docs/progress.md](docs/progress.md).
+- If a change affects schema, API, scope, workflow, tooling baseline, or current implementation status, use [spec-consistency-checker](.github/skills/spec-consistency-checker/SKILL.md) as part of the verification.
+- If another file needs to mention current repo status, keep it brief and point to [docs/progress.md](docs/progress.md) instead of duplicating detailed state.
 
 ## Required Sync Rules
 

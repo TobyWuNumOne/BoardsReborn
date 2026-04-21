@@ -2,7 +2,7 @@
 
 BoardsReborn 是給板再生使用的板類維修進度管理系統。目標是把原本依賴老闆記憶、紙本工單與板子擺放位置的流程，轉成可追蹤、可搜尋、可協作的數位流程，並在後續提供顧客自助查詢進度。
 
-目前此 repository 已建立 Nuxt app scaffold 與基礎工具鏈，但尚未包含 Supabase migration、資料庫 seed 或產品功能程式碼。
+目前 repo 的實作現況、高層里程碑與下一步請以 [docs/progress.md](docs/progress.md) 為準。README 保留啟動方式、工具鏈版本基準與長期有效的開發約束。
 
 ## 專案目的
 
@@ -71,21 +71,21 @@ pnpm dev
 http://localhost:3000
 ```
 
-`@nuxtjs/supabase` module 會在 `SUPABASE_URL` 與 `SUPABASE_KEY` 有值時啟用。資料庫 schema、Supabase CLI config 與 migrations 尚未建立；完成這些檔案後，才把 `supabase start` 納入必跑流程。
+`@nuxtjs/supabase` module 會在 `SUPABASE_URL` 與 `SUPABASE_KEY` 有值時啟用。完整實作現況請見 [docs/progress.md](docs/progress.md)；在 `supabase/config.toml`、migrations 與 seed 尚未存在前，不要把 `supabase start` 當成必跑流程。
 
 ## 環境變數
 
 請在 `.env` 或部署平台環境變數中設定：
 
-| 變數                  | 用途                                                                  | 是否可暴露到瀏覽器 |
-| --------------------- | --------------------------------------------------------------------- | ------------------ |
-| `SUPABASE_URL`        | Supabase project URL                                                  | 是                 |
-| `SUPABASE_KEY`        | Supabase publishable key 或 anon key，供 client 與一般 authenticated request 使用 | 是                 |
-| `SUPABASE_SECRET_KEY` | Server-only elevated key，只能在 Nitro server API 使用                | 否                 |
-| `NUXT_PUBLIC_APP_URL` | App 對外網址，例如 `http://localhost:3000`                            | 是                 |
-| `ADMIN_EMAIL`         | 第一版管理者帳號 seed 或手動建立時使用                                | 否                 |
-| `ADMIN_PASSWORD`      | 第一版管理者密碼 seed 或手動建立時使用                                | 否                 |
-| `PRINT_AGENT_TOKEN`   | Print Agent 呼叫 Nuxt API 的 Bearer token                              | 否                 |
+| 變數                  | 用途                                                                                 | 是否可暴露到瀏覽器 |
+| --------------------- | ------------------------------------------------------------------------------------ | ------------------ |
+| `SUPABASE_URL`        | Supabase project URL                                                                 | 是                 |
+| `SUPABASE_KEY`        | Supabase publishable key 或 anon key，供 client 與一般 authenticated request 使用    | 是                 |
+| `SUPABASE_SECRET_KEY` | Server-only elevated key，只能在 Nitro server API 使用                               | 否                 |
+| `NUXT_PUBLIC_APP_URL` | App 對外網址，例如 `http://localhost:3000`                                           | 是                 |
+| `ADMIN_EMAIL`         | 第一版管理者帳號 seed 或手動建立時使用                                               | 否                 |
+| `ADMIN_PASSWORD`      | 第一版管理者密碼 seed 或手動建立時使用                                               | 否                 |
+| `PRINT_AGENT_TOKEN`   | Print Agent 呼叫 Nuxt API 的 Bearer token                                            | 否                 |
 
 `SUPABASE_SECRET_KEY` 不可傳到 client、不可以出現在 public runtime config、不可以寫入 log。
 `PRINT_AGENT_TOKEN` 只能存在 server-side 與 Print Agent 環境，不可傳到瀏覽器。
@@ -116,7 +116,6 @@ supabase db push
 
 - Schema 來源以 `supabase/migrations/*.sql` 為準。
 - Seed 來源以 `supabase/seed.sql` 為準。
-- 目前尚未建立 Supabase migrations 或 seed。
 - 新增或修改資料表、enum、RLS policy、index，都必須附 migration。
 - 本地重建資料庫使用 `supabase db reset`，此指令會套用 migrations 並執行 seed。
 - 測試至少包含 domain 規則、API contract、狀態歷史 append 行為、顧客查詢限制、條碼批量更新行為、print job 狀態回報。
@@ -131,6 +130,8 @@ supabase db push
   API 合約文件。
 - [條碼與列印架構](docs/barcode-printing.md)
   條碼掃描、非同步列印與 Print Agent 架構文件。
+- [專案進度](docs/progress.md)
+  repo 現況、高層里程碑與下一步。
 - [AI 開發規則](docs/ai-dev-rules.md)
   AI 開發規則文件。
 - [AI 任務模板](docs/task-template.md)
