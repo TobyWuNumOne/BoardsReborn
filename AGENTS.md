@@ -2,9 +2,10 @@
 
 ## Project State
 
-- This repository is documentation-first. It currently contains product, domain, API, and workflow specs, but no Nuxt app scaffold, Supabase migrations, or runnable tests yet.
-- Treat the commands in [README.md](README.md) as planned workflow until the app and supporting files exist.
-- Do not present planned implementation details as if they are already built.
+- This repository is documentation-first, but it now includes a minimal Nuxt app scaffold and base frontend toolchain.
+- Supabase migrations, seed data, product API handlers, auth flows, print-agent implementation, and production workflows are not built yet.
+- Treat Supabase commands in [README.md](README.md) as planned workflow until `supabase/config.toml`, migrations, and seed files exist.
+- Do not present planned product implementation details as if they are already built.
 
 ## Read First
 
@@ -36,7 +37,8 @@
 
 ## Working Style For This Repo
 
-- Because the codebase is not scaffolded yet, prefer updating specs or creating the minimum required project files over inventing nonexistent implementation details.
+- Prefer updating specs or creating the minimum required project files over inventing nonexistent implementation details.
 - Before running planned commands such as `pnpm dev` or `supabase start`, confirm the required project files actually exist.
+- Current frontend toolchain baseline is documented in [README.md](README.md); keep it synchronized when changing Node, pnpm, Nuxt, Nitro, Vue, TypeScript, ESLint, or Vitest versions.
 - All list APIs must support filter, sort, and pagination, return `{ data, pageInfo }`, and use the shared error envelope defined in [docs/api-contract.md](docs/api-contract.md).
 - When finishing a task or PR, report changes, tests, migration impact, API contract impact, and open risks. Follow [docs/task-template.md](docs/task-template.md) when useful.

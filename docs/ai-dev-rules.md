@@ -36,6 +36,13 @@
 - 不可把 server-only key 傳到 client、console、response、log 或錯誤訊息。
 - 管理端 API 必須檢查 Supabase Auth session。
 
+## Frontend Toolchain
+
+- 前端工具鏈版本基準記錄在 [README](../README.md)。
+- 修改 Node、pnpm、Nuxt、Nitro、Vue、TypeScript、ESLint、Vitest 或 Nuxt module 版本時，必須同步更新 README 的版本基準。
+- 目前 Nuxt 與 Nitro 版本是為 Node 20.19 相容性固定；升級到要求 Node 22 的依賴鏈前，必須先明確更新 `engines.node` 與 README。
+- `package.json` 與 `pnpm-lock.yaml` 是實際安裝來源；文件不得宣稱未在 lockfile 中固定或驗證的版本。
+
 ## Status Rules
 
 - 狀態變更只能 append `status_history`。

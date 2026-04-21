@@ -1,0 +1,14 @@
+node_modules
+.pnpm-store
+.nuxt
+.output
+.data
+.nitro
+dist
+coverage
+*.log
+.DS_Store
+
+.env
+.env.*
+!.env.example
