@@ -6,6 +6,8 @@ node_modules
 .nitro
 dist
 coverage
+supabase/.branches
+supabase/.temp
 *.log
 .DS_Store
 

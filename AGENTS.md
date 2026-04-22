@@ -4,7 +4,7 @@
 
 - The authoritative source for current implementation status, completed milestones, and next steps is [docs/progress.md](docs/progress.md).
 - This repository combines documentation-first specs with a minimal Nuxt scaffold; do not present planned product implementation details as if they are already built.
-- Treat Supabase commands in [README.md](README.md) as planned workflow until `supabase/config.toml`, migrations, and seed files exist.
+- Supabase local config, baseline migration, and seed placeholder exist; product API handlers, auth flows, and print-agent implementation are still pending.
 
 ## Read First
 
@@ -46,7 +46,7 @@
 ## Working Style For This Repo
 
 - Prefer updating specs or creating the minimum required project files over inventing nonexistent implementation details.
-- Before running planned commands such as `pnpm dev` or `supabase start`, confirm the required project files actually exist.
+- Before running commands such as `pnpm dev` or `supabase start`, confirm the required project files and local tools actually exist.
 - Current frontend toolchain baseline is documented in [README.md](README.md); keep it synchronized when changing Node, pnpm, Nuxt, Nitro, Vue, TypeScript, ESLint, or Vitest versions.
 - All list APIs must support filter, sort, and pagination, return `{ data, pageInfo }`, and use the shared error envelope defined in [docs/api-contract.md](docs/api-contract.md).
 - When finishing a task or PR, report changes, tests, migration impact, API contract impact, and open risks. Follow [docs/task-template.md](docs/task-template.md) when useful.

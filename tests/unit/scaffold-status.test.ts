@@ -10,7 +10,7 @@ describe('useScaffoldStatus', () => {
         expect.objectContaining({ label: 'Nuxt app', state: 'ready' }),
         expect.objectContaining({ label: 'Tooling', state: 'ready' }),
         expect.objectContaining({ label: 'Server API', state: 'pending' }),
-        expect.objectContaining({ label: 'Supabase schema', state: 'pending' }),
+        expect.objectContaining({ label: 'Supabase schema', state: 'ready' }),
       ]),
     )
   })

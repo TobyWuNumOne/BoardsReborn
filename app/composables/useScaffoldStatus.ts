@@ -25,8 +25,8 @@ export function useScaffoldStatus(): ScaffoldStatusItem[] {
     },
     {
       label: 'Supabase schema',
-      state: 'pending',
-      detail: 'No migrations or seed data have been added in this scaffold task.',
+      state: 'ready',
+      detail: 'Initial migration, local config, and seed placeholder are in place.',
     },
   ]
 }

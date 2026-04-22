@@ -1,0 +1,3 @@
+-- Seed intentionally contains no real admin credentials.
+-- Create the first internal admin through Supabase Auth locally or in the
+-- hosted dashboard, then add a matching public.admin_profiles row if needed.

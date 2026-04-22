@@ -140,6 +140,7 @@ Response：
       "estimatedCompletionDate": "2026-04-26",
       "quoteTotalAmount": 700,
       "paymentReceived": true,
+      "paymentReceivedAt": "2026-04-20T08:00:00.000Z",
       "readyForPickupAt": null,
       "lastUpdatedAt": "2026-04-20T08:30:00.000Z"
     }
@@ -242,6 +243,7 @@ Response：
     "damageDescription": "鼻頭裂傷，疑似進水",
     "estimatedCompletionDate": "2026-04-26",
     "paymentReceived": true,
+    "paymentReceivedAt": "2026-04-20T08:00:00.000Z",
     "publicNote": "維修中",
     "internalNote": "注意鼻頭內層",
     "quoteItems": [
@@ -278,9 +280,10 @@ Response：
     "pickupInfo": {
       "notifiedAt": null,
       "pickedUpAt": null,
+      "pickupNote": null,
+      "storageFeeWarningAfterDays": 14,
       "daysWaitingForPickup": 0,
-      "isPickupOverdue": false,
-      "shippingFeeNote": null
+      "isPickupOverdue": false
     }
   }
 }
@@ -301,6 +304,8 @@ Request：
   "internalNote": "已與顧客確認追加費用"
 }
 ```
+
+`paymentReceived` 由 `false` 改為 `true` 時，Nuxt API 應同步寫入 `paymentReceivedAt`。由 `true` 改回 `false` 時，Nuxt API 應清空 `paymentReceivedAt`。第一版不提供付款明細、付款方式、收據或退款流程。
 
 Response：
 
@@ -344,6 +349,13 @@ Response：`201`
 ```
 
 若雪板進入 `DRYING`，回傳 `422 INVALID_STATUS_TRANSITION`。
+
+狀態 timestamp 維護規則：
+
+- 進入 `READY_FOR_PICKUP` 時，維護 `work_orders.ready_for_pickup_at`；若此操作同時代表已通知顧客，維護 `work_orders.notified_at`。
+- 進入 `DELIVERED` 時，維護 `work_orders.delivered_at` 與 `work_orders.picked_up_at`。
+- 進入 `CANCELLED` 時，維護 `work_orders.cancelled_at`。
+- 狀態可重複 append，例如 `REPAIRING` 到 `REPAIRING` 可用於補充事件備註。
 
 ### `POST /api/admin/work-orders/bulk-status`
 
@@ -642,6 +654,8 @@ Response：`201`
 
 ## Admin Pickup Info
 
+`pickupInfo` 是 API 層的邏輯 object；第一版資料來源是 `work_orders` 上的 inline pickup 欄位，不是獨立 `pickup_info` table。
+
 ### `PATCH /api/admin/work-orders/{id}/pickup-info`
 
 Request：
@@ -649,8 +663,9 @@ Request：
 ```json
 {
   "notifiedAt": "2026-04-27T03:00:00.000Z",
-  "shippingFeeNote": "通知後 14 天未取，每週加收 200，先手動備註。",
-  "pickupNote": "已電話通知"
+  "pickedUpAt": null,
+  "pickupNote": "已電話通知",
+  "storageFeeWarningAfterDays": 14
 }
 ```
 
@@ -662,13 +677,15 @@ Response：
     "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
     "notifiedAt": "2026-04-27T03:00:00.000Z",
     "pickedUpAt": null,
+    "pickupNote": "已電話通知",
+    "storageFeeWarningAfterDays": 14,
     "daysWaitingForPickup": 0,
-    "isPickupOverdue": false,
-    "shippingFeeNote": "通知後 14 天未取，每週加收 200，先手動備註。",
-    "pickupNote": "已電話通知"
+    "isPickupOverdue": false
   }
 }
 ```
+
+寄板費或取件費提醒第一版不做獨立欄位；需要時先寫入 `pickupNote` 或 `internalNote`。
 
 ## Admin Customers
 

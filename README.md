@@ -71,7 +71,20 @@ pnpm dev
 http://localhost:3000
 ```
 
-`@nuxtjs/supabase` module 會在 `SUPABASE_URL` 與 `SUPABASE_KEY` 有值時啟用。完整實作現況請見 [docs/progress.md](docs/progress.md)；在 `supabase/config.toml`、migrations 與 seed 尚未存在前，不要把 `supabase start` 當成必跑流程。
+`@nuxtjs/supabase` module 會在 `SUPABASE_URL` 與 `SUPABASE_KEY` 有值時啟用。完整實作現況請見 [docs/progress.md](docs/progress.md)；執行 Supabase 指令前請先確認 Supabase CLI 與 Docker daemon 可用。
+
+### Supabase 本地設定
+
+本 repo 已包含 Supabase local config、baseline migration 與 seed placeholder。請先在本機安裝 Supabase CLI 並確認 Docker 可用，再執行：
+
+```bash
+supabase start
+supabase db reset
+```
+
+`supabase db reset` 會套用 `supabase/migrations/*.sql` 並執行 `supabase/seed.sql`。第一版 seed 不包含真實 admin 帳密；請用 Supabase Auth dashboard、CLI 或 SQL 在本地/正式環境手動建立第一個內部使用者，再建立對應 `admin_profiles` row。
+
+本地 Supabase 啟動後，可用 `supabase status` 查看 API URL 與 anon key，填入 `.env` 的 `SUPABASE_URL` 與 `SUPABASE_KEY`。`SUPABASE_SECRET_KEY` 應使用 service role key，只能給 Nitro server API 使用，不可放進 public runtime config 或 client code。
 
 ## 環境變數
 
@@ -103,7 +116,7 @@ pnpm lint
 pnpm typecheck
 ```
 
-Supabase CLI 指令尚未啟用為本專案工具鏈的一部分；建立 `supabase/config.toml`、migrations 與 seed 後，預期會使用：
+Supabase CLI 指令：
 
 ```bash
 supabase start

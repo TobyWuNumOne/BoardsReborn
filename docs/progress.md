@@ -11,14 +11,15 @@
 
 ## 目前快照
 
-- 最後更新：2026-04-21
-- 目前階段：基礎 scaffold 已完成，準備進入第一批產品實作
+- 最後更新：2026-04-22
+- 目前階段：Supabase baseline 已建立，準備進入第一批產品 API 實作
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Vitest、`.env.example`。
   - `server/api/` 目錄已建立，但產品 API handlers 尚未實作。
-  - Supabase local config、migrations、seed、auth flows、print-agent implementation 與 production workflow 仍未建立。
+  - Supabase local config、initial migration 與 seed placeholder 已建立。
+  - Auth flows、print-agent implementation 與 production workflow 仍未建立。
 
 ## 里程碑
 
@@ -27,7 +28,7 @@
 | 核心規格與工程規則文件 | done | 產品、domain model、API contract、列印架構與 AI 規則文件已存在。 |
 | Minimal Nuxt scaffold 與基礎工具鏈 | done | app shell、lint、typecheck、Vitest baseline 已建立。 |
 | 進度追蹤與 agent workflow | done | 本文件、AGENTS 規範與一致性檢查 skill 已建立。 |
-| Supabase local stack 與 migrations | pending | 尚未建立 `supabase/config.toml`、migration baseline 或 seed。 |
+| Supabase local stack 與 migrations | done | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。 |
 | Admin work-order API | pending | `server/api/` 已存在，但產品 endpoint 尚未實作。 |
 | Auth 與管理端流程 | pending | Supabase Auth 與 admin session flow 尚未實作。 |
 | Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。 |
@@ -41,22 +42,23 @@
 - 基礎工具鏈與 scripts：pnpm、Nuxt CLI、ESLint、TypeScript、Vitest、typecheck。
 - `.env.example` 環境變數範本。
 - 一個基礎單元測試，明確固定 scaffold status 的 ready / pending 邊界。
+- Supabase baseline：local config、initial schema migration、private `repair-photos` bucket setup、RLS policies 與 seed placeholder。
 
 ## 目前焦點
 
-- 從 scaffold baseline 轉入第一批真實產品實作。
-- 在不假設 Supabase 檔案已存在的前提下，準備資料庫與 API 的起始工作。
+- 從 Supabase baseline 轉入第一批真實產品 API 實作。
+- 使用 migration 作為 schema 來源，開始實作 admin work-order API 與 auth/session flow。
 - 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
 
 ## 下一步
 
-- 在開始 schema work 時建立 `supabase/config.toml`、migration baseline 與 seed scaffolding。
 - 依照既有 contract 實作第一批 admin work-order API。
 - 補上 admin auth / session flow。
 - 定義 `print_jobs` API 與 Python Print Agent 起始骨架。
 
 ## 風險與阻塞
 
-- Schema、status rules 與 customer lookup restriction 已寫入規格，但尚未由實際 backend code 強制執行。
-- 在 local Supabase config 與 migrations 建立前，資料模型假設無法用真實資料庫驗證。
+- Schema 與部分 status rules 已寫入 migration，但尚未由 Nuxt server API 完整串接。
+- Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
+- Customer lookup restriction 已寫入規格，但尚未由實際 backend code 強制執行。
 - 印表機型號與 production printing workflow 尚未定案，因此 Print Agent 細節仍保持抽象。
