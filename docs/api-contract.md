@@ -46,12 +46,12 @@ token 無效時回傳 `401`。Print Agent token 只能存在 server-side 與 age
 
 所有 list API 都必須支援：
 
-| Query | 規則 |
-| --- | --- |
-| `page` | default `1` |
-| `pageSize` | default `20`，max `100` |
-| `sort` | 格式 `field:asc` 或 `field:desc` |
-| `filter` | 可依 endpoint 定義，也可使用明確 query，例如 `status=REPAIRING` |
+| Query      | 規則                                                            |
+| ---------- | --------------------------------------------------------------- |
+| `page`     | default `1`                                                     |
+| `pageSize` | default `20`，max `100`                                         |
+| `sort`     | 格式 `field:asc` 或 `field:desc`                                |
+| `filter`   | 可依 endpoint 定義，也可使用明確 query，例如 `status=REPAIRING` |
 
 List response 格式：
 
@@ -575,13 +575,13 @@ Response：
 
 Form fields：
 
-| Field | Required | Example |
-| --- | --- | --- |
-| `file` | yes | image file |
-| `photoType` | yes | `SPECIAL_CONDITION` |
-| `visibility` | no | `INTERNAL` |
-| `note` | no | `拆開後發現傷口更大` |
-| `takenAt` | no | `2026-04-20T09:00:00.000Z` |
+| Field        | Required | Example                    |
+| ------------ | -------- | -------------------------- |
+| `file`       | yes      | image file                 |
+| `photoType`  | yes      | `SPECIAL_CONDITION`        |
+| `visibility` | no       | `INTERNAL`                 |
+| `note`       | no       | `拆開後發現傷口更大`       |
+| `takenAt`    | no       | `2026-04-20T09:00:00.000Z` |
 
 Response：`201`
 

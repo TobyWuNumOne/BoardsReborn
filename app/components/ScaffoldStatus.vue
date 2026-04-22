@@ -1,20 +1,16 @@
 <script setup lang="ts">
-import type { ScaffoldStatusItem } from '~/composables/useScaffoldStatus'
+import type { ScaffoldStatusItem } from '~/composables/useScaffoldStatus';
 
 defineProps<{
-  items: ScaffoldStatusItem[]
-}>()
+  items: ScaffoldStatusItem[];
+}>();
 </script>
 
 <template>
   <section class="status-section" aria-labelledby="status-heading">
     <div class="section-heading">
-      <p class="section-kicker">
-        Project State
-      </p>
-      <h2 id="status-heading">
-        Scaffold baseline
-      </h2>
+      <p class="section-kicker">Project State</p>
+      <h2 id="status-heading">Scaffold baseline</h2>
     </div>
 
     <div class="status-grid">

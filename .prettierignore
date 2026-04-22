@@ -1,0 +1,17 @@
+node_modules
+.pnpm-store
+pnpm-lock.yaml
+.nuxt
+.output
+.data
+.nitro
+dist
+coverage
+supabase/.branches
+supabase/.temp
+*.log
+.DS_Store
+
+.env
+.env.*
+!.env.example

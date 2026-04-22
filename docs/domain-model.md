@@ -21,21 +21,21 @@
 
 對應 Supabase Auth 使用者。第一版只做單一管理者角色，但保留 profile table 方便未來擴充。
 
-| 欄位 | 型別 | 規則 |
-| --- | --- | --- |
-| `id` | `uuid` | Primary key，references `auth.users.id` |
-| `display_name` | `varchar(80)` | nullable |
-| `created_at` | `timestamptz` | required，default `now()` |
-| `updated_at` | `timestamptz` | required，default `now()` |
+| 欄位           | 型別          | 規則                                    |
+| -------------- | ------------- | --------------------------------------- |
+| `id`           | `uuid`        | Primary key，references `auth.users.id` |
+| `display_name` | `varchar(80)` | nullable                                |
+| `created_at`   | `timestamptz` | required，default `now()`               |
+| `updated_at`   | `timestamptz` | required，default `now()`               |
 
 ### `customers`
 
-| 欄位 | 型別 | 規則 |
-| --- | --- | --- |
-| `id` | `uuid` | Primary key |
-| `name` | `varchar(80)` | required |
-| `phone` | `varchar(32)` | required |
-| `note` | `text` | nullable，內部備註 |
+| 欄位         | 型別          | 規則                      |
+| ------------ | ------------- | ------------------------- |
+| `id`         | `uuid`        | Primary key               |
+| `name`       | `varchar(80)` | required                  |
+| `phone`      | `varchar(32)` | required                  |
+| `note`       | `text`        | nullable，內部備註        |
 | `created_at` | `timestamptz` | required，default `now()` |
 | `updated_at` | `timestamptz` | required，default `now()` |
 
@@ -53,35 +53,35 @@
 
 工單是第一版操作中心。因為第一版不做板子歷史維修彙整頁，也不需要跨工單追蹤同一塊板，所以板子資訊直接作為工單快照存在這張表。
 
-| 欄位 | 型別 | 規則 |
-| --- | --- | --- |
-| `id` | `uuid` | Primary key |
-| `paper_order_no` | `varchar(50)` | required，unique，沿用紙本工單號；trim 後長度 3 到 50 |
-| `customer_id` | `uuid` | required，references `customers.id` |
-| `board_type` | `board_type` | required，見 `BoardType` |
-| `board_brand` | `varchar(80)` | nullable |
-| `board_model` | `varchar(80)` | nullable |
-| `board_size_label` | `varchar(40)` | nullable，例如長度或尺寸描述 |
-| `board_color` | `varchar(40)` | nullable |
-| `board_serial_label` | `varchar(80)` | nullable，板上貼紙或人工標記 |
-| `intake_date` | `date` | required |
-| `damage_description` | `text` | nullable，可描述示意圖標記內容 |
-| `estimated_completion_date` | `date` | nullable，老闆檢查後填寫，可修改 |
-| `current_status` | `work_order_status` | required，latest status cache，不可取代 history |
-| `payment_received` | `boolean` | required，default `false` |
-| `payment_received_at` | `timestamptz` | nullable，由 Nuxt API 在付款標記為 true 時維護 |
-| `customer_confirmed_at` | `timestamptz` | nullable |
-| `ready_for_pickup_at` | `timestamptz` | nullable |
-| `notified_at` | `timestamptz` | nullable，完工通知時間 |
-| `picked_up_at` | `timestamptz` | nullable，取件時間 |
-| `delivered_at` | `timestamptz` | nullable |
-| `cancelled_at` | `timestamptz` | nullable |
-| `pickup_note` | `text` | nullable |
-| `storage_fee_warning_after_days` | `smallint` | required，default `14` |
-| `public_note` | `text` | nullable，顧客查詢可見 |
-| `internal_note` | `text` | nullable，內部備註 |
-| `created_at` | `timestamptz` | required，default `now()` |
-| `updated_at` | `timestamptz` | required，default `now()` |
+| 欄位                             | 型別                | 規則                                                  |
+| -------------------------------- | ------------------- | ----------------------------------------------------- |
+| `id`                             | `uuid`              | Primary key                                           |
+| `paper_order_no`                 | `varchar(50)`       | required，unique，沿用紙本工單號；trim 後長度 3 到 50 |
+| `customer_id`                    | `uuid`              | required，references `customers.id`                   |
+| `board_type`                     | `board_type`        | required，見 `BoardType`                              |
+| `board_brand`                    | `varchar(80)`       | nullable                                              |
+| `board_model`                    | `varchar(80)`       | nullable                                              |
+| `board_size_label`               | `varchar(40)`       | nullable，例如長度或尺寸描述                          |
+| `board_color`                    | `varchar(40)`       | nullable                                              |
+| `board_serial_label`             | `varchar(80)`       | nullable，板上貼紙或人工標記                          |
+| `intake_date`                    | `date`              | required                                              |
+| `damage_description`             | `text`              | nullable，可描述示意圖標記內容                        |
+| `estimated_completion_date`      | `date`              | nullable，老闆檢查後填寫，可修改                      |
+| `current_status`                 | `work_order_status` | required，latest status cache，不可取代 history       |
+| `payment_received`               | `boolean`           | required，default `false`                             |
+| `payment_received_at`            | `timestamptz`       | nullable，由 Nuxt API 在付款標記為 true 時維護        |
+| `customer_confirmed_at`          | `timestamptz`       | nullable                                              |
+| `ready_for_pickup_at`            | `timestamptz`       | nullable                                              |
+| `notified_at`                    | `timestamptz`       | nullable，完工通知時間                                |
+| `picked_up_at`                   | `timestamptz`       | nullable，取件時間                                    |
+| `delivered_at`                   | `timestamptz`       | nullable                                              |
+| `cancelled_at`                   | `timestamptz`       | nullable                                              |
+| `pickup_note`                    | `text`              | nullable                                              |
+| `storage_fee_warning_after_days` | `smallint`          | required，default `14`                                |
+| `public_note`                    | `text`              | nullable，顧客查詢可見                                |
+| `internal_note`                  | `text`              | nullable，內部備註                                    |
+| `created_at`                     | `timestamptz`       | required，default `now()`                             |
+| `updated_at`                     | `timestamptz`       | required，default `now()`                             |
 
 工單條碼內容直接等於 `paper_order_no`。掃碼查詢與批量更新時都以 `paper_order_no` 作為 payload。
 
@@ -101,14 +101,14 @@
 
 ### `status_history`
 
-| 欄位 | 型別 | 規則 |
-| --- | --- | --- |
-| `id` | `uuid` | Primary key |
-| `work_order_id` | `uuid` | required，references `work_orders.id` |
-| `status` | `work_order_status` | required，見 `WorkOrderStatus` |
-| `changed_at` | `timestamptz` | required，default `now()` |
-| `changed_by_user_id` | `uuid` | nullable，references `auth.users.id` |
-| `note` | `text` | nullable，第一版不強制 |
+| 欄位                 | 型別                | 規則                                  |
+| -------------------- | ------------------- | ------------------------------------- |
+| `id`                 | `uuid`              | Primary key                           |
+| `work_order_id`      | `uuid`              | required，references `work_orders.id` |
+| `status`             | `work_order_status` | required，見 `WorkOrderStatus`        |
+| `changed_at`         | `timestamptz`       | required，default `now()`             |
+| `changed_by_user_id` | `uuid`              | nullable，references `auth.users.id`  |
+| `note`               | `text`              | nullable，第一版不強制                |
 
 建議 index：
 
@@ -117,21 +117,21 @@
 
 ### `photos`
 
-| 欄位 | 型別 | 規則 |
-| --- | --- | --- |
-| `id` | `uuid` | Primary key |
-| `work_order_id` | `uuid` | required，references `work_orders.id` |
-| `photo_type` | `photo_type` | required，見 `PhotoType` |
-| `visibility` | `photo_visibility` | required，default `INTERNAL` |
-| `bucket` | `varchar(64)` | required，例如 `repair-photos` |
-| `path` | `text` | required，Storage object path |
-| `content_type` | `varchar(120)` | nullable |
-| `size_bytes` | `bigint` | nullable |
-| `metadata` | `jsonb` | nullable，保留圖片寬高、來源裝置等非核心資訊 |
-| `taken_at` | `timestamptz` | nullable |
-| `uploaded_by_user_id` | `uuid` | nullable，references `auth.users.id` |
-| `note` | `text` | nullable |
-| `created_at` | `timestamptz` | required，default `now()` |
+| 欄位                  | 型別               | 規則                                         |
+| --------------------- | ------------------ | -------------------------------------------- |
+| `id`                  | `uuid`             | Primary key                                  |
+| `work_order_id`       | `uuid`             | required，references `work_orders.id`        |
+| `photo_type`          | `photo_type`       | required，見 `PhotoType`                     |
+| `visibility`          | `photo_visibility` | required，default `INTERNAL`                 |
+| `bucket`              | `varchar(64)`      | required，例如 `repair-photos`               |
+| `path`                | `text`             | required，Storage object path                |
+| `content_type`        | `varchar(120)`     | nullable                                     |
+| `size_bytes`          | `bigint`           | nullable                                     |
+| `metadata`            | `jsonb`            | nullable，保留圖片寬高、來源裝置等非核心資訊 |
+| `taken_at`            | `timestamptz`      | nullable                                     |
+| `uploaded_by_user_id` | `uuid`             | nullable，references `auth.users.id`         |
+| `note`                | `text`             | nullable                                     |
+| `created_at`          | `timestamptz`      | required，default `now()`                    |
 
 檔案不可用 base64 存在資料庫。
 
@@ -142,15 +142,15 @@
 
 ### `quote_items`
 
-| 欄位 | 型別 | 規則 |
-| --- | --- | --- |
-| `id` | `uuid` | Primary key |
-| `work_order_id` | `uuid` | required，references `work_orders.id` |
-| `item_type` | `quote_item_type` | required，見 `QuoteItemType` |
-| `description` | `varchar(160)` | required |
-| `amount` | `integer` | required，新台幣整數，可為負數用於調整 |
-| `created_by_user_id` | `uuid` | nullable，references `auth.users.id` |
-| `created_at` | `timestamptz` | required，default `now()` |
+| 欄位                 | 型別              | 規則                                   |
+| -------------------- | ----------------- | -------------------------------------- |
+| `id`                 | `uuid`            | Primary key                            |
+| `work_order_id`      | `uuid`            | required，references `work_orders.id`  |
+| `item_type`          | `quote_item_type` | required，見 `QuoteItemType`           |
+| `description`        | `varchar(160)`    | required                               |
+| `amount`             | `integer`         | required，新台幣整數，可為負數用於調整 |
+| `created_by_user_id` | `uuid`            | nullable，references `auth.users.id`   |
+| `created_at`         | `timestamptz`     | required，default `now()`              |
 
 一張工單以一個初始報價為主，可有多筆追加或調整項目。最終總價由 `quote_items.amount` 加總。
 
@@ -165,22 +165,22 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 
 非同步標籤列印任務。建立工單時應建立一筆初始列印任務；補印時新增另一筆任務，不覆蓋舊任務。
 
-| 欄位 | 型別 | 規則 |
-| --- | --- | --- |
-| `id` | `uuid` | Primary key |
-| `work_order_id` | `uuid` | required，references `work_orders.id` |
-| `paper_order_no` | `varchar(50)` | required，列印 payload 來源，應等於工單的 `paper_order_no` |
-| `status` | `print_job_status` | required，見 `PrintJobStatus` |
-| `label_language` | `label_language` | required，見 `LabelLanguage` |
-| `label_payload` | `jsonb` | required，標籤內容，例如工單號、板種、顧客姓名 |
-| `attempt_count` | `smallint` | required，default `0` |
-| `last_error` | `text` | nullable，最後一次錯誤原因 |
-| `claimed_by` | `varchar(80)` | nullable，處理中的 agent 名稱 |
-| `claimed_at` | `timestamptz` | nullable，agent 取走任務時間 |
-| `printed_at` | `timestamptz` | nullable，agent 回報列印完成或印表機 ready 時間 |
-| `created_by_user_id` | `uuid` | nullable，references `auth.users.id` |
-| `created_at` | `timestamptz` | required，default `now()` |
-| `updated_at` | `timestamptz` | required，default `now()` |
+| 欄位                 | 型別               | 規則                                                       |
+| -------------------- | ------------------ | ---------------------------------------------------------- |
+| `id`                 | `uuid`             | Primary key                                                |
+| `work_order_id`      | `uuid`             | required，references `work_orders.id`                      |
+| `paper_order_no`     | `varchar(50)`      | required，列印 payload 來源，應等於工單的 `paper_order_no` |
+| `status`             | `print_job_status` | required，見 `PrintJobStatus`                              |
+| `label_language`     | `label_language`   | required，見 `LabelLanguage`                               |
+| `label_payload`      | `jsonb`            | required，標籤內容，例如工單號、板種、顧客姓名             |
+| `attempt_count`      | `smallint`         | required，default `0`                                      |
+| `last_error`         | `text`             | nullable，最後一次錯誤原因                                 |
+| `claimed_by`         | `varchar(80)`      | nullable，處理中的 agent 名稱                              |
+| `claimed_at`         | `timestamptz`      | nullable，agent 取走任務時間                               |
+| `printed_at`         | `timestamptz`      | nullable，agent 回報列印完成或印表機 ready 時間            |
+| `created_by_user_id` | `uuid`             | nullable，references `auth.users.id`                       |
+| `created_at`         | `timestamptz`      | required，default `now()`                                  |
+| `updated_at`         | `timestamptz`      | required，default `now()`                                  |
 
 建議 index：
 

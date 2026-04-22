@@ -47,6 +47,6 @@
 
 - Prefer updating specs or creating the minimum required project files over inventing nonexistent implementation details.
 - Before running commands such as `pnpm dev` or `supabase start`, confirm the required project files and local tools actually exist.
-- Current frontend toolchain baseline is documented in [README.md](README.md); keep it synchronized when changing Node, pnpm, Nuxt, Nitro, Vue, TypeScript, ESLint, or Vitest versions.
+- Current frontend toolchain baseline is documented in [README.md](README.md); keep it synchronized when changing Node, pnpm, Nuxt, Nitro, Vue, TypeScript, ESLint, Prettier, or Vitest versions.
 - All list APIs must support filter, sort, and pagination, return `{ data, pageInfo }`, and use the shared error envelope defined in [docs/api-contract.md](docs/api-contract.md).
 - When finishing a task or PR, report changes, tests, migration impact, API contract impact, and open risks. Follow [docs/task-template.md](docs/task-template.md) when useful.

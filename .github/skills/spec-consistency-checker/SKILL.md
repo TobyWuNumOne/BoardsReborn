@@ -18,13 +18,13 @@ Use this skill before and after changes that can desynchronize the BoardsReborn 
 
 ## Quick Mapping
 
-| Change type | Required checks |
-| --- | --- |
-| Schema, enum, RLS, index | [ai-dev-rules.md](../../../docs/ai-dev-rules.md), [domain-model.md](../../../docs/domain-model.md), migration file, and [api-contract.md](../../../docs/api-contract.md) if API-facing |
-| API behavior or auth | [ai-dev-rules.md](../../../docs/ai-dev-rules.md), [api-contract.md](../../../docs/api-contract.md), and [domain-model.md](../../../docs/domain-model.md) if fields or enums changed |
-| Scope or workflow | [product.md](../../../docs/product.md), [ai-dev-rules.md](../../../docs/ai-dev-rules.md), and [barcode-printing.md](../../../docs/barcode-printing.md) if print or barcode-related |
-| Tooling baseline or repo status | [progress.md](../../../docs/progress.md) first, then short summary checks in [README.md](../../../README.md) and [AGENTS.md](../../../AGENTS.md) |
-| Print jobs or customer lookup | [barcode-printing.md](../../../docs/barcode-printing.md), [api-contract.md](../../../docs/api-contract.md), [ai-dev-rules.md](../../../docs/ai-dev-rules.md), and [domain-model.md](../../../docs/domain-model.md) if schema changed |
+| Change type                     | Required checks                                                                                                                                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Schema, enum, RLS, index        | [ai-dev-rules.md](../../../docs/ai-dev-rules.md), [domain-model.md](../../../docs/domain-model.md), migration file, and [api-contract.md](../../../docs/api-contract.md) if API-facing                                               |
+| API behavior or auth            | [ai-dev-rules.md](../../../docs/ai-dev-rules.md), [api-contract.md](../../../docs/api-contract.md), and [domain-model.md](../../../docs/domain-model.md) if fields or enums changed                                                  |
+| Scope or workflow               | [product.md](../../../docs/product.md), [ai-dev-rules.md](../../../docs/ai-dev-rules.md), and [barcode-printing.md](../../../docs/barcode-printing.md) if print or barcode-related                                                   |
+| Tooling baseline or repo status | [progress.md](../../../docs/progress.md) first, then short summary checks in [README.md](../../../README.md) and [AGENTS.md](../../../AGENTS.md)                                                                                     |
+| Print jobs or customer lookup   | [barcode-printing.md](../../../docs/barcode-printing.md), [api-contract.md](../../../docs/api-contract.md), [ai-dev-rules.md](../../../docs/ai-dev-rules.md), and [domain-model.md](../../../docs/domain-model.md) if schema changed |
 
 ## Procedure
 

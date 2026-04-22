@@ -16,30 +16,30 @@
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
-  - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Vitest、`.env.example`。
+  - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
   - `server/api/` 目錄已建立，但產品 API handlers 尚未實作。
   - Supabase local config、initial migration 與 seed placeholder 已建立。
   - Auth flows、print-agent implementation 與 production workflow 仍未建立。
 
 ## 里程碑
 
-| 里程碑 | 狀態 | 說明 |
-| --- | --- | --- |
-| 核心規格與工程規則文件 | done | 產品、domain model、API contract、列印架構與 AI 規則文件已存在。 |
-| Minimal Nuxt scaffold 與基礎工具鏈 | done | app shell、lint、typecheck、Vitest baseline 已建立。 |
-| 進度追蹤與 agent workflow | done | 本文件、AGENTS 規範與一致性檢查 skill 已建立。 |
-| Supabase local stack 與 migrations | done | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。 |
-| Admin work-order API | pending | `server/api/` 已存在，但產品 endpoint 尚未實作。 |
-| Auth 與管理端流程 | pending | Supabase Auth 與 admin session flow 尚未實作。 |
-| Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。 |
-| Customer lookup flow | pending | Public lookup contract 已定義，但尚未實作。 |
-| Production workflow 與部署硬化 | pending | 超出 scaffold baseline 的建置與部署流程尚未建立。 |
+| 里程碑                                 | 狀態    | 說明                                                                            |
+| -------------------------------------- | ------- | ------------------------------------------------------------------------------- |
+| 核心規格與工程規則文件                 | done    | 產品、domain model、API contract、列印架構與 AI 規則文件已存在。                |
+| Minimal Nuxt scaffold 與基礎工具鏈     | done    | app shell、lint、typecheck、Vitest baseline 已建立。                            |
+| 進度追蹤與 agent workflow              | done    | 本文件、AGENTS 規範與一致性檢查 skill 已建立。                                  |
+| Supabase local stack 與 migrations     | done    | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。 |
+| Admin work-order API                   | pending | `server/api/` 已存在，但產品 endpoint 尚未實作。                                |
+| Auth 與管理端流程                      | pending | Supabase Auth 與 admin session flow 尚未實作。                                  |
+| Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。                    |
+| Customer lookup flow                   | pending | Public lookup contract 已定義，但尚未實作。                                     |
+| Production workflow 與部署硬化         | pending | 超出 scaffold baseline 的建置與部署流程尚未建立。                               |
 
 ## 已完成
 
 - 產品範圍、資料模型、API contract、條碼列印架構與 AI 開發規則文件。
 - Minimal Nuxt 4 scaffold，包含 page、layout、component 與 composable 結構。
-- 基礎工具鏈與 scripts：pnpm、Nuxt CLI、ESLint、TypeScript、Vitest、typecheck。
+- 基礎工具鏈與 scripts：pnpm、Nuxt CLI、ESLint、Prettier、TypeScript、Vitest、typecheck。
 - `.env.example` 環境變數範本。
 - 一個基礎單元測試，明確固定 scaffold status 的 ready / pending 邊界。
 - Supabase baseline：local config、initial schema migration、private `repair-photos` bucket setup、RLS policies 與 seed placeholder。

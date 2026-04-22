@@ -1,9 +1,9 @@
-export type ScaffoldStatusState = 'ready' | 'pending'
+export type ScaffoldStatusState = 'ready' | 'pending';
 
 export interface ScaffoldStatusItem {
-  label: string
-  state: ScaffoldStatusState
-  detail: string
+  label: string;
+  state: ScaffoldStatusState;
+  detail: string;
 }
 
 export function useScaffoldStatus(): ScaffoldStatusItem[] {
@@ -28,5 +28,5 @@ export function useScaffoldStatus(): ScaffoldStatusItem[] {
       state: 'ready',
       detail: 'Initial migration, local config, and seed placeholder are in place.',
     },
-  ]
+  ];
 }

@@ -1,6 +1,6 @@
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY
-const supabaseModuleEnabled = Boolean(supabaseUrl && supabaseKey)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
+const supabaseModuleEnabled = Boolean(supabaseUrl && supabaseKey);
 const supabaseConfig = supabaseModuleEnabled
   ? {
       supabase: {
@@ -9,7 +9,7 @@ const supabaseConfig = supabaseModuleEnabled
         redirect: false,
       },
     }
-  : {}
+  : {};
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-21',
@@ -39,4 +39,4 @@ export default defineNuxtConfig({
   },
 
   ...supabaseConfig,
-})
+});
