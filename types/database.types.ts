@@ -54,6 +54,7 @@ export type Database = {
           created_at: string;
           id: string;
           name: string;
+          normalized_phone: string | null;
           note: string | null;
           phone: string;
           updated_at: string;
@@ -62,6 +63,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           name: string;
+          normalized_phone?: string | null;
           note?: string | null;
           phone: string;
           updated_at?: string;
@@ -70,6 +72,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           name?: string;
+          normalized_phone?: string | null;
           note?: string | null;
           phone?: string;
           updated_at?: string;
@@ -123,6 +126,13 @@ export type Database = {
           work_order_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'photos_work_order_id_fkey';
+            columns: ['work_order_id'];
+            isOneToOne: false;
+            referencedRelation: 'admin_work_order_list';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'photos_work_order_id_fkey';
             columns: ['work_order_id'];
@@ -186,6 +196,13 @@ export type Database = {
             foreignKeyName: 'print_jobs_work_order_paper_order_fk';
             columns: ['work_order_id', 'paper_order_no'];
             isOneToOne: false;
+            referencedRelation: 'admin_work_order_list';
+            referencedColumns: ['id', 'paper_order_no'];
+          },
+          {
+            foreignKeyName: 'print_jobs_work_order_paper_order_fk';
+            columns: ['work_order_id', 'paper_order_no'];
+            isOneToOne: false;
             referencedRelation: 'work_orders';
             referencedColumns: ['id', 'paper_order_no'];
           },
@@ -224,6 +241,13 @@ export type Database = {
             foreignKeyName: 'quote_items_work_order_id_fkey';
             columns: ['work_order_id'];
             isOneToOne: false;
+            referencedRelation: 'admin_work_order_list';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'quote_items_work_order_id_fkey';
+            columns: ['work_order_id'];
+            isOneToOne: false;
             referencedRelation: 'work_orders';
             referencedColumns: ['id'];
           },
@@ -255,6 +279,13 @@ export type Database = {
           work_order_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'status_history_work_order_id_fkey';
+            columns: ['work_order_id'];
+            isOneToOne: false;
+            referencedRelation: 'admin_work_order_list';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'status_history_work_order_id_fkey';
             columns: ['work_order_id'];
@@ -364,10 +395,60 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      admin_work_order_list: {
+        Row: {
+          board_size_label: string | null;
+          board_type: Database['public']['Enums']['board_type'] | null;
+          created_at: string | null;
+          current_status: Database['public']['Enums']['work_order_status'] | null;
+          customer_id: string | null;
+          customer_name: string | null;
+          customer_normalized_phone: string | null;
+          customer_phone: string | null;
+          estimated_completion_date: string | null;
+          id: string | null;
+          intake_date: string | null;
+          is_overdue_estimated_completion: boolean | null;
+          is_pickup_overdue: boolean | null;
+          latest_received_at: string | null;
+          notified_at: string | null;
+          paper_order_no: string | null;
+          payment_received: boolean | null;
+          payment_received_at: string | null;
+          picked_up_at: string | null;
+          quote_total_amount: number | null;
+          ready_for_pickup_at: string | null;
+          storage_fee_warning_after_days: number | null;
+          updated_at: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'work_orders_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Functions: {
-      [_ in never]: never;
+      create_admin_work_order: {
+        Args: {
+          p_board: Json;
+          p_created_by_user_id?: string;
+          p_customer?: Json;
+          p_customer_id?: string;
+          p_customer_mode: string;
+          p_quote_items: Json;
+          p_work_order: Json;
+        };
+        Returns: Json;
+      };
+      normalize_tw_mobile_phone: {
+        Args: { raw_phone: string };
+        Returns: string;
+      };
     };
     Enums: {
       board_type: 'SURFBOARD' | 'SUP' | 'SNOWBOARD';

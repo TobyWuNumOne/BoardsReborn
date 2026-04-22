@@ -30,24 +30,27 @@
 
 ### `customers`
 
-| 欄位         | 型別          | 規則                      |
-| ------------ | ------------- | ------------------------- |
-| `id`         | `uuid`        | Primary key               |
-| `name`       | `varchar(80)` | required                  |
-| `phone`      | `varchar(32)` | required                  |
-| `note`       | `text`        | nullable，內部備註        |
-| `created_at` | `timestamptz` | required，default `now()` |
-| `updated_at` | `timestamptz` | required，default `now()` |
+| 欄位               | 型別          | 規則                        |
+| ------------------ | ------------- | --------------------------- |
+| `id`               | `uuid`        | Primary key                 |
+| `name`             | `varchar(80)` | required                    |
+| `phone`            | `varchar(32)` | required，儲存正規化手機    |
+| `normalized_phone` | `varchar(10)` | generated，台灣手機正規化值 |
+| `note`             | `text`        | nullable，內部備註          |
+| `created_at`       | `timestamptz` | required，default `now()`   |
+| `updated_at`       | `timestamptz` | required，default `now()`   |
 
 建議 constraints：
 
 - `check (length(trim(phone)) > 0)`
+- `normalized_phone is not null`
 
 建議 index：
 
 - `customers(phone)`
+- `customers(normalized_phone)`，不加 unique constraint
 
-顧客查詢需要手機後四碼時，不另外存欄位；由 Nuxt server API 正規化 `customers.phone` 後取末四碼比對。
+電話正規化第一版只接受可判定為台灣手機的號碼。輸入先移除非數字字元；`09xxxxxxxx` 保持原值，`8869xxxxxxxx` 轉為 `09xxxxxxxx`。其他格式視為 validation error。顧客查詢需要手機後四碼時，由 Nuxt server API 使用同一正規化規則後取末四碼比對。
 
 ### `work_orders`
 
@@ -163,7 +166,7 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 
 ### `print_jobs`
 
-非同步標籤列印任務。建立工單時應建立一筆初始列印任務；補印時新增另一筆任務，不覆蓋舊任務。
+非同步標籤列印任務。工單主資料建立不依賴列印任務；列印由後續獨立流程建立 `print_jobs`，補印時新增另一筆任務，不覆蓋舊任務。
 
 | 欄位                 | 型別               | 規則                                                       |
 | -------------------- | ------------------ | ---------------------------------------------------------- |
@@ -281,7 +284,7 @@ TypeScript 名稱：`LabelLanguage`
 
 ## 列印任務規則
 
-- 建立工單時，Nuxt API 應建立一筆 `print_jobs`，狀態為 `QUEUED`。
+- 建立工單主資料時不要求同步建立 `print_jobs`；列印任務由後續獨立流程建立。
 - 補印時，應新增一筆 `print_jobs`，不可重用舊任務。
 - Print Agent 取走任務後，狀態更新為 `PROCESSING`，並設定 `claimed_by` 與 `claimed_at`。
 - 寫入 USB 成功只能表示 `SENT_TO_PRINTER`，不可直接等同貼紙已成功吐出。
@@ -299,7 +302,7 @@ TypeScript 名稱：`LabelLanguage`
 - `pickupOverdue`：
   `work_orders.notified_at` 已存在、`work_orders.picked_up_at` 為空，且通知後已超過 `storage_fee_warning_after_days`。
 - `staleReceived`：
-  `current_status = RECEIVED`，且距離最近一次 `RECEIVED` 狀態變更時間已超過店內設定天數。
+  `current_status = RECEIVED`，且距離最近一次 `RECEIVED` 狀態變更時間已超過店內設定天數。第一版預設門檻為 7 天，由 API 常數集中管理。
 
 ## RLS 原則
 

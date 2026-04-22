@@ -105,6 +105,8 @@ List response 格式：
 
 `fieldErrors` 統一使用 `Record<string, string[]>` 結構。已知 API 錯誤應由 server-side typed error classes 表示，route handler 不應散落以字串判斷錯誤類型。
 
+第一版 query、body、path validation 失敗一律回 `422 VALIDATION_ERROR`。紙本工單號唯一性衝突回 `409 CONFLICT`。查無 customer 或 work order 回 `404 NOT_FOUND`。
+
 ## Admin Work Orders
 
 API 中的 `board` object 是 `work_orders` 上的板子快照欄位組合，不代表有獨立 `boards` table。
@@ -123,6 +125,18 @@ Query examples：
 /api/admin/work-orders?q=BR-2026-0001
 /api/admin/work-orders?customerPhone=0912345678
 ```
+
+`q` 第一版只搜尋 `paper_order_no`。`customerPhone` 會先依台灣手機正規化規則轉為 `09xxxxxxxx` 後查詢。`staleReceived=true` 第一版使用 7 天門檻。
+
+第一版允許排序欄位：
+
+- `created_at`
+- `updated_at`
+- `intake_date`
+- `estimated_completion_date`
+- `current_status`
+- `paper_order_no`
+- `quote_total_amount`
 
 Response：
 
@@ -164,12 +178,13 @@ Response：
 
 ### `POST /api/admin/work-orders`
 
-建立工單。建立成功時，系統必須同時建立第一筆 `status_history`。
+建立工單。建立成功時，系統必須以單一 transaction 建立核心工單資料與第一筆 `status_history`。
 
 Request：
 
 ```json
 {
+  "customerMode": "create",
   "customer": {
     "name": "王小明",
     "phone": "0912345678",
@@ -202,6 +217,24 @@ Request：
 }
 ```
 
+若要重用既有顧客，request 使用：
+
+```json
+{
+  "customerMode": "reuse",
+  "customerId": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
+  "board": {
+    "boardType": "SURFBOARD",
+    "sizeLabel": "6'2"
+  },
+  "workOrder": {
+    "paperOrderNo": "BR-2026-0001",
+    "intakeDate": "2026-04-20"
+  },
+  "quoteItems": []
+}
+```
+
 Response：`201`
 
 ```json
@@ -211,17 +244,12 @@ Response：`201`
     "paperOrderNo": "BR-2026-0001",
     "currentStatus": "RECEIVED",
     "quoteTotalAmount": 500,
-    "printJob": {
-      "id": "a347e6ea-a025-48ef-9ca1-bec9d63a5676",
-      "status": "QUEUED",
-      "labelLanguage": "TSPL"
-    },
     "createdAt": "2026-04-20T08:00:00.000Z"
   }
 }
 ```
 
-建立工單成功後，Nuxt API 應建立一筆初始 `print_job`。列印失敗不應影響工單建立成功；使用者可從補印流程建立新的列印任務。
+建立工單不建立 `print_jobs`。列印任務由後續獨立流程建立；列印流程失敗不可影響工單主資料建立成功。
 
 ### `GET /api/admin/work-orders/{id}`
 
@@ -297,7 +325,17 @@ Response：
 
 ### `PATCH /api/admin/work-orders/{id}`
 
-更新工單基本欄位。不可透過此 endpoint 更新狀態；狀態必須走 append history endpoint。
+更新工單非狀態欄位。不可透過此 endpoint 更新狀態；狀態必須走 append history endpoint。
+
+第一版只允許更新：
+
+- `estimatedCompletionDate`
+- `damageDescription`
+- `paymentReceived`
+- `publicNote`
+- `internalNote`
+- `pickupNote`
+- `storageFeeWarningAfterDays`
 
 Request：
 
@@ -695,13 +733,14 @@ Response：
 
 ## Admin Customers
 
-### `GET /api/admin/customers`
+### `GET /api/admin/customers/lookup`
 
-Query examples：
+建單流程用的顧客候選查詢；不是完整 customer list / CRUD。
+
+Query：
 
 ```text
-/api/admin/customers?q=王&page=1&pageSize=20
-/api/admin/customers?phone=0912345678
+/api/admin/customers/lookup?phone=0912345678
 ```
 
 Response：
@@ -713,24 +752,14 @@ Response：
       "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
       "name": "王小明",
       "phone": "0912345678",
-      "workOrderCount": 2,
+      "note": "偏好下午聯絡",
       "createdAt": "2026-04-20T08:00:00.000Z"
     }
-  ],
-  "pageInfo": {
-    "page": 1,
-    "pageSize": 20,
-    "total": 1,
-    "totalPages": 1,
-    "hasNextPage": false,
-    "hasPreviousPage": false
-  }
+  ]
 }
 ```
 
-### `GET /api/admin/customers/{id}/work-orders`
-
-回傳某位顧客的工單列表，格式同 `GET /api/admin/work-orders`。
+此 endpoint 只依正規化後的台灣手機號碼查候選顧客；不提供顧客修改、刪除或完整列表。
 
 ## Public Work Order Lookup
 

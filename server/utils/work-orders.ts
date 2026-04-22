@@ -1,0 +1,466 @@
+import { InternalServerError, NotFoundError } from './api-errors';
+import { throwMappedSupabaseError } from './supabase-errors';
+import {
+  STALE_RECEIVED_DAYS,
+  type CreateWorkOrderInput,
+  type PatchWorkOrderInput,
+  type WorkOrderListQuery,
+} from './work-order-validation';
+import type { UserScopedSupabaseClient } from './supabase-clients';
+import type { Database, Json } from '../../types/database.types';
+
+type AdminWorkOrderListRow = Database['public']['Views']['admin_work_order_list']['Row'];
+type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
+type CustomerRow = Database['public']['Tables']['customers']['Row'];
+type QuoteItemRow = Pick<
+  Database['public']['Tables']['quote_items']['Row'],
+  'amount' | 'created_at' | 'description' | 'id' | 'item_type'
+>;
+type StatusHistoryRow = Pick<
+  Database['public']['Tables']['status_history']['Row'],
+  'changed_at' | 'id' | 'note' | 'status'
+>;
+
+type WorkOrderWithCustomer = WorkOrderRow & {
+  customers: Pick<CustomerRow, 'id' | 'name' | 'phone'> | null;
+};
+
+export interface PageInfo {
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const toJsonObject = (value: unknown): Json => value as Json;
+
+const calculatePageInfo = (page: number, pageSize: number, total: number): PageInfo => {
+  const totalPages = Math.ceil(total / pageSize);
+
+  return {
+    hasNextPage: page < totalPages,
+    hasPreviousPage: page > 1,
+    page,
+    pageSize,
+    total,
+    totalPages,
+  };
+};
+
+const calculateQuoteTotal = (quoteItems: QuoteItemRow[]): number =>
+  quoteItems.reduce((total, quoteItem) => total + quoteItem.amount, 0);
+
+const calculateDaysWaitingForPickup = (
+  notifiedAt: string | null,
+  pickedUpAt: string | null,
+  now = new Date(),
+): number => {
+  if (!notifiedAt || pickedUpAt) {
+    return 0;
+  }
+
+  const notifiedAtDate = new Date(notifiedAt);
+
+  if (Number.isNaN(notifiedAtDate.getTime())) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor((now.getTime() - notifiedAtDate.getTime()) / DAY_IN_MS));
+};
+
+const isPickupOverdue = (
+  notifiedAt: string | null,
+  pickedUpAt: string | null,
+  storageFeeWarningAfterDays: number,
+  now = new Date(),
+): boolean => {
+  if (!notifiedAt || pickedUpAt) {
+    return false;
+  }
+
+  return calculateDaysWaitingForPickup(notifiedAt, pickedUpAt, now) >= storageFeeWarningAfterDays;
+};
+
+export const mapWorkOrderListRow = (row: AdminWorkOrderListRow) => ({
+  board: {
+    boardType: row.board_type,
+    sizeLabel: row.board_size_label,
+  },
+  currentStatus: row.current_status,
+  customer: {
+    id: row.customer_id,
+    name: row.customer_name,
+    phone: row.customer_phone,
+  },
+  estimatedCompletionDate: row.estimated_completion_date,
+  id: row.id,
+  intakeDate: row.intake_date,
+  lastUpdatedAt: row.updated_at,
+  paperOrderNo: row.paper_order_no,
+  paymentReceived: row.payment_received,
+  paymentReceivedAt: row.payment_received_at,
+  quoteTotalAmount: row.quote_total_amount,
+  readyForPickupAt: row.ready_for_pickup_at,
+});
+
+const mapQuoteItem = (quoteItem: QuoteItemRow) => ({
+  amount: quoteItem.amount,
+  createdAt: quoteItem.created_at,
+  description: quoteItem.description,
+  id: quoteItem.id,
+  itemType: quoteItem.item_type,
+});
+
+const mapStatusHistory = (statusHistory: StatusHistoryRow) => ({
+  changedAt: statusHistory.changed_at,
+  id: statusHistory.id,
+  note: statusHistory.note,
+  status: statusHistory.status,
+});
+
+const mapWorkOrderDetail = (
+  workOrder: WorkOrderWithCustomer,
+  quoteItems: QuoteItemRow[],
+  statusHistory: StatusHistoryRow[],
+) => {
+  if (!workOrder.customers) {
+    throw new InternalServerError();
+  }
+
+  return {
+    board: {
+      boardType: workOrder.board_type,
+      brand: workOrder.board_brand,
+      color: workOrder.board_color,
+      model: workOrder.board_model,
+      serialLabel: workOrder.board_serial_label,
+      sizeLabel: workOrder.board_size_label,
+    },
+    currentStatus: workOrder.current_status,
+    customer: {
+      id: workOrder.customers.id,
+      name: workOrder.customers.name,
+      phone: workOrder.customers.phone,
+    },
+    damageDescription: workOrder.damage_description,
+    estimatedCompletionDate: workOrder.estimated_completion_date,
+    id: workOrder.id,
+    intakeDate: workOrder.intake_date,
+    internalNote: workOrder.internal_note,
+    paperOrderNo: workOrder.paper_order_no,
+    paymentReceived: workOrder.payment_received,
+    paymentReceivedAt: workOrder.payment_received_at,
+    pickupInfo: {
+      daysWaitingForPickup: calculateDaysWaitingForPickup(
+        workOrder.notified_at,
+        workOrder.picked_up_at,
+      ),
+      isPickupOverdue: isPickupOverdue(
+        workOrder.notified_at,
+        workOrder.picked_up_at,
+        workOrder.storage_fee_warning_after_days,
+      ),
+      notifiedAt: workOrder.notified_at,
+      pickedUpAt: workOrder.picked_up_at,
+      pickupNote: workOrder.pickup_note,
+      storageFeeWarningAfterDays: workOrder.storage_fee_warning_after_days,
+    },
+    publicNote: workOrder.public_note,
+    quoteItems: quoteItems.map(mapQuoteItem),
+    quoteTotalAmount: calculateQuoteTotal(quoteItems),
+    statusHistory: statusHistory.map(mapStatusHistory),
+  };
+};
+
+const assertCreateResult = (value: unknown) => {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('id' in value) ||
+    !('paperOrderNo' in value) ||
+    !('currentStatus' in value) ||
+    !('quoteTotalAmount' in value) ||
+    !('createdAt' in value)
+  ) {
+    throw new InternalServerError();
+  }
+
+  return value as {
+    createdAt: string;
+    currentStatus: 'RECEIVED';
+    id: string;
+    paperOrderNo: string;
+    quoteTotalAmount: number;
+  };
+};
+
+export const lookupAdminCustomers = async (
+  supabase: UserScopedSupabaseClient,
+  normalizedPhone: string,
+) => {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('id, name, phone, note, created_at')
+    .eq('normalized_phone', normalizedPhone)
+    .order('updated_at', { ascending: false })
+    .limit(10);
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  return {
+    data: (data ?? []).map((customer) => ({
+      createdAt: customer.created_at,
+      id: customer.id,
+      name: customer.name,
+      note: customer.note,
+      phone: customer.phone,
+    })),
+  };
+};
+
+export const listAdminWorkOrders = async (
+  supabase: UserScopedSupabaseClient,
+  query: WorkOrderListQuery,
+) => {
+  const from = (query.page - 1) * query.pageSize;
+  const to = from + query.pageSize - 1;
+  let request = supabase.from('admin_work_order_list').select('*', { count: 'exact' });
+
+  if (query.filters.status) {
+    request = request.eq('current_status', query.filters.status);
+  }
+
+  if (query.q) {
+    request = request.ilike('paper_order_no', `%${query.q}%`);
+  }
+
+  if (query.customerPhone) {
+    request = request.eq('customer_normalized_phone', query.customerPhone);
+  }
+
+  if (query.filters.overdueEstimatedCompletion) {
+    request = request.eq('is_overdue_estimated_completion', true);
+  }
+
+  if (query.filters.pickupOverdue) {
+    request = request.eq('is_pickup_overdue', true);
+  }
+
+  if (query.filters.staleReceived) {
+    request = request
+      .eq('current_status', 'RECEIVED')
+      .lt('latest_received_at', query.staleReceivedBefore);
+  }
+
+  const { count, data, error } = await request
+    .order(query.sort.field, {
+      ascending: query.sort.direction === 'asc',
+      nullsFirst: false,
+    })
+    .range(from, to);
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  const total = count ?? 0;
+
+  return {
+    data: (data ?? []).map(mapWorkOrderListRow),
+    pageInfo: calculatePageInfo(query.page, query.pageSize, total),
+  };
+};
+
+export const createAdminWorkOrder = async (
+  supabase: UserScopedSupabaseClient,
+  input: CreateWorkOrderInput,
+  userId: string,
+) => {
+  const { data, error } = await supabase.rpc('create_admin_work_order', {
+    p_board: toJsonObject(input.board),
+    p_created_by_user_id: userId,
+    p_customer: toJsonObject(input.customer ?? null),
+    p_customer_id: input.customerId,
+    p_customer_mode: input.customerMode,
+    p_quote_items: toJsonObject(input.quoteItems),
+    p_work_order: toJsonObject(input.workOrder),
+  });
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  return {
+    data: assertCreateResult(data),
+  };
+};
+
+export const getAdminWorkOrderDetail = async (supabase: UserScopedSupabaseClient, id: string) => {
+  const [
+    { data: workOrder, error: workOrderError },
+    { data: quoteItems, error: quoteItemsError },
+    { data: statusHistory, error: statusHistoryError },
+  ] = await Promise.all([
+    supabase
+      .from('work_orders')
+      .select(
+        [
+          'id',
+          'paper_order_no',
+          'current_status',
+          'customer_id',
+          'board_type',
+          'board_brand',
+          'board_model',
+          'board_size_label',
+          'board_color',
+          'board_serial_label',
+          'intake_date',
+          'damage_description',
+          'estimated_completion_date',
+          'payment_received',
+          'payment_received_at',
+          'notified_at',
+          'picked_up_at',
+          'pickup_note',
+          'storage_fee_warning_after_days',
+          'public_note',
+          'internal_note',
+          'created_at',
+          'updated_at',
+          'customers:customer_id(id, name, phone)',
+        ].join(', '),
+      )
+      .eq('id', id)
+      .maybeSingle(),
+    supabase
+      .from('quote_items')
+      .select('id, item_type, description, amount, created_at')
+      .eq('work_order_id', id)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('status_history')
+      .select('id, status, changed_at, note')
+      .eq('work_order_id', id)
+      .order('changed_at', { ascending: true }),
+  ]);
+
+  if (workOrderError) {
+    throwMappedSupabaseError(workOrderError);
+  }
+
+  if (!workOrder) {
+    throw new NotFoundError('Work order not found.');
+  }
+
+  if (quoteItemsError) {
+    throwMappedSupabaseError(quoteItemsError);
+  }
+
+  if (statusHistoryError) {
+    throwMappedSupabaseError(statusHistoryError);
+  }
+
+  return {
+    data: mapWorkOrderDetail(
+      workOrder as unknown as WorkOrderWithCustomer,
+      (quoteItems ?? []) as QuoteItemRow[],
+      (statusHistory ?? []) as StatusHistoryRow[],
+    ),
+  };
+};
+
+export const buildWorkOrderPatchUpdates = (
+  patch: PatchWorkOrderInput,
+  existingWorkOrder: Pick<WorkOrderRow, 'payment_received' | 'payment_received_at'>,
+  now = new Date(),
+): Database['public']['Tables']['work_orders']['Update'] => {
+  const updates: Database['public']['Tables']['work_orders']['Update'] = {};
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'estimatedCompletionDate')) {
+    updates.estimated_completion_date = patch.estimatedCompletionDate;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'damageDescription')) {
+    updates.damage_description = patch.damageDescription;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'publicNote')) {
+    updates.public_note = patch.publicNote;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'internalNote')) {
+    updates.internal_note = patch.internalNote;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'pickupNote')) {
+    updates.pickup_note = patch.pickupNote;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'storageFeeWarningAfterDays')) {
+    updates.storage_fee_warning_after_days = patch.storageFeeWarningAfterDays;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'paymentReceived')) {
+    updates.payment_received = patch.paymentReceived;
+    updates.payment_received_at = patch.paymentReceived
+      ? existingWorkOrder.payment_received && existingWorkOrder.payment_received_at
+        ? existingWorkOrder.payment_received_at
+        : now.toISOString()
+      : null;
+  }
+
+  return updates;
+};
+
+export const patchAdminWorkOrder = async (
+  supabase: UserScopedSupabaseClient,
+  id: string,
+  patch: PatchWorkOrderInput,
+) => {
+  const { data: existingWorkOrder, error: existingWorkOrderError } = await supabase
+    .from('work_orders')
+    .select('id, payment_received, payment_received_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (existingWorkOrderError) {
+    throwMappedSupabaseError(existingWorkOrderError);
+  }
+
+  if (!existingWorkOrder) {
+    throw new NotFoundError('Work order not found.');
+  }
+
+  const updates = buildWorkOrderPatchUpdates(patch, existingWorkOrder);
+
+  const { data, error } = await supabase
+    .from('work_orders')
+    .update(updates)
+    .eq('id', id)
+    .select('id, updated_at')
+    .single();
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  if (!data) {
+    throw new InternalServerError();
+  }
+
+  return {
+    data: {
+      id: data.id,
+      updatedAt: data.updated_at,
+    },
+  };
+};
+
+export const getStaleReceivedDays = () => STALE_RECEIVED_DAYS;
