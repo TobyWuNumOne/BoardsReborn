@@ -17,6 +17,8 @@
 管理端 API 使用 Supabase Auth session。第一版只有單一管理者角色，但 API path 仍使用 `/api/admin/*`。
 
 未登入或 session 無效時回傳 `401`。
+已登入但沒有對應 `admin_profiles` row 時回傳 `403`。
+管理端 gate 只支援 Supabase cookie session；第一版不支援 Bearer admin auth。
 
 ### Print Agent API
 
@@ -98,6 +100,10 @@ List response 格式：
 - `PRINT_JOB_NOT_CLAIMED`
 - `PRINT_JOB_ALREADY_CLAIMED`
 - `INTERNAL_SERVER_ERROR`
+
+`requestId` 優先沿用 request header `x-request-id`；若 request 沒有帶，server 使用 `crypto.randomUUID()` 產生。所有 API response 都應寫回 response header `x-request-id`；錯誤 response 也必須把同一個值放進 error envelope 的 `requestId`。
+
+`fieldErrors` 統一使用 `Record<string, string[]>` 結構。已知 API 錯誤應由 server-side typed error classes 表示，route handler 不應散落以字串判斷錯誤類型。
 
 ## Admin Work Orders
 
