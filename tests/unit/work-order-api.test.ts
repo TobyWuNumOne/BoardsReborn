@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ValidationError } from '../../server/utils/api-errors';
 import { normalizeTaiwanMobilePhone } from '../../server/utils/phone';
+import { throwMappedSupabaseError } from '../../server/utils/supabase-errors';
 import {
   buildWorkOrderPatchUpdates,
   getStaleReceivedDays,
+  mapStatusTransitionResult,
   mapWorkOrderListRow,
 } from '../../server/utils/work-orders';
 import {
@@ -11,6 +13,8 @@ import {
   parseCreateWorkOrderBody,
   parseCustomerLookupQuery,
   parsePatchWorkOrderBody,
+  parseStatusTransitionBody,
+  parseUuid,
   parseWorkOrderListQuery,
 } from '../../server/utils/work-order-validation';
 
@@ -134,6 +138,48 @@ describe('work order API validation', () => {
     );
   });
 
+  it('validates status transition bodies and rejects unsupported reason', () => {
+    expect(
+      parseStatusTransitionBody({
+        internalNote: '  只給店內看  ',
+        note: '  已完成，等待取件  ',
+        status: 'READY_FOR_PICKUP',
+      }),
+    ).toEqual({
+      hasInternalNote: true,
+      internalNote: '只給店內看',
+      note: '已完成，等待取件',
+      status: 'READY_FOR_PICKUP',
+    });
+    expect(parseStatusTransitionBody({ note: '   ', status: 'REPAIRING' })).toEqual({
+      hasInternalNote: false,
+      note: null,
+      status: 'REPAIRING',
+    });
+    expectValidationField(
+      () => parseStatusTransitionBody({ reason: '客人取消', status: 'CANCELLED' }),
+      'reason',
+    );
+    expectValidationField(() => parseStatusTransitionBody({ status: 'UNKNOWN' }), 'status');
+    expectValidationField(() => parseUuid('not-a-uuid', 'id'), 'id');
+  });
+
+  it('maps SNOWBOARD to DRYING database errors to validation field errors', () => {
+    try {
+      throwMappedSupabaseError({
+        code: '23514',
+        message: 'SNOWBOARD work orders cannot enter DRYING',
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(ValidationError);
+      expect((error as ValidationError).code).toBe('VALIDATION_ERROR');
+      expect((error as ValidationError).fieldErrors).toHaveProperty('status');
+      return;
+    }
+
+    throw new Error('Expected ValidationError');
+  });
+
   it('maintains payment timestamp transitions for PATCH', () => {
     const now = new Date('2026-04-22T10:00:00.000Z');
 
@@ -191,6 +237,44 @@ describe('work order API validation', () => {
       customer: { id: 'customer-id', name: '王小明', phone: '0912345678' },
       paperOrderNo: 'BR-2026-0001',
       quoteTotalAmount: 700,
+    });
+  });
+
+  it('maps status transition RPC results to the camelCase API contract', () => {
+    expect(
+      mapStatusTransitionResult({
+        statusHistory: {
+          changedAt: '2026-04-22T10:01:00.000Z',
+          id: 'status-history-id',
+          note: '已完成',
+          status: 'READY_FOR_PICKUP',
+        },
+        workOrder: {
+          cancelledAt: null,
+          currentStatus: 'READY_FOR_PICKUP',
+          deliveredAt: null,
+          id: 'work-order-id',
+          paperOrderNo: 'BR-2026-0001',
+          readyForPickupAt: '2026-04-22T10:01:00.000Z',
+          updatedAt: '2026-04-22T10:01:00.000Z',
+        },
+      }),
+    ).toEqual({
+      statusHistory: {
+        changedAt: '2026-04-22T10:01:00.000Z',
+        id: 'status-history-id',
+        note: '已完成',
+        status: 'READY_FOR_PICKUP',
+      },
+      workOrder: {
+        cancelledAt: null,
+        currentStatus: 'READY_FOR_PICKUP',
+        deliveredAt: null,
+        id: 'work-order-id',
+        paperOrderNo: 'BR-2026-0001',
+        readyForPickupAt: '2026-04-22T10:01:00.000Z',
+        updatedAt: '2026-04-22T10:01:00.000Z',
+      },
     });
   });
 });

@@ -276,9 +276,10 @@ TypeScript 名稱：`LabelLanguage`
 - 每次狀態變更必須新增 `status_history`。
 - 更新 `work_orders.current_status` 時，必須與最新一筆 `status_history.status` 一致。
 - `board_type = SNOWBOARD` 的工單不可進入 `DRYING`。
-- 進入 `READY_FOR_PICKUP` 時，應設定 `ready_for_pickup_at`；若有通知，設定 `work_orders.notified_at`。
-- 進入 `DELIVERED` 時，應設定 `delivered_at` 與 `work_orders.picked_up_at`。
-- 進入 `CANCELLED` 時，應設定 `cancelled_at`。
+- 單筆 admin 狀態更新透過 `POST /api/admin/work-orders/{id}/status` 進行，`PATCH /api/admin/work-orders/{id}` 不更新狀態。
+- 進入 `READY_FOR_PICKUP` 時，應設定 `ready_for_pickup_at`；若已有值，保留第一次時間。
+- 進入 `DELIVERED` 時，應設定 `delivered_at` 與 `work_orders.picked_up_at`；若已有值，保留第一次時間。
+- 進入 `CANCELLED` 時，應設定 `cancelled_at`；若已有值，保留第一次時間。
 - 要計算卡在哪個狀態最久，應以相鄰 `status_history.changed_at` 的時間差計算。
 - 批量狀態更新時，必須對每張工單 individually 驗證並 individually 新增一筆 `status_history`。
 

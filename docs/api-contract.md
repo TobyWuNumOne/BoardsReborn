@@ -364,41 +364,51 @@ Response：
 
 ### `POST /api/admin/work-orders/{id}/status`
 
-新增狀態歷史並同步更新 `work_orders.current_status`。
+新增狀態歷史並同步更新 `work_orders.current_status`。這是唯一可更新工單狀態的單筆 admin endpoint；`PATCH /api/admin/work-orders/{id}` 不接受狀態欄位。
 
 Request：
 
 ```json
 {
-  "status": "DRYING",
-  "note": "確認進水，先除濕"
+  "status": "READY_FOR_PICKUP",
+  "note": "已完成，等待取件",
+  "internalNote": "老闆已確認可取件"
 }
 ```
+
+`note`、`internalNote` 可省略或傳 `null`。trim 後空字串視為 `null`。`internalNote` 有傳入時更新 `work_orders.internal_note`；未傳入時保持原值。`reason` 不是第一版支援欄位，若送入會以 unknown field 回 `422 VALIDATION_ERROR`。
 
 Response：`201`
 
 ```json
 {
   "data": {
-    "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-    "currentStatus": "DRYING",
+    "workOrder": {
+      "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+      "paperOrderNo": "BR-2026-0001",
+      "currentStatus": "READY_FOR_PICKUP",
+      "readyForPickupAt": "2026-04-20T09:30:00.000Z",
+      "deliveredAt": null,
+      "cancelledAt": null,
+      "updatedAt": "2026-04-20T09:30:00.000Z"
+    },
     "statusHistory": {
       "id": "8b1c52b7-5bfd-4ff3-bd69-467963515bc8",
-      "status": "DRYING",
+      "status": "READY_FOR_PICKUP",
       "changedAt": "2026-04-20T09:30:00.000Z",
-      "note": "確認進水，先除濕"
+      "note": "已完成，等待取件"
     }
   }
 }
 ```
 
-若雪板進入 `DRYING`，回傳 `422 INVALID_STATUS_TRANSITION`。
+若雪板進入 `DRYING`，回傳 `422 VALIDATION_ERROR`，`fieldErrors.status` 說明不可轉換。
 
 狀態 timestamp 維護規則：
 
-- 進入 `READY_FOR_PICKUP` 時，維護 `work_orders.ready_for_pickup_at`；若此操作同時代表已通知顧客，維護 `work_orders.notified_at`。
-- 進入 `DELIVERED` 時，維護 `work_orders.delivered_at` 與 `work_orders.picked_up_at`。
-- 進入 `CANCELLED` 時，維護 `work_orders.cancelled_at`。
+- 進入 `READY_FOR_PICKUP` 時，維護 `work_orders.ready_for_pickup_at`，若已有值則保留第一次時間。
+- 進入 `DELIVERED` 時，維護 `work_orders.delivered_at` 與 `work_orders.picked_up_at`，若已有值則保留第一次時間。
+- 進入 `CANCELLED` 時，維護 `work_orders.cancelled_at`，若已有值則保留第一次時間。
 - 狀態可重複 append，例如 `REPAIRING` 到 `REPAIRING` 可用於補充事件備註。
 
 ### `POST /api/admin/work-orders/bulk-status`

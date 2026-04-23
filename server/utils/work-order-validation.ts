@@ -35,6 +35,8 @@ const PATCH_ALLOWED_FIELDS = [
   'storageFeeWarningAfterDays',
 ] as const;
 
+const STATUS_TRANSITION_ALLOWED_FIELDS = ['status', 'note', 'internalNote'] as const;
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -105,6 +107,13 @@ export interface PatchWorkOrderInput {
   pickupNote?: string | null;
   publicNote?: string | null;
   storageFeeWarningAfterDays?: number;
+}
+
+export interface StatusTransitionInput {
+  hasInternalNote: boolean;
+  internalNote?: string | null;
+  note?: string | null;
+  status: WorkOrderStatus;
 }
 
 type ErrorCollector = FieldErrors;
@@ -699,4 +708,48 @@ export const parsePatchWorkOrderBody = (body: unknown): PatchWorkOrderInput => {
   assertNoErrors(errors);
 
   return patch;
+};
+
+export const parseStatusTransitionBody = (body: unknown): StatusTransitionInput => {
+  const errors: ErrorCollector = {};
+
+  if (!isRecord(body)) {
+    throw new ValidationError({ body: ['Must be a JSON object.'] });
+  }
+
+  const unknownFields = Object.keys(body).filter(
+    (field) =>
+      !STATUS_TRANSITION_ALLOWED_FIELDS.includes(
+        field as (typeof STATUS_TRANSITION_ALLOWED_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const status = hasOwn(body, 'status')
+    ? parseEnum(body.status, 'status', WORK_ORDER_STATUSES, errors)
+    : undefined;
+
+  if (!hasOwn(body, 'status')) {
+    addError(errors, 'status', 'Is required.');
+  }
+
+  const input: StatusTransitionInput = {
+    hasInternalNote: hasOwn(body, 'internalNote'),
+    status: status ?? 'RECEIVED',
+  };
+
+  if (hasOwn(body, 'note')) {
+    input.note = parseOptionalString(body.note, 'note', errors);
+  }
+
+  if (input.hasInternalNote) {
+    input.internalNote = parseOptionalString(body.internalNote, 'internalNote', errors);
+  }
+
+  assertNoErrors(errors);
+
+  return input;
 };

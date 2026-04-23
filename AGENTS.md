@@ -4,7 +4,7 @@
 
 - The authoritative source for current implementation status, completed milestones, and next steps is [docs/progress.md](docs/progress.md).
 - This repository combines documentation-first specs with a minimal Nuxt scaffold; do not present planned product implementation details as if they are already built.
-- Supabase local config, migrations, seed placeholder, generated Database types, server API foundation helpers, admin customer lookup, and admin work-order create/list/detail/update handlers exist; status APIs, login/session UI, and print-agent implementation are still pending.
+- Supabase local config, migrations, seed placeholder, generated Database types, server API foundation helpers, admin customer lookup, and admin work-order create/list/detail/update/status handlers exist; bulk status APIs, login/session UI, and print-agent implementation are still pending.
 
 ## Read First
 

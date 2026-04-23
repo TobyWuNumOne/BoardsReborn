@@ -10,6 +10,10 @@ const adminApiMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260422110000_admin_work_order_api.sql'),
   'utf8',
 );
+const statusTransitionMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260422120000_admin_status_transition.sql'),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -50,5 +54,20 @@ describe('initial Supabase migration', () => {
     expect(adminApiMigration).toContain('insert into public.status_history');
     expect(adminApiMigration).toContain('insert into public.quote_items');
     expect(adminApiMigration).not.toContain('insert into public.print_jobs');
+  });
+
+  it('adds an atomic admin status transition RPC', () => {
+    expect(statusTransitionMigration).toContain(
+      'create or replace function public.transition_admin_work_order_status',
+    );
+    expect(statusTransitionMigration).toContain('security invoker');
+    expect(statusTransitionMigration).toContain('for update');
+    expect(statusTransitionMigration).toContain('insert into public.status_history');
+    expect(statusTransitionMigration).toContain('current_status = p_status');
+    expect(statusTransitionMigration).toContain('coalesce(ready_for_pickup_at, v_transitioned_at)');
+    expect(statusTransitionMigration).toContain('coalesce(delivered_at, v_transitioned_at)');
+    expect(statusTransitionMigration).toContain('coalesce(cancelled_at, v_transitioned_at)');
+    expect(statusTransitionMigration).toContain('SNOWBOARD work orders cannot enter DRYING');
+    expect(statusTransitionMigration).not.toContain('insert into public.print_jobs');
   });
 });

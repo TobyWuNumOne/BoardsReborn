@@ -4,6 +4,7 @@ import {
   STALE_RECEIVED_DAYS,
   type CreateWorkOrderInput,
   type PatchWorkOrderInput,
+  type StatusTransitionInput,
   type WorkOrderListQuery,
 } from './work-order-validation';
 import type { UserScopedSupabaseClient } from './supabase-clients';
@@ -195,6 +196,51 @@ const assertCreateResult = (value: unknown) => {
     id: string;
     paperOrderNo: string;
     quoteTotalAmount: number;
+  };
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+export const mapStatusTransitionResult = (value: unknown) => {
+  if (!isRecord(value) || !isRecord(value.workOrder) || !isRecord(value.statusHistory)) {
+    throw new InternalServerError();
+  }
+
+  const { statusHistory, workOrder } = value;
+
+  if (
+    typeof workOrder.id !== 'string' ||
+    typeof workOrder.paperOrderNo !== 'string' ||
+    typeof workOrder.currentStatus !== 'string' ||
+    !('readyForPickupAt' in workOrder) ||
+    !('deliveredAt' in workOrder) ||
+    !('cancelledAt' in workOrder) ||
+    typeof workOrder.updatedAt !== 'string' ||
+    typeof statusHistory.id !== 'string' ||
+    typeof statusHistory.status !== 'string' ||
+    typeof statusHistory.changedAt !== 'string' ||
+    !('note' in statusHistory)
+  ) {
+    throw new InternalServerError();
+  }
+
+  return value as {
+    statusHistory: {
+      changedAt: string;
+      id: string;
+      note: string | null;
+      status: Database['public']['Enums']['work_order_status'];
+    };
+    workOrder: {
+      cancelledAt: string | null;
+      currentStatus: Database['public']['Enums']['work_order_status'];
+      deliveredAt: string | null;
+      id: string;
+      paperOrderNo: string;
+      readyForPickupAt: string | null;
+      updatedAt: string;
+    };
   };
 };
 
@@ -460,6 +506,38 @@ export const patchAdminWorkOrder = async (
       id: data.id,
       updatedAt: data.updated_at,
     },
+  };
+};
+
+export const transitionAdminWorkOrderStatus = async (
+  supabase: UserScopedSupabaseClient,
+  id: string,
+  input: StatusTransitionInput,
+  userId: string,
+) => {
+  const rpcArgs: Database['public']['Functions']['transition_admin_work_order_status']['Args'] = {
+    p_changed_by_user_id: userId,
+    p_internal_note_is_set: input.hasInternalNote,
+    p_status: input.status,
+    p_work_order_id: id,
+  };
+
+  if (input.note) {
+    rpcArgs.p_note = input.note;
+  }
+
+  if (input.hasInternalNote && input.internalNote) {
+    rpcArgs.p_internal_note = input.internalNote;
+  }
+
+  const { data, error } = await supabase.rpc('transition_admin_work_order_status', rpcArgs);
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  return {
+    data: mapStatusTransitionResult(data),
   };
 };
 

@@ -449,6 +449,17 @@ export type Database = {
         Args: { raw_phone: string };
         Returns: string;
       };
+      transition_admin_work_order_status: {
+        Args: {
+          p_changed_by_user_id?: string;
+          p_internal_note?: string;
+          p_internal_note_is_set?: boolean;
+          p_note?: string;
+          p_status: Database['public']['Enums']['work_order_status'];
+          p_work_order_id: string;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       board_type: 'SURFBOARD' | 'SUP' | 'SNOWBOARD';
