@@ -35,6 +35,7 @@ const PATCH_ALLOWED_FIELDS = [
   'storageFeeWarningAfterDays',
 ] as const;
 
+const BULK_STATUS_ALLOWED_FIELDS = ['paperOrderNos', 'status', 'note'] as const;
 const STATUS_TRANSITION_ALLOWED_FIELDS = ['status', 'note', 'internalNote'] as const;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -111,6 +112,13 @@ export interface PatchWorkOrderInput {
   pickupNote?: string | null;
   publicNote?: string | null;
   storageFeeWarningAfterDays?: number;
+}
+
+export interface BulkStatusInput {
+  note?: string | null;
+  paperOrderNos: string[];
+  requestedCount: number;
+  status: WorkOrderStatus;
 }
 
 export interface StatusTransitionInput {
@@ -738,6 +746,69 @@ export const parsePatchWorkOrderBody = (body: unknown): PatchWorkOrderInput => {
   assertNoErrors(errors);
 
   return patch;
+};
+
+export const parseBulkStatusBody = (body: unknown): BulkStatusInput => {
+  const errors: ErrorCollector = {};
+
+  if (!isRecord(body)) {
+    throw new ValidationError({ body: ['Must be a JSON object.'] });
+  }
+
+  const unknownFields = Object.keys(body).filter(
+    (field) =>
+      !BULK_STATUS_ALLOWED_FIELDS.includes(field as (typeof BULK_STATUS_ALLOWED_FIELDS)[number]),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  if (!hasOwn(body, 'paperOrderNos')) {
+    addError(errors, 'paperOrderNos', 'Is required.');
+  } else if (!Array.isArray(body.paperOrderNos)) {
+    addError(errors, 'paperOrderNos', 'Must be an array of paper order numbers.');
+  }
+
+  const parsedPaperOrderNos = Array.isArray(body.paperOrderNos)
+    ? body.paperOrderNos.map((value, index) =>
+        parsePaperOrderNoValue(value, `paperOrderNos.${index}`, errors),
+      )
+    : [];
+
+  if (Array.isArray(body.paperOrderNos) && body.paperOrderNos.length === 0) {
+    addError(errors, 'paperOrderNos', 'Must include at least one paper order number.');
+  }
+
+  const status = hasOwn(body, 'status')
+    ? parseEnum(body.status, 'status', WORK_ORDER_STATUSES, errors)
+    : undefined;
+
+  if (!hasOwn(body, 'status')) {
+    addError(errors, 'status', 'Is required.');
+  }
+
+  const dedupedPaperOrderNos = new Set<string>();
+
+  for (const paperOrderNo of parsedPaperOrderNos) {
+    if (paperOrderNo) {
+      dedupedPaperOrderNos.add(paperOrderNo);
+    }
+  }
+
+  const input: BulkStatusInput = {
+    paperOrderNos: Array.from(dedupedPaperOrderNos),
+    requestedCount: Array.isArray(body.paperOrderNos) ? body.paperOrderNos.length : 0,
+    status: status ?? 'RECEIVED',
+  };
+
+  if (hasOwn(body, 'note')) {
+    input.note = parseOptionalString(body.note, 'note', errors);
+  }
+
+  assertNoErrors(errors);
+
+  return input;
 };
 
 export const parseStatusTransitionBody = (body: unknown): StatusTransitionInput => {

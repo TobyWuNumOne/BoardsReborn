@@ -282,6 +282,7 @@ TypeScript 名稱：`LabelLanguage`
 - 進入 `CANCELLED` 時，應設定 `cancelled_at`；若已有值，保留第一次時間。
 - 要計算卡在哪個狀態最久，應以相鄰 `status_history.changed_at` 的時間差計算。
 - 批量狀態更新時，必須對每張工單 individually 驗證並 individually 新增一筆 `status_history`。
+- 批量狀態更新不是單一 transaction；若途中發生未知系統錯誤，前面已成功的 individual updates 可保留，後續項目停止處理。
 
 ## 列印任務規則
 

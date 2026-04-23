@@ -1,6 +1,7 @@
-import { InternalServerError, NotFoundError } from './api-errors';
+import { InternalServerError, NotFoundError, ValidationError } from './api-errors';
 import { throwMappedSupabaseError } from './supabase-errors';
 import {
+  type BulkStatusInput,
   STALE_RECEIVED_DAYS,
   type CreateWorkOrderInput,
   type PatchWorkOrderInput,
@@ -13,6 +14,7 @@ import type { Database, Json } from '../../types/database.types';
 type AdminWorkOrderListRow = Database['public']['Views']['admin_work_order_list']['Row'];
 type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
 type CustomerRow = Database['public']['Tables']['customers']['Row'];
+type WorkOrderBulkLookupRow = Pick<WorkOrderRow, 'id' | 'paper_order_no'>;
 type QuoteItemRow = Pick<
   Database['public']['Tables']['quote_items']['Row'],
   'amount' | 'created_at' | 'description' | 'id' | 'item_type'
@@ -40,6 +42,8 @@ export interface PageInfo {
   total: number;
   totalPages: number;
 }
+
+export type BulkStatusSkipReason = 'INVALID_STATUS_TRANSITION' | 'NOT_FOUND';
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -134,6 +138,11 @@ export const mapWorkOrderResolveRow = (row: WorkOrderResolveRow) => {
     paperOrderNo: row.paper_order_no,
   };
 };
+
+const isInvalidStatusTransitionValidation = (
+  error: unknown,
+): error is ValidationError & { fieldErrors: { status: string[] } } =>
+  error instanceof ValidationError && Boolean(error.fieldErrors?.status);
 
 const mapQuoteItem = (quoteItem: QuoteItemRow) => ({
   amount: quoteItem.amount,
@@ -479,6 +488,99 @@ export const getAdminWorkOrderDetail = async (supabase: UserScopedSupabaseClient
       (quoteItems ?? []) as QuoteItemRow[],
       (statusHistory ?? []) as StatusHistoryRow[],
     ),
+  };
+};
+
+export const bulkAdminWorkOrderStatus = async (
+  supabase: UserScopedSupabaseClient,
+  input: BulkStatusInput,
+  userId: string,
+) => {
+  const { data: workOrders, error } = await supabase
+    .from('work_orders')
+    .select('id, paper_order_no')
+    .in('paper_order_no', input.paperOrderNos);
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  const workOrderMap = new Map(
+    ((workOrders ?? []) as WorkOrderBulkLookupRow[]).map((workOrder) => [
+      workOrder.paper_order_no,
+      workOrder.id,
+    ]),
+  );
+  const updated: Array<{
+    currentStatus: Database['public']['Enums']['work_order_status'];
+    paperOrderNo: string;
+    statusHistoryId: string;
+    workOrderId: string;
+  }> = [];
+  const skipped: Array<{
+    paperOrderNo: string;
+    reason: BulkStatusSkipReason;
+  }> = [];
+
+  for (const paperOrderNo of input.paperOrderNos) {
+    const workOrderId = workOrderMap.get(paperOrderNo);
+
+    if (!workOrderId) {
+      skipped.push({
+        paperOrderNo,
+        reason: 'NOT_FOUND',
+      });
+      continue;
+    }
+
+    try {
+      const result = await transitionAdminWorkOrderStatus(
+        supabase,
+        workOrderId,
+        {
+          hasInternalNote: false,
+          note: input.note,
+          status: input.status,
+        },
+        userId,
+      );
+
+      updated.push({
+        currentStatus: result.data.workOrder.currentStatus,
+        paperOrderNo,
+        statusHistoryId: result.data.statusHistory.id,
+        workOrderId,
+      });
+    } catch (transitionError) {
+      if (transitionError instanceof NotFoundError) {
+        skipped.push({
+          paperOrderNo,
+          reason: 'NOT_FOUND',
+        });
+        continue;
+      }
+
+      if (isInvalidStatusTransitionValidation(transitionError)) {
+        skipped.push({
+          paperOrderNo,
+          reason: 'INVALID_STATUS_TRANSITION',
+        });
+        continue;
+      }
+
+      throw transitionError;
+    }
+  }
+
+  return {
+    data: {
+      dedupedCount: input.paperOrderNos.length,
+      requestedCount: input.requestedCount,
+      skipped,
+      skippedCount: skipped.length,
+      updated,
+      updatedCount: updated.length,
+    },
   };
 };
 

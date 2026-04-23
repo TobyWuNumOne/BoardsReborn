@@ -95,7 +95,6 @@ List response 格式：
 - `NOT_FOUND`
 - `VALIDATION_ERROR`
 - `CONFLICT`
-- `INVALID_STATUS_TRANSITION`
 - `STORAGE_UPLOAD_FAILED`
 - `PRINT_JOB_NOT_CLAIMED`
 - `PRINT_JOB_ALREADY_CLAIMED`
@@ -448,25 +447,29 @@ Response：`201`
 
 ### `POST /api/admin/work-orders/bulk-status`
 
-批量狀態更新。前端掃描多張條碼後，直接把掃描到的 `paperOrderNo` 陣列送進來。
+批量狀態更新。前端掃描多張條碼後，直接把掃描到的 `paperOrderNos` 陣列送進來。
 
 Request：
 
 ```json
 {
-  "paperOrderNos": ["BR-2026-0001", "BR-2026-0002", "BR-2026-0003"],
+  "paperOrderNos": ["BR-2026-0001", "BR-2026-0002", "BR-2026-0001", "BR-2026-0003"],
   "status": "REPAIRING",
   "note": "今日統一開工"
 }
 ```
+
+只接受 `paperOrderNos`、`status`、`note` 三個欄位。第一版不支援 `internalNote`、`reason`；若出現未知欄位，整體回 `422 VALIDATION_ERROR`。
 
 Response：`200`
 
 ```json
 {
   "data": {
-    "requestedCount": 3,
+    "requestedCount": 4,
+    "dedupedCount": 3,
     "updatedCount": 2,
+    "skippedCount": 1,
     "updated": [
       {
         "paperOrderNo": "BR-2026-0001",
@@ -493,10 +496,21 @@ Response：`200`
 
 規則：
 
+- `paperOrderNos` 必須是非空字串陣列；每筆值會 trim 前後空白，長度必須是 `3..50`。
+- `status` 必須是既有 `work_order_status` enum；`note` 可省略或為 `null`，trim 後空字串視為 `null`。
+- `requestedCount` 等於原始輸入陣列長度，包含重複值。
+- `dedupedCount` 等於 server trim + 去重後，實際嘗試處理的唯一工單號數。
+- `updatedCount` 等於成功完成狀態更新的工單數；`skippedCount` 等於略過的工單數。
+- `updated[]` 與 `skipped[]` 依去重後的首次出現順序輸出，不依資料庫查詢順序。
+- `skipped.reason` 第一版固定只允許 `NOT_FOUND` 與 `INVALID_STATUS_TRANSITION`。這是 batch result label，不是 shared error envelope code。
 - `paperOrderNos` 內每張工單都要 individually 驗證。
 - 每張成功更新的工單都必須 individually append 一筆 `status_history`。
+- 單張找不到工單時，該筆進 `skipped.reason = NOT_FOUND`。
+- 單張狀態轉換違反商業規則時，該筆進 `skipped.reason = INVALID_STATUS_TRANSITION`。
 - 單張失敗不可讓整批全部回滾；應回傳 `updated` 與 `skipped` 明細。
-- `paperOrderNos` 應去重後處理，但 response 仍應按唯一工單回報結果。
+- Bulk endpoint 不是單一 transaction；每張工單仍 individually 執行既有單筆 status transition RPC。
+- 若途中發生未知系統錯誤，立即停止後續項目處理，整體回 `500 INTERNAL_SERVER_ERROR`。
+- 在未知錯誤發生前已成功完成的 individual updates 可能已經 committed，不保證整批 rollback。
 
 ### `POST /api/admin/work-orders/{id}/print-jobs`
 

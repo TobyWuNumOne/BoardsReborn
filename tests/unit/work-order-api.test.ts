@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { NotFoundError, ValidationError } from '../../server/utils/api-errors';
+import { InternalServerError, NotFoundError, ValidationError } from '../../server/utils/api-errors';
 import { normalizeTaiwanMobilePhone } from '../../server/utils/phone';
 import { throwMappedSupabaseError } from '../../server/utils/supabase-errors';
 import {
+  bulkAdminWorkOrderStatus,
   buildWorkOrderPatchUpdates,
   getStaleReceivedDays,
   mapStatusTransitionResult,
@@ -11,6 +12,7 @@ import {
   resolveAdminWorkOrderByPaperOrderNo,
 } from '../../server/utils/work-orders';
 import {
+  parseBulkStatusBody,
   WORK_ORDER_LIST_SORT_FIELDS,
   parseCreateWorkOrderBody,
   parseCustomerLookupQuery,
@@ -46,6 +48,47 @@ const createResolveWorkOrderClient = (result: { data: unknown; error: unknown })
       from(table: string) {
         calls.table = table;
         return query;
+      },
+    },
+  };
+};
+
+const createBulkStatusClient = ({
+  lookupResult,
+  rpcResolver,
+}: {
+  lookupResult: { data: unknown; error: unknown };
+  rpcResolver: (args: Record<string, unknown>) => { data: unknown; error: unknown };
+}) => {
+  const calls = {
+    in: {
+      column: '',
+      values: [] as string[],
+    },
+    rpcArgs: [] as Array<Record<string, unknown>>,
+    table: '',
+  };
+
+  const query = {
+    in(column: string, values: string[]) {
+      calls.in = { column, values };
+      return Promise.resolve(lookupResult);
+    },
+    select() {
+      return query;
+    },
+  };
+
+  return {
+    calls,
+    client: {
+      from(table: string) {
+        calls.table = table;
+        return query;
+      },
+      rpc(_name: string, args: Record<string, unknown>) {
+        calls.rpcArgs.push(args);
+        return Promise.resolve(rpcResolver(args));
       },
     },
   };
@@ -174,6 +217,34 @@ describe('work order API validation', () => {
       staleReceivedBefore: '2026-04-15T00:00:00.000Z',
     });
     expectValidationField(() => parseWorkOrderListQuery({ sort: 'customer_name:asc' }), 'sort');
+  });
+
+  it('validates bulk status bodies, trims note, and dedupes paper order numbers', () => {
+    expect(
+      parseBulkStatusBody({
+        note: '  今日統一開工  ',
+        paperOrderNos: [' BR-2026-0001 ', 'BR-2026-0002', 'BR-2026-0001'],
+        status: 'REPAIRING',
+      }),
+    ).toEqual({
+      note: '今日統一開工',
+      paperOrderNos: ['BR-2026-0001', 'BR-2026-0002'],
+      requestedCount: 3,
+      status: 'REPAIRING',
+    });
+    expectValidationField(
+      () => parseBulkStatusBody({ paperOrderNos: [], status: 'REPAIRING' }),
+      'paperOrderNos',
+    );
+    expectValidationField(
+      () =>
+        parseBulkStatusBody({
+          internalNote: 'x',
+          paperOrderNos: ['BR-2026-0001'],
+          status: 'REPAIRING',
+        }),
+      'internalNote',
+    );
   });
 
   it('restricts PATCH to the work-order update whitelist', () => {
@@ -374,5 +445,176 @@ describe('work order API validation', () => {
         updatedAt: '2026-04-22T10:01:00.000Z',
       },
     });
+  });
+
+  it('bulk status keeps first-seen order and returns updated/skipped summaries', async () => {
+    const { calls, client } = createBulkStatusClient({
+      lookupResult: {
+        data: [
+          { id: 'work-order-2', paper_order_no: 'BR-2026-0002' },
+          { id: 'work-order-1', paper_order_no: 'BR-2026-0001' },
+        ],
+        error: null,
+      },
+      rpcResolver: (args) => {
+        if (args.p_work_order_id === 'work-order-1') {
+          return {
+            data: {
+              statusHistory: {
+                changedAt: '2026-04-22T10:01:00.000Z',
+                id: 'status-history-1',
+                note: '今日統一開工',
+                status: 'DRYING',
+              },
+              workOrder: {
+                cancelledAt: null,
+                currentStatus: 'DRYING',
+                deliveredAt: null,
+                id: 'work-order-1',
+                paperOrderNo: 'BR-2026-0001',
+                readyForPickupAt: null,
+                updatedAt: '2026-04-22T10:01:00.000Z',
+              },
+            },
+            error: null,
+          };
+        }
+
+        return {
+          data: null,
+          error: {
+            code: '23514',
+            message: 'SNOWBOARD work orders cannot enter DRYING',
+          },
+        };
+      },
+    });
+
+    const result = await bulkAdminWorkOrderStatus(
+      client as Parameters<typeof bulkAdminWorkOrderStatus>[0],
+      {
+        note: '今日統一開工',
+        paperOrderNos: ['BR-2026-0001', 'BR-2026-0002', 'BR-2026-0003'],
+        requestedCount: 4,
+        status: 'DRYING',
+      },
+      'admin-user-id',
+    );
+
+    expect(calls.table).toBe('work_orders');
+    expect(calls.in).toEqual({
+      column: 'paper_order_no',
+      values: ['BR-2026-0001', 'BR-2026-0002', 'BR-2026-0003'],
+    });
+    expect(result).toEqual({
+      data: {
+        dedupedCount: 3,
+        requestedCount: 4,
+        skipped: [
+          {
+            paperOrderNo: 'BR-2026-0002',
+            reason: 'INVALID_STATUS_TRANSITION',
+          },
+          {
+            paperOrderNo: 'BR-2026-0003',
+            reason: 'NOT_FOUND',
+          },
+        ],
+        skippedCount: 2,
+        updated: [
+          {
+            currentStatus: 'DRYING',
+            paperOrderNo: 'BR-2026-0001',
+            statusHistoryId: 'status-history-1',
+            workOrderId: 'work-order-1',
+          },
+        ],
+        updatedCount: 1,
+      },
+    });
+  });
+
+  it('bulk status stops immediately on unknown system errors', async () => {
+    const { calls, client } = createBulkStatusClient({
+      lookupResult: {
+        data: [
+          { id: 'work-order-1', paper_order_no: 'BR-2026-0001' },
+          { id: 'work-order-2', paper_order_no: 'BR-2026-0002' },
+          { id: 'work-order-3', paper_order_no: 'BR-2026-0003' },
+        ],
+        error: null,
+      },
+      rpcResolver: (args) => {
+        if (args.p_work_order_id === 'work-order-1') {
+          return {
+            data: {
+              statusHistory: {
+                changedAt: '2026-04-22T10:01:00.000Z',
+                id: 'status-history-1',
+                note: null,
+                status: 'REPAIRING',
+              },
+              workOrder: {
+                cancelledAt: null,
+                currentStatus: 'REPAIRING',
+                deliveredAt: null,
+                id: 'work-order-1',
+                paperOrderNo: 'BR-2026-0001',
+                readyForPickupAt: null,
+                updatedAt: '2026-04-22T10:01:00.000Z',
+              },
+            },
+            error: null,
+          };
+        }
+
+        if (args.p_work_order_id === 'work-order-2') {
+          return {
+            data: null,
+            error: {
+              code: 'XX000',
+              message: 'database exploded',
+            },
+          };
+        }
+
+        return {
+          data: {
+            statusHistory: {
+              changedAt: '2026-04-22T10:03:00.000Z',
+              id: 'status-history-3',
+              note: null,
+              status: 'REPAIRING',
+            },
+            workOrder: {
+              cancelledAt: null,
+              currentStatus: 'REPAIRING',
+              deliveredAt: null,
+              id: 'work-order-3',
+              paperOrderNo: 'BR-2026-0003',
+              readyForPickupAt: null,
+              updatedAt: '2026-04-22T10:03:00.000Z',
+            },
+          },
+          error: null,
+        };
+      },
+    });
+
+    await expect(
+      bulkAdminWorkOrderStatus(
+        client as Parameters<typeof bulkAdminWorkOrderStatus>[0],
+        {
+          paperOrderNos: ['BR-2026-0001', 'BR-2026-0002', 'BR-2026-0003'],
+          requestedCount: 3,
+          status: 'REPAIRING',
+        },
+        'admin-user-id',
+      ),
+    ).rejects.toBeInstanceOf(InternalServerError);
+
+    expect(calls.rpcArgs).toHaveLength(2);
+    expect(calls.rpcArgs[0]?.p_work_order_id).toBe('work-order-1');
+    expect(calls.rpcArgs[1]?.p_work_order_id).toBe('work-order-2');
   });
 });
