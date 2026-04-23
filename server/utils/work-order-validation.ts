@@ -49,6 +49,10 @@ export interface CustomerLookupQuery {
   normalizedPhone: string;
 }
 
+export interface PaperOrderResolveQuery {
+  paperOrderNo: string;
+}
+
 export interface WorkOrderListQuery {
   customerPhone?: string;
   filters: {
@@ -376,6 +380,35 @@ export const parseUuid = (value: unknown, field: string): string => {
   return parsedValue as string;
 };
 
+const parsePaperOrderNoValue = (
+  value: unknown,
+  field: string,
+  errors: ErrorCollector,
+): string | undefined =>
+  parseRequiredString(value, field, errors, {
+    maxLength: 50,
+    minLength: 3,
+  });
+
+export const parsePaperOrderResolveQuery = (
+  query: Record<string, unknown>,
+): PaperOrderResolveQuery => {
+  const errors: ErrorCollector = {};
+  const paperOrderNoValue = getSingleQueryValue(query, 'paperOrderNo', errors);
+  const paperOrderNo =
+    paperOrderNoValue === undefined
+      ? undefined
+      : parsePaperOrderNoValue(paperOrderNoValue, 'paperOrderNo', errors);
+
+  if (paperOrderNoValue === undefined) {
+    addError(errors, 'paperOrderNo', 'Is required.');
+  }
+
+  assertNoErrors(errors);
+
+  return { paperOrderNo: paperOrderNo as string };
+};
+
 export const parseCustomerLookupQuery = (query: Record<string, unknown>): CustomerLookupQuery => {
   const errors: ErrorCollector = {};
   const phone = getSingleQueryValue(query, 'phone', errors);
@@ -580,10 +613,7 @@ export const parseCreateWorkOrderBody = (body: unknown): CreateWorkOrderInput =>
         }) ?? '',
       internalNote: parseOptionalString(workOrder.internalNote, 'workOrder.internalNote', errors),
       paperOrderNo:
-        parseRequiredString(workOrder.paperOrderNo, 'workOrder.paperOrderNo', errors, {
-          maxLength: 50,
-          minLength: 3,
-        }) ?? '',
+        parsePaperOrderNoValue(workOrder.paperOrderNo, 'workOrder.paperOrderNo', errors) ?? '',
       paymentReceived:
         parseBoolean(workOrder.paymentReceived, 'workOrder.paymentReceived', errors, {
           defaultValue: false,

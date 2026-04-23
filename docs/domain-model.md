@@ -86,7 +86,7 @@
 | `created_at`                     | `timestamptz`       | required，default `now()`                             |
 | `updated_at`                     | `timestamptz`       | required，default `now()`                             |
 
-工單條碼內容直接等於 `paper_order_no`。掃碼查詢與批量更新時都以 `paper_order_no` 作為 payload。
+`id` 是資料庫 primary key 與 admin 單筆 API 的 internal resource identity。`paper_order_no` 是現場與條碼操作輸入；工單條碼內容直接等於 `paper_order_no`。掃碼或人工輸入工單號時，前端應先透過 admin resolve endpoint 取得 `work_orders.id`，再呼叫 UUID-based detail / update / status endpoint。批量更新時仍以多個 `paper_order_no` 作為 payload。
 
 第一版不拆 `pickup_info` table。取件通知、取件時間與待取件提醒欄位直接放在 `work_orders`，降低 MVP schema 複雜度。若未來取件流程變複雜，再以 migration 拆表。
 

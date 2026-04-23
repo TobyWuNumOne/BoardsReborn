@@ -111,6 +111,8 @@ List response 格式：
 
 API 中的 `board` object 是 `work_orders` 上的板子快照欄位組合，不代表有獨立 `boards` table。
 
+Admin 單筆 detail / update / status endpoint 使用 `work_orders.id` 作為 internal resource identity。現場掃碼或人工輸入時，前端應先用 `paperOrderNo` 呼叫 resolve endpoint 取得 UUID，再呼叫 UUID-based endpoint。
+
 ### `GET /api/admin/work-orders`
 
 查詢工單列表。
@@ -172,6 +174,39 @@ Response：
     "totalPages": 1,
     "hasNextPage": false,
     "hasPreviousPage": false
+  }
+}
+```
+
+### `GET /api/admin/work-orders/resolve`
+
+依紙本工單號 exact match 查出系統內部工單 UUID。這支 endpoint 用於掃碼、搜尋工單號後進入詳情或後續更新流程，不做 fuzzy search，也不取代 list API。
+
+Query example：
+
+```text
+/api/admin/work-orders/resolve?paperOrderNo=BR-2026-0001
+```
+
+`paperOrderNo` 會 trim 前後空白，長度必須是 `3..50`。第一版不新增固定格式 regex。查無工單時回 `404 NOT_FOUND`。
+
+Response：
+
+```json
+{
+  "data": {
+    "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+    "paperOrderNo": "BR-2026-0001",
+    "currentStatus": "REPAIRING",
+    "customer": {
+      "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
+      "name": "王小明"
+    },
+    "board": {
+      "boardType": "SURFBOARD",
+      "sizeLabel": "6'2"
+    },
+    "lastUpdatedAt": "2026-04-20T08:30:00.000Z"
   }
 }
 ```

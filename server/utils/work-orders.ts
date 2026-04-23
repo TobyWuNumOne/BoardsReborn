@@ -25,6 +25,12 @@ type StatusHistoryRow = Pick<
 type WorkOrderWithCustomer = WorkOrderRow & {
   customers: Pick<CustomerRow, 'id' | 'name' | 'phone'> | null;
 };
+type WorkOrderResolveRow = Pick<
+  WorkOrderRow,
+  'board_size_label' | 'board_type' | 'current_status' | 'id' | 'paper_order_no' | 'updated_at'
+> & {
+  customers: Pick<CustomerRow, 'id' | 'name'> | null;
+};
 
 export interface PageInfo {
   hasNextPage: boolean;
@@ -107,6 +113,27 @@ export const mapWorkOrderListRow = (row: AdminWorkOrderListRow) => ({
   quoteTotalAmount: row.quote_total_amount,
   readyForPickupAt: row.ready_for_pickup_at,
 });
+
+export const mapWorkOrderResolveRow = (row: WorkOrderResolveRow) => {
+  if (!row.customers) {
+    throw new InternalServerError();
+  }
+
+  return {
+    board: {
+      boardType: row.board_type,
+      sizeLabel: row.board_size_label,
+    },
+    currentStatus: row.current_status,
+    customer: {
+      id: row.customers.id,
+      name: row.customers.name,
+    },
+    id: row.id,
+    lastUpdatedAt: row.updated_at,
+    paperOrderNo: row.paper_order_no,
+  };
+};
 
 const mapQuoteItem = (quoteItem: QuoteItemRow) => ({
   amount: quoteItem.amount,
@@ -320,6 +347,39 @@ export const listAdminWorkOrders = async (
   return {
     data: (data ?? []).map(mapWorkOrderListRow),
     pageInfo: calculatePageInfo(query.page, query.pageSize, total),
+  };
+};
+
+export const resolveAdminWorkOrderByPaperOrderNo = async (
+  supabase: UserScopedSupabaseClient,
+  paperOrderNo: string,
+) => {
+  const { data, error } = await supabase
+    .from('work_orders')
+    .select(
+      [
+        'id',
+        'paper_order_no',
+        'current_status',
+        'board_type',
+        'board_size_label',
+        'updated_at',
+        'customers:customer_id(id, name)',
+      ].join(', '),
+    )
+    .eq('paper_order_no', paperOrderNo)
+    .maybeSingle();
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  if (!data) {
+    throw new NotFoundError('Work order not found.');
+  }
+
+  return {
+    data: mapWorkOrderResolveRow(data as unknown as WorkOrderResolveRow),
   };
 };
 

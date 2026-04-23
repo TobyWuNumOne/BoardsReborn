@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '../../server/utils/api-errors';
+import { NotFoundError, ValidationError } from '../../server/utils/api-errors';
 import { normalizeTaiwanMobilePhone } from '../../server/utils/phone';
 import { throwMappedSupabaseError } from '../../server/utils/supabase-errors';
 import {
@@ -7,16 +7,49 @@ import {
   getStaleReceivedDays,
   mapStatusTransitionResult,
   mapWorkOrderListRow,
+  mapWorkOrderResolveRow,
+  resolveAdminWorkOrderByPaperOrderNo,
 } from '../../server/utils/work-orders';
 import {
   WORK_ORDER_LIST_SORT_FIELDS,
   parseCreateWorkOrderBody,
   parseCustomerLookupQuery,
+  parsePaperOrderResolveQuery,
   parsePatchWorkOrderBody,
   parseStatusTransitionBody,
   parseUuid,
   parseWorkOrderListQuery,
 } from '../../server/utils/work-order-validation';
+
+const createResolveWorkOrderClient = (result: { data: unknown; error: unknown }) => {
+  const calls = {
+    eq: { column: '', value: '' },
+    table: '',
+  };
+
+  const query = {
+    eq(column: string, value: string) {
+      calls.eq = { column, value };
+      return query;
+    },
+    maybeSingle() {
+      return Promise.resolve(result);
+    },
+    select() {
+      return query;
+    },
+  };
+
+  return {
+    calls,
+    client: {
+      from(table: string) {
+        calls.table = table;
+        return query;
+      },
+    },
+  };
+};
 
 const expectValidationField = (action: () => unknown, field: string) => {
   try {
@@ -42,6 +75,21 @@ describe('work order API validation', () => {
       normalizedPhone: '0912345678',
     });
     expectValidationField(() => parseCustomerLookupQuery({ phone: '02-1234-5678' }), 'phone');
+  });
+
+  it('validates paper order resolve query without changing paper number format rules', () => {
+    expect(parsePaperOrderResolveQuery({ paperOrderNo: '  BR-2026-0001  ' })).toEqual({
+      paperOrderNo: 'BR-2026-0001',
+    });
+    expectValidationField(() => parsePaperOrderResolveQuery({ paperOrderNo: '' }), 'paperOrderNo');
+    expectValidationField(
+      () => parsePaperOrderResolveQuery({ paperOrderNo: 'AB' }),
+      'paperOrderNo',
+    );
+    expectValidationField(
+      () => parsePaperOrderResolveQuery({ paperOrderNo: 'A'.repeat(51) }),
+      'paperOrderNo',
+    );
   });
 
   it('requires explicit customer create or reuse mode for work order creation', () => {
@@ -237,6 +285,56 @@ describe('work order API validation', () => {
       customer: { id: 'customer-id', name: '王小明', phone: '0912345678' },
       paperOrderNo: 'BR-2026-0001',
       quoteTotalAmount: 700,
+    });
+  });
+
+  it('maps resolve rows to the camelCase API contract', () => {
+    expect(
+      mapWorkOrderResolveRow({
+        board_size_label: "6'2",
+        board_type: 'SURFBOARD',
+        current_status: 'REPAIRING',
+        customers: {
+          id: 'customer-id',
+          name: '王小明',
+        },
+        id: 'work-order-id',
+        paper_order_no: 'BR-2026-0001',
+        updated_at: '2026-04-20T08:30:00.000Z',
+      }),
+    ).toEqual({
+      board: {
+        boardType: 'SURFBOARD',
+        sizeLabel: "6'2",
+      },
+      currentStatus: 'REPAIRING',
+      customer: {
+        id: 'customer-id',
+        name: '王小明',
+      },
+      id: 'work-order-id',
+      lastUpdatedAt: '2026-04-20T08:30:00.000Z',
+      paperOrderNo: 'BR-2026-0001',
+    });
+  });
+
+  it('resolves work orders by exact paper order number and returns 404 when missing', async () => {
+    const { calls, client } = createResolveWorkOrderClient({
+      data: null,
+      error: null,
+    });
+
+    await expect(
+      resolveAdminWorkOrderByPaperOrderNo(
+        client as Parameters<typeof resolveAdminWorkOrderByPaperOrderNo>[0],
+        'BR-2026-0001',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
+
+    expect(calls.table).toBe('work_orders');
+    expect(calls.eq).toEqual({
+      column: 'paper_order_no',
+      value: 'BR-2026-0001',
     });
   });
 

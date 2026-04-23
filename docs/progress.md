@@ -12,12 +12,12 @@
 ## 目前快照
 
 - 最後更新：2026-04-23
-- 目前階段：Admin work-order 單筆狀態更新 API 已建立，準備補批量狀態與列印流程
+- 目前階段：Admin work-order resolve flow 已建立，準備補批量狀態與列印流程
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
-  - `server/api/` 已有 admin customer lookup 與 work-order create/list/detail/update/status handlers。
+  - `server/api/` 已有 admin customer lookup 與 work-order create/list/detail/update/status/resolve handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - Supabase Database types 已產生於 `types/database.types.ts`。
   - Supabase local config、initial migration 與 seed placeholder 已建立。
@@ -25,18 +25,18 @@
 
 ## 里程碑
 
-| 里程碑                                 | 狀態    | 說明                                                                               |
-| -------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
-| 核心規格與工程規則文件                 | done    | 產品、domain model、API contract、列印架構與 AI 規則文件已存在。                   |
-| Minimal Nuxt scaffold 與基礎工具鏈     | done    | app shell、lint、typecheck、Vitest baseline 已建立。                               |
-| 進度追蹤與 agent workflow              | done    | 本文件、AGENTS 規範與一致性檢查 skill 已建立。                                     |
-| Supabase local stack 與 migrations     | done    | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。    |
-| Server API foundation                  | done    | 共用 requestId、typed errors、Supabase client helpers 與 admin gate 已建立。       |
-| Admin work-order API                   | partial | Create/list/detail/update/status 與 customer lookup 已建立；bulk、print 仍未實作。 |
-| Auth 與管理端流程                      | pending | Admin gate helper 已建立；登入 UI 與完整 session flow 尚未實作。                   |
-| Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。                       |
-| Customer lookup flow                   | pending | Public lookup contract 已定義，但尚未實作。                                        |
-| Production workflow 與部署硬化         | pending | 超出 scaffold baseline 的建置與部署流程尚未建立。                                  |
+| 里程碑                                 | 狀態    | 說明                                                                                       |
+| -------------------------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| 核心規格與工程規則文件                 | done    | 產品、domain model、API contract、列印架構與 AI 規則文件已存在。                           |
+| Minimal Nuxt scaffold 與基礎工具鏈     | done    | app shell、lint、typecheck、Vitest baseline 已建立。                                       |
+| 進度追蹤與 agent workflow              | done    | 本文件、AGENTS 規範與一致性檢查 skill 已建立。                                             |
+| Supabase local stack 與 migrations     | done    | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。            |
+| Server API foundation                  | done    | 共用 requestId、typed errors、Supabase client helpers 與 admin gate 已建立。               |
+| Admin work-order API                   | partial | Create/list/detail/update/status/resolve 與 customer lookup 已建立；bulk、print 仍未實作。 |
+| Auth 與管理端流程                      | pending | Admin gate helper 已建立；登入 UI 與完整 session flow 尚未實作。                           |
+| Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。                               |
+| Customer lookup flow                   | pending | Public lookup contract 已定義，但尚未實作。                                                |
+| Production workflow 與部署硬化         | pending | 超出 scaffold baseline 的建置與部署流程尚未建立。                                          |
 
 ## 已完成
 
@@ -49,13 +49,13 @@
 - Supabase Database types：`types/database.types.ts`。
 - Server API 基礎層：typed API errors、shared error envelope helper、`x-request-id` 維護、user-scoped Supabase helper、明確 service-role helper 與 admin gate helper。
 - Admin customer lookup：`GET /api/admin/customers/lookup`。
-- Admin work-order API：create/list/detail/update/status。
+- Admin work-order API：create/list/detail/update/status/resolve。
 - Admin work-order create RPC：原子建立 customer、work_order、第一筆 status_history 與 quote_items，不建立 print_jobs。
 - Admin work-order status RPC：原子 append `status_history`、同步 `work_orders.current_status`，並維護 ready/delivered/cancelled timestamp。
 
 ## 目前焦點
 
-- 從單筆 admin work-order 狀態更新轉入批量狀態、列印任務與登入/session flow。
+- 從 admin work-order resolve flow 轉入批量狀態、列印任務與登入/session flow。
 - 使用 generated Database types、admin gate helper 與 create RPC 延續後續 API 實作。
 - 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
 
@@ -67,7 +67,8 @@
 
 ## 風險與阻塞
 
-- Schema 與 status rules 已寫入 migration；create/list/detail/update/status 已串接，bulk status endpoint 尚未串接。
+- Schema 與 status rules 已寫入 migration；create/list/detail/update/status/resolve 已串接，bulk status endpoint 尚未串接。
+- Admin 單筆 detail/update/status endpoint 保留 UUID path 作為 internal resource identity；現場掃碼或人工輸入紙本工單號時，前端應先呼叫 `GET /api/admin/work-orders/resolve?paperOrderNo=...` 取得 UUID，再呼叫既有 UUID-based endpoint。
 - Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
 - Public customer lookup restriction 已寫入規格，但尚未由實際 backend code 強制執行。
 - 工單建立目前不建立 `print_jobs`；列印任務會在後續獨立流程補上。
