@@ -10,6 +10,37 @@
 - 日期格式使用 `YYYY-MM-DD`。
 - enum value 使用大寫字串，需與 [domain model](domain-model.md) 一致。
 
+## API Index
+
+以下索引用來快速查看目前有哪些 API 與實作狀態；詳細 request / response / 規則仍以下方正式 contract 為準。
+
+### Admin API
+
+- `implemented` `GET /api/admin/customers/lookup`：建單時查候選 customer。
+- `implemented` `GET /api/admin/work-orders`：工單列表。
+- `implemented` `GET /api/admin/work-orders/resolve`：用 `paperOrderNo` 解析 internal UUID。
+- `implemented` `POST /api/admin/work-orders`：建立工單。
+- `implemented` `GET /api/admin/work-orders/{id}`：工單詳情。
+- `implemented` `PATCH /api/admin/work-orders/{id}`：更新非狀態欄位。
+- `implemented` `POST /api/admin/work-orders/{id}/status`：單筆狀態更新。
+- `implemented` `POST /api/admin/work-orders/bulk-status`：批量狀態更新。
+- `planned` `POST /api/admin/work-orders/{id}/print-jobs`：建立補印任務。
+- `planned` `POST /api/admin/work-orders/{id}/photos`：上傳工單照片。
+- `planned` `GET /api/admin/work-orders/{id}/photos`：查詢工單照片。
+- `planned` `POST /api/admin/work-orders/{id}/quote-items`：新增報價項目。
+- `planned` `PATCH /api/admin/work-orders/{id}/pickup-info`：更新取件資訊。
+
+### Public API
+
+- `planned` `GET /api/public/work-orders/{paperOrderNo}?phoneLast4=1234`：顧客查詢工單進度。
+
+### Print Agent API
+
+- `planned` `GET /api/print-jobs/next`：取得下一筆待印任務。
+- `planned` `POST /api/print-jobs/{id}/start`：Print Agent 開始處理任務。
+- `planned` `POST /api/print-jobs/{id}/result`：Print Agent 回報列印結果。
+- `planned` `POST /api/print-jobs/{id}/retry`：重試列印任務。
+
 ## Authentication
 
 ### 管理端 API
