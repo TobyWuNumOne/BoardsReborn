@@ -11,32 +11,35 @@
 
 ## 目前快照
 
-- 最後更新：2026-04-23
-- 目前階段：Admin work-order bulk status flow 已建立，準備補列印流程與登入/session flow
+- 最後更新：2026-04-27
+- 目前階段：Frontend strategy 已定案，下一步正式導入 Tailwind CSS / shadcn-vue 並重整 admin 前端
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
-  - `server/api/` 已有 admin customer lookup 與 work-order create/list/detail/update/status/resolve/bulk-status handlers。
+  - `server/api/` 已有 admin session、customer lookup 與 work-order create/list/detail/update/status/resolve/bulk-status handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
+  - 前端已建立最小 login / session UI：`/login`、`/admin`、`/forbidden`、admin middleware 與 admin layout bootstrap。
+  - Frontend strategy 已記錄於 [frontend.md](frontend.md)：後續採 Nuxt 4 + Tailwind CSS + shadcn-vue；目前尚未導入 Tailwind CSS / shadcn-vue。
   - Supabase Database types 已產生於 `types/database.types.ts`。
   - Supabase local config、initial migration 與 seed placeholder 已建立。
-  - Admin auth helper 已能檢查 Supabase cookie session 與 `admin_profiles` gate；完整登入 UI / session flow、print-agent implementation 與 production workflow 仍未建立。
+  - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print-agent implementation 與 production workflow 仍未建立。
 
 ## 里程碑
 
-| 里程碑                                 | 狀態    | 說明                                                                                             |
-| -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| 核心規格與工程規則文件                 | done    | 產品、domain model、API contract、列印架構與 AI 規則文件已存在。                                 |
-| Minimal Nuxt scaffold 與基礎工具鏈     | done    | app shell、lint、typecheck、Vitest baseline 已建立。                                             |
-| 進度追蹤與 agent workflow              | done    | 本文件、AGENTS 規範與一致性檢查 skill 已建立。                                                   |
-| Supabase local stack 與 migrations     | done    | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。                  |
-| Server API foundation                  | done    | 共用 requestId、typed errors、Supabase client helpers 與 admin gate 已建立。                     |
-| Admin work-order API                   | partial | Create/list/detail/update/status/resolve/bulk-status 與 customer lookup 已建立；print 仍未實作。 |
-| Auth 與管理端流程                      | pending | Admin gate helper 已建立；登入 UI 與完整 session flow 尚未實作。                                 |
-| Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。                                     |
-| Customer lookup flow                   | pending | Public lookup contract 已定義，但尚未實作。                                                      |
-| Production workflow 與部署硬化         | pending | 超出 scaffold baseline 的建置與部署流程尚未建立。                                                |
+| 里程碑                                 | 狀態    | 說明                                                                                                 |
+| -------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| 核心規格與工程規則文件                 | done    | 產品、domain model、API contract、列印架構與 AI 規則文件已存在。                                     |
+| Minimal Nuxt scaffold 與基礎工具鏈     | done    | app shell、lint、typecheck、Vitest baseline 已建立。                                                 |
+| 進度追蹤與 agent workflow              | done    | 本文件、AGENTS 規範與一致性檢查 skill 已建立。                                                       |
+| Supabase local stack 與 migrations     | done    | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。                      |
+| Server API foundation                  | done    | 共用 requestId、typed errors、Supabase client helpers 與 admin gate 已建立。                         |
+| Admin work-order API                   | partial | Create/list/detail/update/status/resolve/bulk-status 與 customer lookup 已建立；print 仍未實作。     |
+| Auth 與管理端流程                      | done    | Admin gate helper、session endpoint、login/logout UI、admin middleware 與 session bootstrap 已建立。 |
+| Frontend strategy                      | done    | `docs/frontend.md` 已定案 admin route map、layout、styling、UI state 與 component boundaries。       |
+| Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。                                         |
+| Customer lookup flow                   | pending | Public lookup contract 已定義，但尚未實作。                                                          |
+| Production workflow 與部署硬化         | pending | 超出 scaffold baseline 的建置與部署流程尚未建立。                                                    |
 
 ## 已完成
 
@@ -48,23 +51,52 @@
 - Supabase baseline：local config、initial schema migration、private `repair-photos` bucket setup、RLS policies 與 seed placeholder。
 - Supabase Database types：`types/database.types.ts`。
 - Server API 基礎層：typed API errors、shared error envelope helper、`x-request-id` 維護、user-scoped Supabase helper、明確 service-role helper 與 admin gate helper。
+- Admin session endpoint：`GET /api/admin/session`。
 - Admin customer lookup：`GET /api/admin/customers/lookup`。
 - Admin work-order API：create/list/detail/update/status/resolve/bulk-status。
 - Admin work-order create RPC：原子建立 customer、work_order、第一筆 status_history 與 quote_items，不建立 print_jobs。
 - Admin work-order status RPC：原子 append `status_history`、同步 `work_orders.current_status`，並維護 ready/delivered/cancelled timestamp。
 - Admin bulk status API：以 `paperOrderNos` 批量更新狀態，回傳 `requestedCount`、`dedupedCount`、`updatedCount`、`skippedCount` 與逐筆結果；未知錯誤時立即停止後續處理。
+- Login / session UI：`/login`、`/admin`、`/forbidden`、admin middleware、admin layout bootstrap 與 logout action。
+- Frontend strategy spec：`docs/frontend.md`，定義 Nuxt 4 + Tailwind CSS + shadcn-vue 方向、admin route map、layout、data access、form validation、feedback、列表與狀態 badge 規則。
 
 ## 目前焦點
 
-- 從已建立的 admin work-order API 轉入列印任務與登入/session flow。
+- 正式導入 Tailwind CSS + shadcn-vue，並把既有 homepage / login / forbidden / admin placeholder 重整到新 styling strategy。
+- 在 `docs/frontend.md` 的規範下開始串接 admin 前端主流程。
+- 依既有 admin API 補 dashboard、工單列表、詳情、建立與狀態更新頁。
 - 使用 generated Database types、admin gate helper 與 create RPC 延續後續 API 實作。
 - 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
 
 ## 下一步
 
+- 安裝並設定 Tailwind CSS + shadcn-vue；同步 README 工具鏈基線。
+- 依 `docs/frontend.md` 重整既有 homepage / login / forbidden / admin placeholder。
+- 實作 admin dashboard。
+- 實作 admin 工單列表 / 詳情 / 建單頁面，接上既有 work-order API。
 - 實作列印任務 API 與 Python Print Agent 起始骨架。
-- 補上登入 UI / session flow，串接已建立的 admin gate helper。
-- 盤點 bulk status 與後續列印流程之間的 UI / 操作銜接。
+- 盤點 bulk status、admin 前端頁面與後續列印流程之間的 UI / 操作銜接。
+
+## Frontend Strategy 待辦
+
+- [x] 新增 `docs/frontend.md` 作為 MVP 前端設計與實作規範。
+- [x] 定案前端方向為 Nuxt 4 + Tailwind CSS + shadcn-vue。
+- [x] 定案 admin route map、layout、work order list 呈現、status badge、UI state 與 component boundaries。
+- [ ] 安裝 Tailwind CSS / shadcn-vue，並更新 README 工具鏈基線。
+- [ ] 重整既有 homepage / login / forbidden / admin placeholder 到新 styling strategy。
+- [ ] 實作 admin dashboard。
+- [ ] 實作 work order list / detail / create pages。
+
+## Login / Session UI 待辦
+
+- [x] 建立最小登入頁，支援 Supabase email/password sign-in。
+- [x] 建立前端 Supabase auth helper / composable，集中管理 session 狀態與登入登出呼叫。
+- [x] 建立 admin route middleware，未登入時導回登入頁。
+- [x] 建立 admin layout 的 session bootstrap，載入目前登入狀態並處理 loading / ready state。
+- [x] 串接既有 admin gate 規則，登入成功但非 `admin_profiles` 使用者時顯示禁止存取狀態。
+- [x] 提供 logout action，清除 session 後返回登入頁。
+- [x] 補最小 UI 驗證流程：未登入導轉、已登入可進 admin 頁、登出後失效。
+- [x] 更新 `docs/progress.md` 與必要的 auth / frontend 文件，標記 login / session UI 完成狀態。
 
 ## 風險與阻塞
 
@@ -73,4 +105,6 @@
 - Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
 - Public customer lookup restriction 已寫入規格，但尚未由實際 backend code 強制執行。
 - 工單建立目前不建立 `print_jobs`；列印任務會在後續獨立流程補上。
+- Admin 前端目前只有 auth-aware placeholder shell，工單頁面尚未開始串接。
+- Tailwind CSS / shadcn-vue 只是前端策略定案，尚未安裝或導入；目前既有前端仍使用 handwritten CSS。
 - 印表機型號與 production printing workflow 尚未定案，因此 Print Agent 細節仍保持抽象。

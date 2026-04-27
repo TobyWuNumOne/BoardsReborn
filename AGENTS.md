@@ -4,7 +4,7 @@
 
 - The authoritative source for current implementation status, completed milestones, and next steps is [docs/progress.md](docs/progress.md).
 - This repository combines documentation-first specs with a minimal Nuxt scaffold; do not present planned product implementation details as if they are already built.
-- Supabase local config, migrations, seed placeholder, generated Database types, server API foundation helpers, admin customer lookup, and admin work-order create/list/detail/update/status/resolve/bulk-status handlers exist; login/session UI and print-agent implementation are still pending.
+- Supabase local config, migrations, seed placeholder, generated Database types, server API foundation helpers, admin session/customer/work-order handlers, and minimal login/session UI exist; print-agent implementation is still pending.
 
 ## Read First
 
@@ -14,6 +14,7 @@
 - Use [docs/domain-model.md](docs/domain-model.md) for schema, enums, status rules, and storage boundaries.
 - Use [docs/api-contract.md](docs/api-contract.md) for endpoint shapes, auth, pagination, and error format.
 - Use [docs/barcode-printing.md](docs/barcode-printing.md) for barcode payload, async print jobs, and Print Agent responsibilities.
+- Use [docs/frontend.md](docs/frontend.md) for admin frontend route, layout, styling, component, form, and UI state decisions.
 - Use [docs/task-template.md](docs/task-template.md) when a task needs explicit acceptance criteria or completion-report structure.
 
 ## Agent Behavior Rules
