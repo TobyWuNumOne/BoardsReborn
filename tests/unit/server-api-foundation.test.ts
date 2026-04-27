@@ -13,6 +13,7 @@ import {
 import { defineApiHandler } from '../../server/utils/api-handler';
 import {
   ADMIN_PROFILE_SELECT,
+  getAdminSessionState,
   requireAdminContext,
   type AdminProfile,
   type AdminProfileLookupClient,
@@ -217,6 +218,37 @@ describe('server API foundation', () => {
         getSupabaseUser: () => Promise.resolve(userClaims('user-1')),
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('reports anonymous admin session state without querying the profile table', async () => {
+    const { event } = createMockEvent();
+
+    const session = await getAdminSessionState(event, {
+      getSupabaseUser: () => Promise.resolve(null),
+    });
+
+    expect(session).toEqual({
+      status: 'anonymous',
+    });
+  });
+
+  it('reports forbidden admin session state for authenticated non-admin users', async () => {
+    const { client } = createAdminProfileClient({
+      data: null,
+      error: null,
+    });
+    const { event } = createMockEvent();
+
+    const session = await getAdminSessionState(event, {
+      getSupabaseClient: () => Promise.resolve(client),
+      getSupabaseUser: () => Promise.resolve(userClaims('user-1')),
+    });
+
+    expect(session).toEqual({
+      status: 'forbidden',
+      supabase: client,
+      userId: 'user-1',
+    });
   });
 
   it('returns admin context using the minimal admin profile columns', async () => {

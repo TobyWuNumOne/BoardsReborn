@@ -1,5 +1,5 @@
 <template>
-  <main class="default-layout">
+  <main class="min-h-svh">
     <slot />
   </main>
 </template>

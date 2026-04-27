@@ -16,6 +16,7 @@
 
 ### Admin API
 
+- `implemented` `GET /api/admin/session`：回傳目前 admin session 與最小 profile。
 - `implemented` `GET /api/admin/customers/lookup`：建單時查候選 customer。
 - `implemented` `GET /api/admin/work-orders`：工單列表。
 - `implemented` `GET /api/admin/work-orders/resolve`：用 `paperOrderNo` 解析 internal UUID。
@@ -136,6 +137,29 @@ List response 格式：
 `fieldErrors` 統一使用 `Record<string, string[]>` 結構。已知 API 錯誤應由 server-side typed error classes 表示，route handler 不應散落以字串判斷錯誤類型。
 
 第一版 query、body、path validation 失敗一律回 `422 VALIDATION_ERROR`。紙本工單號唯一性衝突回 `409 CONFLICT`。查無 customer 或 work order 回 `404 NOT_FOUND`。
+
+## Admin Session
+
+### `GET /api/admin/session`
+
+回傳目前管理端 session 狀態與最小 admin profile。這支 endpoint 是前端 login / session UI 唯一的 admin bootstrap 來源。
+
+- 未登入時回 `401 UNAUTHORIZED`
+- 已登入但沒有 `admin_profiles` row 時回 `403 FORBIDDEN`
+- 已登入且為 admin 時回 `200`
+
+Response：`200`
+
+```json
+{
+  "data": {
+    "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
+    "displayName": "BoardsReborn Admin"
+  }
+}
+```
+
+這支 endpoint 只回傳最小必要欄位，不回傳 email、role 或其他無關 profile 資訊。
 
 ## Admin Work Orders
 

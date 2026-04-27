@@ -20,13 +20,23 @@ export function useScaffoldStatus(): ScaffoldStatusItem[] {
     },
     {
       label: 'Server API',
-      state: 'pending',
-      detail: 'server/api exists, but product endpoints have not been implemented yet.',
+      state: 'ready',
+      detail: 'Admin session, customer lookup, and work-order API handlers are in place.',
+    },
+    {
+      label: 'Frontend styling',
+      state: 'ready',
+      detail: 'Tailwind CSS and shadcn-vue are the active UI foundation.',
     },
     {
       label: 'Supabase schema',
       state: 'ready',
       detail: 'Initial migration, local config, and seed placeholder are in place.',
+    },
+    {
+      label: 'Print Agent',
+      state: 'pending',
+      detail: 'Print job API and Python Print Agent are still pending.',
     },
   ];
 }

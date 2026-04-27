@@ -21,7 +21,7 @@ export interface AdminAuthDependencies<
   Client extends AdminProfileLookupClient = UserScopedSupabaseClient,
 > {
   getSupabaseClient?: (event: H3Event) => Promise<Client>;
-  getSupabaseUser?: (event: H3Event) => Promise<SupabaseUserClaims>;
+  getSupabaseUser?: (event: H3Event) => Promise<SupabaseUserClaims | null>;
 }
 
 export interface AdminContext<Client extends AdminProfileLookupClient = UserScopedSupabaseClient> {
@@ -30,22 +30,45 @@ export interface AdminContext<Client extends AdminProfileLookupClient = UserScop
   userId: string;
 }
 
-const getUserId = (claims: SupabaseUserClaims): string => {
+export type AdminSessionState<Client extends AdminProfileLookupClient = UserScopedSupabaseClient> =
+  | {
+      status: 'anonymous';
+    }
+  | {
+      status: 'forbidden';
+      supabase: Client;
+      userId: string;
+    }
+  | {
+      profile: AdminProfile;
+      status: 'admin';
+      supabase: Client;
+      userId: string;
+    };
+
+const getUserId = (claims: SupabaseUserClaims | null | undefined): string | null => {
   if (!claims?.sub || typeof claims.sub !== 'string') {
-    throw new UnauthorizedError();
+    return null;
   }
 
   return claims.sub;
 };
 
-export const requireAdminContext = async <
+export const getAdminSessionState = async <
   Client extends AdminProfileLookupClient = UserScopedSupabaseClient,
 >(
   event: H3Event,
   dependencies: AdminAuthDependencies<Client> = {},
-): Promise<AdminContext<Client>> => {
+): Promise<AdminSessionState<Client>> => {
   const claims = await (dependencies.getSupabaseUser ?? getSupabaseUserClaims)(event);
   const userId = getUserId(claims);
+
+  if (!userId) {
+    return {
+      status: 'anonymous',
+    };
+  }
+
   const supabase = await (
     dependencies.getSupabaseClient ??
     (getUserScopedSupabaseClient as unknown as (event: H3Event) => Promise<Client>)
@@ -62,12 +85,40 @@ export const requireAdminContext = async <
   }
 
   if (!profile) {
-    throw new ForbiddenError('Admin access required.');
+    return {
+      status: 'forbidden',
+      supabase,
+      userId,
+    };
   }
 
   return {
     profile,
+    status: 'admin',
     supabase,
     userId,
+  };
+};
+
+export const requireAdminContext = async <
+  Client extends AdminProfileLookupClient = UserScopedSupabaseClient,
+>(
+  event: H3Event,
+  dependencies: AdminAuthDependencies<Client> = {},
+): Promise<AdminContext<Client>> => {
+  const session = await getAdminSessionState(event, dependencies);
+
+  if (session.status === 'anonymous') {
+    throw new UnauthorizedError();
+  }
+
+  if (session.status === 'forbidden') {
+    throw new ForbiddenError('Admin access required.');
+  }
+
+  return {
+    profile: session.profile,
+    supabase: session.supabase,
+    userId: session.userId,
   };
 };
