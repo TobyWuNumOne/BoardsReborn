@@ -184,6 +184,12 @@ Query examples：
 
 `q` 第一版只搜尋 `paper_order_no`。`customerPhone` 會先依台灣手機正規化規則轉為 `09xxxxxxxx` 後查詢。`staleReceived=true` 第一版使用 7 天門檻。
 
+列表 response 的 `flags` 用來表達管理端提醒，不是正式狀態，也不會寫回 `work_order_status`：
+
+- `overdueEstimatedCompletion`
+- `pickupOverdue`
+- `staleReceived`
+
 第一版允許排序欄位：
 
 - `created_at`
@@ -214,6 +220,11 @@ Response：
       "currentStatus": "REPAIRING",
       "intakeDate": "2026-04-20",
       "estimatedCompletionDate": "2026-04-26",
+      "flags": {
+        "overdueEstimatedCompletion": false,
+        "pickupOverdue": false,
+        "staleReceived": true
+      },
       "quoteTotalAmount": 700,
       "paymentReceived": true,
       "paymentReceivedAt": "2026-04-20T08:00:00.000Z",

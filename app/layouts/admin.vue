@@ -19,7 +19,7 @@ const navItems = [
     label: '工單',
     to: '/admin/work-orders',
     icon: ClipboardListIcon,
-    enabled: false,
+    enabled: true,
   },
 ];
 

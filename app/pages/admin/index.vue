@@ -20,9 +20,9 @@ const summaryCards = [
     detail: 'Create/list/detail/update/status/resolve/bulk-status 已在 server API 層完成。',
   },
   {
-    label: 'Frontend pages',
-    value: 'Next',
-    detail: '下一步接 dashboard data、工單列表、詳情與建單表單。',
+    label: 'Work-order list',
+    value: 'Ready',
+    detail: '工單列表已可查詢、篩選、排序與分頁；詳情與建單仍在後續 task。',
   },
 ];
 </script>
@@ -35,8 +35,8 @@ const summaryCards = [
         <div>
           <h1 class="text-2xl font-semibold tracking-tight">管理端工作區</h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            目前這裡是 auth-aware placeholder。Tailwind CSS、shadcn-vue、sidebar layout
-            已就緒，實際工單資料頁會在下一個 task 串接。
+            目前 dashboard 仍是 auth-aware placeholder，但工單列表已可從左側導覽進入。接下來會補
+            dashboard live data、工單詳情與建單流程。
           </p>
         </div>
       </div>
@@ -57,11 +57,13 @@ const summaryCards = [
     <Card>
       <CardHeader>
         <CardTitle>Quick entries</CardTitle>
-        <CardDescription>這些入口先固定版位；工單頁面會在後續 task 實作。</CardDescription>
+        <CardDescription>先保留最常用入口；工單列表已可直接進入。</CardDescription>
       </CardHeader>
       <CardContent>
         <div class="grid gap-3 sm:grid-cols-2">
-          <Button variant="outline" disabled class="justify-start">工單列表（下一步）</Button>
+          <Button as-child variant="outline" class="justify-start">
+            <NuxtLink to="/admin/work-orders">工單列表</NuxtLink>
+          </Button>
           <Button variant="outline" disabled class="justify-start">新增工單（後續）</Button>
         </div>
       </CardContent>

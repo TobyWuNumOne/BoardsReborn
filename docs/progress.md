@@ -11,8 +11,8 @@
 
 ## 目前快照
 
-- 最後更新：2026-04-27
-- 目前階段：Tailwind CSS / shadcn-vue 已導入，下一步實作 admin dashboard 與工單前端頁
+- 最後更新：2026-04-28
+- 目前階段：admin 工單列表頁已接上，下一步實作 dashboard live data、工單詳情與建單頁
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -20,7 +20,7 @@
   - `server/api/` 已有 admin session、customer lookup 與 work-order create/list/detail/update/status/resolve/bulk-status handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - 前端已導入 Tailwind CSS v4、shadcn-vue primitives、`shadcn-nuxt` 與 SSR width baseline。
-  - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；工單列表、詳情與建單頁面尚未實作。
+  - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序、分頁並導向 detail placeholder。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
   - Supabase Database types 已產生於 `types/database.types.ts`。
   - Supabase local config、initial migration 與 seed placeholder 已建立。
@@ -39,6 +39,7 @@
 | Admin work-order API                   | partial | Create/list/detail/update/status/resolve/bulk-status 與 customer lookup 已建立；print 仍未實作。     |
 | Auth 與管理端流程                      | done    | Admin gate helper、session endpoint、login/logout UI、admin middleware 與 session bootstrap 已建立。 |
 | Frontend strategy / UI foundation      | done    | Tailwind CSS v4、shadcn-vue primitives、admin shell 與 frontend rules 已建立。                       |
+| Admin work-order list UI               | done    | `/admin/work-orders` 已接上 list API、URL query state、table/card list 與 detail 導頁。              |
 | Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。                                         |
 | Customer lookup flow                   | pending | Public lookup contract 已定義，但尚未實作。                                                          |
 | Production workflow 與部署硬化         | pending | 超出 scaffold baseline 的建置與部署流程尚未建立。                                                    |
@@ -63,18 +64,20 @@
 - Local auth cookie hardening：Supabase SSR cookie 依 app URL protocol 決定 `secure`，避免本機 HTTP 開發時瀏覽器拒收 auth cookie。
 - Frontend UI foundation：Tailwind CSS v4、`@tailwindcss/vite`、shadcn-vue primitives、`shadcn-nuxt`、SSR width plugin、Tailwind/shadcn 重整後的 homepage / login / forbidden / admin placeholder。
 - Frontend strategy spec：`docs/frontend.md`，定義 admin route map、layout、data access、form validation、feedback、列表與狀態 badge 規則。
+- Admin work-order list UI：URL query canonicalization middleware、read-only 工單列表、提醒 badges、桌機 table / 手機 card list 與 detail placeholder route。
+- Admin work-order list rendering fix：改為顯式 import `work-orders` 目錄下的列表與 badge 元件，排除 Nuxt auto-import 前綴不符造成「總數正確但列表不顯示」的回歸。
 
 ## 目前焦點
 
-- 在 `docs/frontend.md` 的規範下開始串接 admin 前端主流程。
-- 依既有 admin API 補 admin dashboard live data、工單列表、詳情、建立與狀態更新頁。
+- 在 `docs/frontend.md` 的規範下延續 admin 前端主流程。
+- 依既有 admin API 補 admin dashboard live data、工單詳情、建立與狀態更新頁。
 - 使用 generated Database types、admin gate helper 與 create RPC 延續後續 API 實作。
 - 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
 
 ## 下一步
 
 - 實作 admin dashboard live data 與真實快速入口。
-- 實作 admin 工單列表 / 詳情 / 建單頁面，接上既有 work-order API。
+- 實作 admin 工單詳情 / 建單頁面，接上既有 work-order API。
 - 實作列印任務 API 與 Python Print Agent 起始骨架。
 - 盤點 bulk status、admin 前端頁面與後續列印流程之間的 UI / 操作銜接。
 
@@ -86,7 +89,9 @@
 - [x] 安裝 Tailwind CSS / shadcn-vue，並更新 README 工具鏈基線。
 - [x] 重整既有 homepage / login / forbidden / admin placeholder 到新 styling strategy。
 - [ ] 實作 admin dashboard live data。
-- [ ] 實作 work order list / detail / create pages。
+- [x] 實作 work order list page。
+- [ ] 實作 work order detail page。
+- [ ] 實作 work order create page。
 
 ## Login / Session UI 待辦
 
@@ -106,6 +111,6 @@
 - Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
 - Public customer lookup restriction 已寫入規格，但尚未由實際 backend code 強制執行。
 - 工單建立目前不建立 `print_jobs`；列印任務會在後續獨立流程補上。
-- Admin 前端目前已有 Tailwind/shadcn shell，但 dashboard 仍是 placeholder，工單頁面尚未開始串接。
+- Admin 前端目前已有 Tailwind/shadcn shell 與工單列表頁，但 dashboard 仍是 placeholder，detail / create 仍待實作。
 - shadcn-vue latest 的 `reka-vega` style registry base style 在初始化時回 404；本次以 `--no-base-style` 初始化並依官方 neutral theme scaffold 手動補齊 global CSS tokens。
 - 印表機型號與 production printing workflow 尚未定案，因此 Print Agent 細節仍保持抽象。

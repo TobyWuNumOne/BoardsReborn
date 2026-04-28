@@ -8,7 +8,8 @@
 - Tailwind CSS 透過 `@tailwindcss/vite` 接入 Nuxt。
 - shadcn-vue 透過 `shadcn-nuxt` 與 CLI-generated primitives 接入。
 - 目前 `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎。
-- 工單列表、詳情與建單頁面尚未實作。
+- `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
+- 工單詳情與建單頁面尚未實作。
 
 ## Styling Strategy
 
@@ -87,7 +88,7 @@ Desktop / tablet table 欄位：
 - 顧客
 - 板型
 - 預估完成日
-- 是否超時
+- 提醒
 - 最近更新
 - 操作
 
@@ -98,6 +99,7 @@ Mobile card 欄位：
 - 顧客 / 電話
 - 板型
 - 預估完成日
+- 提醒 badges
 - 最近更新
 
 ## Status Badges
@@ -163,6 +165,6 @@ Mobile card 欄位：
 前端後續建議順序：
 
 1. 建立 admin dashboard live data。
-2. 建立 work order list。
-3. 建立 work order detail。
-4. 建立 work order create。
+2. 建立 work order detail。
+3. 建立 work order create。
+4. 建立 bulk status UI。

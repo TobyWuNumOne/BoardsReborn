@@ -96,7 +96,25 @@ const isPickupOverdue = (
   return calculateDaysWaitingForPickup(notifiedAt, pickedUpAt, now) >= storageFeeWarningAfterDays;
 };
 
-export const mapWorkOrderListRow = (row: AdminWorkOrderListRow) => ({
+const isStaleReceived = (
+  latestReceivedAt: string | null,
+  currentStatus: AdminWorkOrderListRow['current_status'],
+  now = new Date(),
+) => {
+  if (currentStatus !== 'RECEIVED' || !latestReceivedAt) {
+    return false;
+  }
+
+  const latestReceivedDate = new Date(latestReceivedAt);
+
+  if (Number.isNaN(latestReceivedDate.getTime())) {
+    return false;
+  }
+
+  return now.getTime() - latestReceivedDate.getTime() >= STALE_RECEIVED_DAYS * DAY_IN_MS;
+};
+
+export const mapWorkOrderListRow = (row: AdminWorkOrderListRow, now = new Date()) => ({
   board: {
     boardType: row.board_type,
     sizeLabel: row.board_size_label,
@@ -108,6 +126,11 @@ export const mapWorkOrderListRow = (row: AdminWorkOrderListRow) => ({
     phone: row.customer_phone,
   },
   estimatedCompletionDate: row.estimated_completion_date,
+  flags: {
+    overdueEstimatedCompletion: row.is_overdue_estimated_completion ?? false,
+    pickupOverdue: row.is_pickup_overdue ?? false,
+    staleReceived: isStaleReceived(row.latest_received_at, row.current_status, now),
+  },
   id: row.id,
   intakeDate: row.intake_date,
   lastUpdatedAt: row.updated_at,
@@ -354,7 +377,7 @@ export const listAdminWorkOrders = async (
   const total = count ?? 0;
 
   return {
-    data: (data ?? []).map(mapWorkOrderListRow),
+    data: (data ?? []).map((row) => mapWorkOrderListRow(row)),
     pageInfo: calculatePageInfo(query.page, query.pageSize, total),
   };
 };
