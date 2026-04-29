@@ -208,6 +208,10 @@ const goToPage = async (page: number) => {
   });
 };
 
+const navigateToCreate = async () => {
+  await navigateTo('/admin/work-orders/new');
+};
+
 const navigateToDetail = async (id: string) => {
   await navigateTo(getAdminWorkOrderDetailPath(id));
 };
@@ -348,9 +352,12 @@ const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 筆�
           </p>
         </div>
 
-        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-          <Spinner v-if="isRefreshing" />
-          <span>{{ resultSummary }}</span>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <div class="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner v-if="isRefreshing" />
+            <span>{{ resultSummary }}</span>
+          </div>
+          <Button type="button" class="w-full sm:w-auto" @click="navigateToCreate">新增工單</Button>
         </div>
       </div>
     </div>
@@ -581,6 +588,9 @@ const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 筆�
           <CardTitle>尚無工單資料</CardTitle>
           <CardDescription>目前系統內還沒有可顯示的工單。</CardDescription>
         </CardHeader>
+        <CardContent>
+          <Button type="button" @click="navigateToCreate">新增第一筆工單</Button>
+        </CardContent>
       </Card>
     </template>
 

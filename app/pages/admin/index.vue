@@ -22,7 +22,7 @@ const summaryCards = [
   {
     label: 'Work-order list',
     value: 'Ready',
-    detail: '工單列表已可查詢、篩選、排序與分頁；詳情與建單仍在後續 task。',
+    detail: '工單列表、詳情與建單頁都已可進入，後續補 dashboard live data 與 work mode。',
   },
 ];
 </script>
@@ -35,8 +35,8 @@ const summaryCards = [
         <div>
           <h1 class="text-2xl font-semibold tracking-tight">管理端工作區</h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            目前 dashboard 仍是 auth-aware placeholder，但工單列表已可從左側導覽進入。接下來會補
-            dashboard live data、工單詳情與建單流程。
+            目前 dashboard 仍是 auth-aware placeholder，但工單列表、詳情與建單流程都已接上。接下來會補
+            dashboard live data 與 detail 的 work mode。
           </p>
         </div>
       </div>
@@ -57,14 +57,16 @@ const summaryCards = [
     <Card>
       <CardHeader>
         <CardTitle>Quick entries</CardTitle>
-        <CardDescription>先保留最常用入口；工單列表已可直接進入。</CardDescription>
+        <CardDescription>先保留最常用入口；工單列表與建單頁都可直接進入。</CardDescription>
       </CardHeader>
       <CardContent>
         <div class="grid gap-3 sm:grid-cols-2">
           <Button as-child variant="outline" class="justify-start">
             <NuxtLink to="/admin/work-orders">工單列表</NuxtLink>
           </Button>
-          <Button variant="outline" disabled class="justify-start">新增工單（後續）</Button>
+          <Button as-child variant="outline" class="justify-start">
+            <NuxtLink to="/admin/work-orders/new">新增工單</NuxtLink>
+          </Button>
         </div>
       </CardContent>
     </Card>

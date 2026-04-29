@@ -12,6 +12,9 @@ importers:
 
   .:
     dependencies:
+      '@internationalized/date':
+        specifier: ^3.12.1
+        version: 3.12.1
       '@nuxtjs/supabase':
         specifier: ^2.0.5
         version: 2.0.5

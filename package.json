@@ -21,6 +21,7 @@
     "prepare": "nuxt prepare"
   },
   "dependencies": {
+    "@internationalized/date": "^3.12.1",
     "@nuxtjs/supabase": "^2.0.5",
     "@vueuse/core": "^14.2.1",
     "class-variance-authority": "^0.7.1",

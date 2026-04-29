@@ -1,0 +1,118 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buildAdminWorkOrderCreatePayload,
+  createAdminWorkOrderCreateInitialFormState,
+  getFixedNextSundayDateString,
+  hasAdminWorkOrderCreateUnsavedChanges,
+  normalizeAdminWorkOrderCreateFormState,
+  shouldResetCustomerLookupResolution,
+} from '../../app/utils/admin-work-order-create';
+
+describe('admin work-order create helpers', () => {
+  it('defaults estimated completion date from intake date to the following Sunday cycle', () => {
+    expect(getFixedNextSundayDateString('2026-04-27')).toBe('2026-05-10');
+    expect(getFixedNextSundayDateString('2026-05-03')).toBe('2026-05-10');
+
+    const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
+
+    expect(formState.intakeDate).toBe('2026-04-29');
+    expect(formState.estimatedCompletionDate).toBe('2026-05-10');
+  });
+
+  it('builds create payload for new customers and omits quote items when initial quote is blank', () => {
+    const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
+
+    formState.paperOrderNo = 'BR-2026-0001';
+    formState.customerPhone = '0912-345-678';
+    formState.customerModeDecision = 'create';
+    formState.customerName = '王小明';
+    formState.boardType = 'SURFBOARD';
+    formState.boardBrand = 'Channel Islands';
+    formState.damageDescription = '鼻頭裂傷';
+    formState.paymentReceived = true;
+
+    const result = buildAdminWorkOrderCreatePayload(formState);
+
+    expect(result.fieldErrors).toEqual({});
+    expect(result.payload).toEqual({
+      board: {
+        boardType: 'SURFBOARD',
+        brand: 'Channel Islands',
+      },
+      customer: {
+        name: '王小明',
+        phone: '0912345678',
+      },
+      customerMode: 'create',
+      quoteItems: [],
+      workOrder: {
+        damageDescription: '鼻頭裂傷',
+        estimatedCompletionDate: '2026-05-10',
+        intakeDate: '2026-04-29',
+        paperOrderNo: 'BR-2026-0001',
+        paymentReceived: true,
+      },
+    });
+  });
+
+  it('builds a single INITIAL quote item and trims OTHER color values', () => {
+    const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
+
+    formState.paperOrderNo = 'BR-2026-0002';
+    formState.customerPhone = '0912345678';
+    formState.customerModeDecision = 'reuse';
+    formState.selectedCustomerId = '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2';
+    formState.boardType = 'SNOWBOARD';
+    formState.boardColorChoice = 'OTHER';
+    formState.boardColorOther = ' 藍白漸層 ';
+    formState.damageDescription = '表面刮傷';
+    formState.initialQuoteAmount = '500';
+    formState.initialQuoteDescription = ' ';
+
+    const result = buildAdminWorkOrderCreatePayload(formState);
+
+    expect(result.fieldErrors).toEqual({});
+    expect(result.payload).toEqual({
+      board: {
+        boardType: 'SNOWBOARD',
+        color: '藍白漸層',
+      },
+      customerId: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
+      customerMode: 'reuse',
+      quoteItems: [
+        {
+          amount: 500,
+          description: '初始報價',
+          itemType: 'INITIAL',
+        },
+      ],
+      workOrder: {
+        damageDescription: '表面刮傷',
+        estimatedCompletionDate: '2026-05-10',
+        intakeDate: '2026-04-29',
+        paperOrderNo: 'BR-2026-0002',
+        paymentReceived: false,
+      },
+    });
+
+    formState.boardColorOther = '   ';
+    const blankOtherColor = buildAdminWorkOrderCreatePayload(formState);
+
+    expect(blankOtherColor.payload?.board.color).toBeUndefined();
+  });
+
+  it('detects lookup reset need and unsaved draft changes explicitly', () => {
+    expect(shouldResetCustomerLookupResolution('0912345678', '0912-345-678')).toBe(false);
+    expect(shouldResetCustomerLookupResolution('0912345678', '0912345679')).toBe(true);
+    expect(shouldResetCustomerLookupResolution('0912345678', '0912')).toBe(true);
+
+    const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
+    const baseline = normalizeAdminWorkOrderCreateFormState(formState);
+
+    formState.customerName = '  ';
+    expect(hasAdminWorkOrderCreateUnsavedChanges(baseline, normalizeAdminWorkOrderCreateFormState(formState))).toBe(false);
+
+    formState.paperOrderNo = 'BR-2026-9999';
+    expect(hasAdminWorkOrderCreateUnsavedChanges(baseline, normalizeAdminWorkOrderCreateFormState(formState))).toBe(true);
+  });
+});

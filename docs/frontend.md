@@ -10,7 +10,7 @@
 - 目前 `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
 - `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 仍是 shell。
-- 工單建單頁面尚未實作。
+- `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API。
 - 目前 admin 前端頁面大多屬第一版雛形：已建立主要流程、資訊架構與操作方向，但欄位編排、文案、資訊層級、互動回饋與 mode 細節不視為最終定稿，預期會在與甲方討論後進入第二版調整。
 
 ## Styling Strategy
@@ -144,6 +144,28 @@ Mobile card 欄位：
   - `paymentReceivedAt` 只讀，必須以 refresh 後的 server detail response 顯示
   - 有未儲存變更時，切 mode、返回列表、reload 都需確認離開
 
+## Work Order Create
+
+- 建單頁定位是「現場收件流程」，不是一般後台 CRUD 表單。
+- `/admin/work-orders/new` 採單頁分區表單，不做 wizard。
+- 平板 / 手機第一屏優先顯示：
+  - 紙本工單號
+  - 顧客手機
+  - 查詢顧客
+  - 板型
+  - 固定可見的建立按鈕
+- 顧客流程固定為 lookup-first：
+  - 先查手機
+  - 查到候選顧客時由店員手動選 reuse，或改成建立新顧客
+  - 手機號碼變更後必須清空 lookup 結果與 reuse/create 決策
+- `estimatedCompletionDate` 預設由 `intakeDate` 計算，第一版規則為固定下週日；在使用者手動改過前，`intakeDate` 改變時可自動重算。
+- 初始報價可留空；若有填金額，送單筆 `INITIAL` quote item。
+- `paymentReceived = true` 且未填初始報價時只顯示 warning，不阻擋提交。
+- 建立成功後：
+  - 清除 unsaved-change guard
+  - 顯示 success toast
+  - 導向 `/admin/work-orders/[id]?mode=view`
+
 ## Status Badges
 
 狀態不可只靠顏色辨識，必須同時顯示文字與 badge。
@@ -185,12 +207,15 @@ Mobile card 欄位：
 第一批 shadcn-vue primitives：
 
 - `button`
+- `calendar`
 - `card`
 - `input`
 - `label`
 - `field`
 - `alert`
 - `badge`
+- `popover`
+- `radio-group`
 - `separator`
 - `skeleton`
 - `spinner`
@@ -208,6 +233,5 @@ Mobile card 欄位：
 
 1. 建立 admin dashboard live data。
 2. 接上 work order detail 的 `work` mutation flow。
-3. 建立 work order create。
-4. 建立 bulk status UI。
-5. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。
+3. 建立 bulk status UI。
+4. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。

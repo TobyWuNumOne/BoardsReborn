@@ -14,6 +14,9 @@ const supabaseCookieSecure = (() => {
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-21',
   devtools: { enabled: true },
+  experimental: {
+    appManifest: false,
+  },
 
   modules: ['@nuxt/eslint', '@nuxt/test-utils/module', '@nuxtjs/supabase', 'shadcn-nuxt'],
 
