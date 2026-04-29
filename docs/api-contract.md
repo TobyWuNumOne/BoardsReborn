@@ -371,9 +371,12 @@ Response：
     "board": {
       "boardType": "SURFBOARD",
       "brand": "Channel Islands",
+      "color": "white",
       "model": "Happy",
+      "serialLabel": "A12",
       "sizeLabel": "6'2"
     },
+    "intakeDate": "2026-04-20",
     "damageDescription": "鼻頭裂傷，疑似進水",
     "estimatedCompletionDate": "2026-04-26",
     "paymentReceived": true,

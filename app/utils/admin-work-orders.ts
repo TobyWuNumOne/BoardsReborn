@@ -4,6 +4,7 @@ import type { Database } from '../../types/database.types';
 
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 type BoardType = Database['public']['Enums']['board_type'];
+type QuoteItemType = Database['public']['Enums']['quote_item_type'];
 
 export interface WorkOrderListFlags {
   overdueEstimatedCompletion: boolean;
@@ -48,6 +49,84 @@ export interface AdminWorkOrderListResponse {
   pageInfo: PageInfo;
 }
 
+export interface AdminWorkOrderQuoteItem {
+  amount: number | null;
+  createdAt: string | null;
+  description: string | null;
+  id: string | null;
+  itemType: QuoteItemType | null;
+}
+
+export interface AdminWorkOrderStatusHistoryItem {
+  changedAt: string | null;
+  id: string | null;
+  note: string | null;
+  status: WorkOrderStatus | null;
+}
+
+export interface AdminWorkOrderPickupInfo {
+  daysWaitingForPickup: number | null;
+  isPickupOverdue: boolean;
+  notifiedAt: string | null;
+  pickedUpAt: string | null;
+  pickupNote: string | null;
+  storageFeeWarningAfterDays: number | null;
+}
+
+export interface AdminWorkOrderDetailItem {
+  board: {
+    boardType: BoardType | null;
+    brand: string | null;
+    color: string | null;
+    model: string | null;
+    serialLabel: string | null;
+    sizeLabel: string | null;
+  };
+  currentStatus: WorkOrderStatus | null;
+  customer: {
+    id: string | null;
+    name: string | null;
+    phone: string | null;
+  };
+  damageDescription: string | null;
+  estimatedCompletionDate: string | null;
+  id: string;
+  intakeDate: string | null;
+  internalNote: string | null;
+  paperOrderNo: string | null;
+  paymentReceived: boolean | null;
+  paymentReceivedAt: string | null;
+  pickupInfo: AdminWorkOrderPickupInfo;
+  publicNote: string | null;
+  quoteItems: AdminWorkOrderQuoteItem[];
+  quoteTotalAmount: number | null;
+  statusHistory: AdminWorkOrderStatusHistoryItem[];
+}
+
+export interface AdminWorkOrderDetailResponse {
+  data: AdminWorkOrderDetailItem;
+}
+
+export interface AdminWorkOrderEditFormState {
+  damageDescription: string;
+  estimatedCompletionDate: string;
+  internalNote: string;
+  paymentReceived: boolean;
+  pickupNote: string;
+  publicNote: string;
+  storageFeeWarningAfterDays: string;
+}
+
+export interface AdminWorkOrderEditNormalizedSnapshot {
+  damageDescription: string | null;
+  estimatedCompletionDate: string | null;
+  internalNote: string | null;
+  paymentReceived: boolean;
+  pickupNote: string | null;
+  publicNote: string | null;
+  storageFeeWarningAfterDays: string;
+}
+
 export interface AdminWorkOrderListQueryState {
   customerPhone?: string;
   overdueEstimatedCompletion: boolean;
@@ -72,7 +151,17 @@ export interface ApiErrorEnvelope {
 export const DEFAULT_ADMIN_WORK_ORDER_LIST_PAGE = 1;
 export const DEFAULT_ADMIN_WORK_ORDER_LIST_PAGE_SIZE = 20;
 export const DEFAULT_ADMIN_WORK_ORDER_LIST_SORT = 'created_at:desc';
+export const DEFAULT_ADMIN_WORK_ORDER_DETAIL_MODE = 'view';
 export const ADMIN_WORK_ORDER_LIST_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+export const ADMIN_WORK_ORDER_EDITABLE_FIELDS = [
+  'estimatedCompletionDate',
+  'damageDescription',
+  'paymentReceived',
+  'publicNote',
+  'internalNote',
+  'pickupNote',
+  'storageFeeWarningAfterDays',
+] as const;
 
 export const ADMIN_WORK_ORDER_LIST_SORT_OPTIONS = [
   { label: '最新建立', value: 'created_at:desc' },
@@ -100,8 +189,26 @@ export const ADMIN_WORK_ORDER_STATUS_OPTIONS = [
   { label: '已取消', value: 'CANCELLED' },
 ] as const satisfies ReadonlyArray<{ label: string; value: WorkOrderStatus }>;
 
+export const ADMIN_WORK_ORDER_DETAIL_MODE_OPTIONS = [
+  { label: '檢視', value: 'view' },
+  { label: '管理修正', value: 'edit' },
+  { label: '現場作業', value: 'work' },
+] as const;
+
 export type AdminWorkOrderListSortValue =
   (typeof ADMIN_WORK_ORDER_LIST_SORT_OPTIONS)[number]['value'];
+export type AdminWorkOrderDetailMode =
+  (typeof ADMIN_WORK_ORDER_DETAIL_MODE_OPTIONS)[number]['value'];
+export type AdminWorkOrderEditableField = (typeof ADMIN_WORK_ORDER_EDITABLE_FIELDS)[number];
+export type AdminWorkOrderPatchPayload = Partial<{
+  damageDescription: string | null;
+  estimatedCompletionDate: string | null;
+  internalNote: string | null;
+  paymentReceived: boolean;
+  pickupNote: string | null;
+  publicNote: string | null;
+  storageFeeWarningAfterDays: number;
+}>;
 
 export type WorkOrderFlagKey = keyof WorkOrderListFlags;
 
@@ -118,6 +225,23 @@ const statusValueSchema = z.enum(
     ...WorkOrderStatus[],
   ],
 );
+
+const detailModeValueSchema = z.enum(
+  ADMIN_WORK_ORDER_DETAIL_MODE_OPTIONS.map((option) => option.value) as [
+    AdminWorkOrderDetailMode,
+    ...AdminWorkOrderDetailMode[],
+  ],
+);
+
+const editPayloadSchema = z.object({
+  damageDescription: z.string().nullable().optional(),
+  estimatedCompletionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  internalNote: z.string().nullable().optional(),
+  paymentReceived: z.boolean().optional(),
+  pickupNote: z.string().nullable().optional(),
+  publicNote: z.string().nullable().optional(),
+  storageFeeWarningAfterDays: z.number().int().min(1).max(32767).optional(),
+});
 
 const pageSizeSchema = z.enum(
   ADMIN_WORK_ORDER_LIST_PAGE_SIZE_OPTIONS.map(String) as [
@@ -193,6 +317,18 @@ const BOARD_TYPE_LABELS: Record<BoardType, string> = {
   SURFBOARD: '衝浪板',
 };
 
+const QUOTE_ITEM_TYPE_LABELS: Record<QuoteItemType, string> = {
+  ADDITIONAL: '追加報價',
+  ADJUSTMENT: '調整項目',
+  INITIAL: '初始報價',
+};
+
+const DETAIL_MODE_LABELS: Record<AdminWorkOrderDetailMode, string> = {
+  edit: '管理修正',
+  view: '檢視',
+  work: '現場作業',
+};
+
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-TW', {
   day: '2-digit',
   hour: '2-digit',
@@ -229,6 +365,21 @@ const trimQueryValue = (value: string | undefined): string | undefined => {
 
   return trimmedValue ? trimmedValue : undefined;
 };
+
+const normalizeNullableText = (value: string | null | undefined) => {
+  const trimmedValue = value?.trim();
+
+  return trimmedValue ? trimmedValue : null;
+};
+
+const normalizeNullableDate = (value: string | null | undefined) => {
+  const trimmedValue = value?.trim();
+
+  return trimmedValue ? trimmedValue : null;
+};
+
+const normalizeStorageFeeWarningInput = (value: string | number | null | undefined) =>
+  value === null || value === undefined ? '' : String(value).trim();
 
 const parsePositiveInteger = (value: string | undefined): number | undefined => {
   if (!value || !/^\d+$/.test(value)) {
@@ -288,6 +439,12 @@ export const getWorkOrderStatusLabel = (status: WorkOrderStatus | null) =>
 export const getBoardTypeLabel = (boardType: BoardType | null) =>
   boardType ? BOARD_TYPE_LABELS[boardType] : '—';
 
+export const getQuoteItemTypeLabel = (itemType: QuoteItemType | null) =>
+  itemType ? QUOTE_ITEM_TYPE_LABELS[itemType] : '—';
+
+export const getAdminWorkOrderDetailModeLabel = (mode: AdminWorkOrderDetailMode) =>
+  DETAIL_MODE_LABELS[mode];
+
 export const getWorkOrderFlagMeta = (flag: WorkOrderFlagKey) => WORK_ORDER_FLAG_META[flag];
 
 export const getActiveWorkOrderFlags = (flags: WorkOrderListFlags) =>
@@ -327,7 +484,142 @@ export const formatAdminDateTime = (value: string | null) => {
   return DATE_TIME_FORMATTER.format(parsedValue);
 };
 
-export const getAdminWorkOrderDetailPath = (id: string) => `/admin/work-orders/${id}`;
+export const getAdminWorkOrderDetailPath = (
+  id: string,
+  mode: AdminWorkOrderDetailMode = DEFAULT_ADMIN_WORK_ORDER_DETAIL_MODE,
+) => `/admin/work-orders/${encodeURIComponent(id)}?mode=${mode}`;
+
+export const getAdminWorkOrderDetailAsyncKey = (id: string) => `admin-work-order-detail:${id}`;
+
+export const createEmptyAdminWorkOrderEditFormState = (): AdminWorkOrderEditFormState => ({
+  damageDescription: '',
+  estimatedCompletionDate: '',
+  internalNote: '',
+  paymentReceived: false,
+  pickupNote: '',
+  publicNote: '',
+  storageFeeWarningAfterDays: '',
+});
+
+export const createAdminWorkOrderEditFormState = (
+  detail: AdminWorkOrderDetailItem,
+): AdminWorkOrderEditFormState => ({
+  damageDescription: detail.damageDescription ?? '',
+  estimatedCompletionDate: detail.estimatedCompletionDate ?? '',
+  internalNote: detail.internalNote ?? '',
+  paymentReceived: detail.paymentReceived === true,
+  pickupNote: detail.pickupInfo.pickupNote ?? '',
+  publicNote: detail.publicNote ?? '',
+  storageFeeWarningAfterDays:
+    detail.pickupInfo.storageFeeWarningAfterDays === null
+      ? ''
+      : String(detail.pickupInfo.storageFeeWarningAfterDays),
+});
+
+export const normalizeAdminWorkOrderEditFormState = (
+  formState: AdminWorkOrderEditFormState,
+): AdminWorkOrderEditNormalizedSnapshot => ({
+  damageDescription: normalizeNullableText(formState.damageDescription),
+  estimatedCompletionDate: normalizeNullableDate(formState.estimatedCompletionDate),
+  internalNote: normalizeNullableText(formState.internalNote),
+  paymentReceived: formState.paymentReceived,
+  pickupNote: normalizeNullableText(formState.pickupNote),
+  publicNote: normalizeNullableText(formState.publicNote),
+  storageFeeWarningAfterDays: normalizeStorageFeeWarningInput(formState.storageFeeWarningAfterDays),
+});
+
+export const getAdminWorkOrderEditDirtyFields = (
+  baseline: AdminWorkOrderEditNormalizedSnapshot,
+  current: AdminWorkOrderEditNormalizedSnapshot,
+): AdminWorkOrderEditableField[] =>
+  ADMIN_WORK_ORDER_EDITABLE_FIELDS.filter((field) => baseline[field] !== current[field]);
+
+export const buildAdminWorkOrderEditPatchPayload = (
+  baseline: AdminWorkOrderEditNormalizedSnapshot,
+  current: AdminWorkOrderEditNormalizedSnapshot,
+) => {
+  const fieldErrors: Record<string, string[]> = {};
+  const payload: AdminWorkOrderPatchPayload = {};
+  const dirtyFields = getAdminWorkOrderEditDirtyFields(baseline, current);
+
+  for (const field of dirtyFields) {
+    if (field === 'estimatedCompletionDate') {
+      if (
+        current.estimatedCompletionDate !== null &&
+        !/^\d{4}-\d{2}-\d{2}$/.test(current.estimatedCompletionDate)
+      ) {
+        fieldErrors.estimatedCompletionDate = ['請輸入有效日期。'];
+        continue;
+      }
+
+      payload.estimatedCompletionDate = current.estimatedCompletionDate;
+      continue;
+    }
+
+    if (field === 'damageDescription') {
+      payload.damageDescription = current.damageDescription;
+      continue;
+    }
+
+    if (field === 'paymentReceived') {
+      payload.paymentReceived = current.paymentReceived;
+      continue;
+    }
+
+    if (field === 'publicNote') {
+      payload.publicNote = current.publicNote;
+      continue;
+    }
+
+    if (field === 'internalNote') {
+      payload.internalNote = current.internalNote;
+      continue;
+    }
+
+    if (field === 'pickupNote') {
+      payload.pickupNote = current.pickupNote;
+      continue;
+    }
+
+    if (field === 'storageFeeWarningAfterDays') {
+      if (!/^\d+$/.test(current.storageFeeWarningAfterDays)) {
+        fieldErrors.storageFeeWarningAfterDays = ['請輸入正整數天數。'];
+        continue;
+      }
+
+      const parsedValue = Number.parseInt(current.storageFeeWarningAfterDays, 10);
+      const parsedPayload = editPayloadSchema.safeParse({
+        storageFeeWarningAfterDays: parsedValue,
+      });
+
+      if (!parsedPayload.success) {
+        fieldErrors.storageFeeWarningAfterDays = ['提醒天數必須介於 1 到 32767。'];
+        continue;
+      }
+
+      payload.storageFeeWarningAfterDays = parsedValue;
+    }
+  }
+
+  const parsedPayload = editPayloadSchema.safeParse(payload);
+
+  if (!parsedPayload.success) {
+    for (const issue of parsedPayload.error.issues) {
+      const field = issue.path[0];
+
+      if (typeof field === 'string') {
+        fieldErrors[field] ??= [];
+        fieldErrors[field].push(issue.message);
+      }
+    }
+  }
+
+  return {
+    dirtyFields,
+    fieldErrors,
+    payload,
+  };
+};
 
 export const hasAdvancedFilters = (query: AdminWorkOrderListQueryState) =>
   query.overdueEstimatedCompletion || query.pickupOverdue || query.staleReceived;
@@ -458,6 +750,25 @@ export const normalizeAdminWorkOrderListRouteQuery = (
       JSON.stringify(toComparableQuery(routeQuery)) !==
       JSON.stringify(toComparableQuery(canonicalQuery)),
     query,
+  };
+};
+
+export const normalizeAdminWorkOrderDetailRouteQuery = (
+  routeQuery: LocationQuery | LocationQueryRaw,
+) => {
+  const rawMode = trimQueryValue(getSingleQueryValue(routeQuery.mode));
+  const parsedMode = rawMode ? detailModeValueSchema.safeParse(rawMode) : null;
+  const mode = parsedMode?.success ? parsedMode.data : DEFAULT_ADMIN_WORK_ORDER_DETAIL_MODE;
+  const canonicalQuery: LocationQueryRaw = {
+    mode,
+  };
+
+  return {
+    canonicalQuery,
+    mode,
+    needsReplace:
+      JSON.stringify(toComparableQuery(routeQuery)) !==
+      JSON.stringify(toComparableQuery(canonicalQuery)),
   };
 };
 
