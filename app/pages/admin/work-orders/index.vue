@@ -212,6 +212,10 @@ const navigateToCreate = async () => {
   await navigateTo('/admin/work-orders/new');
 };
 
+const navigateToBulkStatus = async () => {
+  await navigateTo('/admin/work-orders/bulk-status');
+};
+
 const navigateToDetail = async (id: string) => {
   await navigateTo(getAdminWorkOrderDetailPath(id));
 };
@@ -357,6 +361,9 @@ const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 筆�
             <Spinner v-if="isRefreshing" />
             <span>{{ resultSummary }}</span>
           </div>
+          <Button type="button" variant="outline" class="w-full sm:w-auto" @click="navigateToBulkStatus">
+            批量狀態
+          </Button>
           <Button type="button" class="w-full sm:w-auto" @click="navigateToCreate">新增工單</Button>
         </div>
       </div>

@@ -228,7 +228,7 @@ const summaryCards = computed<
       <Card class="xl:col-start-1 xl:row-start-2">
         <CardHeader>
           <CardTitle>Quick entries</CardTitle>
-          <CardDescription>先保留最常用入口；工單列表與建單頁都可直接進入。</CardDescription>
+          <CardDescription>先保留最常用入口；工單列表、建單頁與批量狀態都可直接進入。</CardDescription>
         </CardHeader>
         <CardContent>
           <div class="grid gap-3 sm:grid-cols-2">
@@ -237,6 +237,9 @@ const summaryCards = computed<
             </Button>
             <Button as-child variant="outline" class="justify-start">
               <NuxtLink to="/admin/work-orders/new">新增工單</NuxtLink>
+            </Button>
+            <Button as-child variant="outline" class="justify-start">
+              <NuxtLink to="/admin/work-orders/bulk-status">批量狀態</NuxtLink>
             </Button>
           </div>
         </CardContent>

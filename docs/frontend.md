@@ -12,6 +12,7 @@
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
 - `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation。
 - `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API。
+- `/admin/work-orders/bulk-status` 已實作第一版批量狀態頁，採 preview 搜尋、共享狀態與依狀態分組的快捷操作。
 - 目前 admin 前端頁面大多屬第一版雛形：已建立主要流程、資訊架構與操作方向，但欄位編排、文案、資訊層級、互動回饋與 mode 細節不視為最終定稿，預期會在與甲方討論後進入第二版調整。
 
 ## Styling Strategy
@@ -32,6 +33,7 @@
 - `/admin`
 - `/admin/work-orders`
 - `/admin/work-orders/new`
+- `/admin/work-orders/bulk-status`
 - `/admin/work-orders/[id]`
 
 暫不建立獨立的 `/admin/customers`、`/admin/quotes`、`/admin/photos`、`/admin/print-jobs`。顧客、報價、照片與列印資訊先放在工單流程內，等複雜度提高後再拆頁。
@@ -97,6 +99,7 @@
 - Sidebar 第一版只放：
   - Dashboard
   - 工單
+  - 批量狀態
 - 後續才加入：
   - 設定
   - 列印佇列
@@ -212,6 +215,50 @@ Mobile card 欄位：
   - 顯示 success toast
   - 導向 `/admin/work-orders/[id]?mode=view`
 
+## Bulk Status
+
+- `/admin/work-orders/bulk-status` 是獨立的現場批量操作頁，不共用工單列表的 URL query state。
+- 第一版直接重用既有：
+  - `GET /api/admin/work-orders/resolve`
+  - `POST /api/admin/work-orders/bulk-status`
+- 頁面採 hybrid 操作模型：
+  - 先貼上多筆紙本工單號
+  - 先做 preview 搜尋
+  - 用共享 `status` select + `note` 做整批更新
+  - 依 `currentStatus` 分組提供「下一階段」快捷按鈕
+- textarea parser 規則：
+  - 支援換行、逗號、空白
+  - trim
+  - dedupe
+  - 保留首次出現順序
+- preview resolve 由 client fan-out 執行，固定限制為 `6` 個並行 request。
+- 單筆 resolve `404` 與其他非 auth 失敗都視為 `notFound`，不中斷整批搜尋。
+- textarea 內容改動後，既有 preview 立刻標記為 stale；只有下一次完整搜尋成功完成後才恢復 active。
+- `found` 工單預設全選，但可逐筆排除。
+- `found` 固定依下列狀態順序分組：
+  - `RECEIVED`
+  - `DRYING`
+  - `REPAIRING`
+  - `READY_FOR_PICKUP`
+  - `DELIVERED`
+  - `CANCELLED`
+- group-level 快捷規則：
+  - `RECEIVED -> REPAIRING`
+  - `DRYING -> REPAIRING`
+  - `REPAIRING -> READY_FOR_PICKUP`
+  - `READY_FOR_PICKUP -> DELIVERED`
+- 共享 `status=DRYING` 時若選取集合含 `SNOWBOARD`，只顯示 warning，不阻擋送出；實際略過仍以 server `INVALID_STATUS_TRANSITION` 為準。
+- bulk submit 期間會鎖住 selected snapshot，禁止改動 textarea、selection、status、note 與快捷按鈕。
+- 成功後：
+  - 顯示 updated / skipped 摘要 toast
+  - 保存最近一次批量結果
+  - 重新執行 preview 搜尋
+  - smooth scroll 到結果區塊
+- 第一版不支援：
+  - `internalNote`
+  - 掃碼裝置事件監聽
+  - URL query-based page state
+
 ## Status Badges
 
 狀態不可只靠顏色辨識，必須同時顯示文字與 badge。
@@ -277,6 +324,6 @@ Mobile card 欄位：
 
 前端後續建議順序：
 
-1. 建立 bulk status UI。
-2. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。
-3. 盤點列印流程與 detail / create / bulk status 之間的前端銜接。
+1. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。
+2. 盤點列印流程與 detail / create / bulk status 之間的前端銜接。
+3. 規劃掃碼 / print flow 在現場批量操作頁的後續整合。

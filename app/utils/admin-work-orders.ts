@@ -107,6 +107,50 @@ export interface AdminWorkOrderDetailResponse {
   data: AdminWorkOrderDetailItem;
 }
 
+export interface AdminWorkOrderResolveItem {
+  board: {
+    boardType: BoardType | null;
+    sizeLabel: string | null;
+  };
+  currentStatus: WorkOrderStatus;
+  customer: {
+    id: string;
+    name: string | null;
+  };
+  id: string;
+  lastUpdatedAt: string | null;
+  paperOrderNo: string;
+}
+
+export interface AdminWorkOrderResolveResponse {
+  data: AdminWorkOrderResolveItem;
+}
+
+export type AdminWorkOrderBulkStatusSkipReason = 'INVALID_STATUS_TRANSITION' | 'NOT_FOUND';
+
+export interface AdminWorkOrderBulkStatusUpdatedItem {
+  currentStatus: WorkOrderStatus;
+  paperOrderNo: string;
+  statusHistoryId: string;
+  workOrderId: string;
+}
+
+export interface AdminWorkOrderBulkStatusSkippedItem {
+  paperOrderNo: string;
+  reason: AdminWorkOrderBulkStatusSkipReason;
+}
+
+export interface AdminWorkOrderBulkStatusResponse {
+  data: {
+    dedupedCount: number;
+    requestedCount: number;
+    skipped: AdminWorkOrderBulkStatusSkippedItem[];
+    skippedCount: number;
+    updated: AdminWorkOrderBulkStatusUpdatedItem[];
+    updatedCount: number;
+  };
+}
+
 export interface AdminWorkOrderEditFormState {
   damageDescription: string;
   estimatedCompletionDate: string;

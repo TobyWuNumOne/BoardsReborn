@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ClipboardListIcon, HomeIcon, LogOutIcon } from 'lucide-vue-next';
+import { ClipboardListIcon, HomeIcon, Layers3Icon, LogOutIcon } from 'lucide-vue-next';
 
 const adminSession = useAdminSession();
 const route = useRoute();
@@ -10,15 +10,21 @@ const displayName = computed(() => adminSession.profile.value?.displayName || 'A
 
 const navItems = [
   {
-    label: 'Dashboard',
+    label: '首頁',
     to: '/admin',
     icon: HomeIcon,
     enabled: true,
   },
   {
-    label: '工單',
+    label: '工單列表',
     to: '/admin/work-orders',
     icon: ClipboardListIcon,
+    enabled: true,
+  },
+  {
+    label: '批量狀態',
+    to: '/admin/work-orders/bulk-status',
+    icon: Layers3Icon,
     enabled: true,
   },
 ];
