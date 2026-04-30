@@ -10,7 +10,7 @@
 - 目前 `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎。
 - `/admin` 已接上 dashboard live data，第一版顯示處理中工單 breakdown、管理 summary 與 quick entries。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
-- `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 仍是 shell。
+- `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation。
 - `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API。
 - 目前 admin 前端頁面大多屬第一版雛形：已建立主要流程、資訊架構與操作方向，但欄位編排、文案、資訊層級、互動回饋與 mode 細節不視為最終定稿，預期會在與甲方討論後進入第二版調整。
 
@@ -161,7 +161,7 @@ Mobile card 欄位：
 - 工單詳情 route 只有一個：`/admin/work-orders/[id]`。
 - `view` 用於完整只讀檢視。
 - `edit` 用於管理修正，接既有 `PATCH /api/admin/work-orders/{id}`。
-- `work` 保留給現場操作；目前只提供 shell，不接狀態更新。
+- `work` 保留給現場操作；第一版已接上單筆 status mutation。
 - 目前 detail page 的 `view/edit/work` 只代表第一版資訊架構與操作分區已成立，不代表欄位排序、區塊展開方式、文案與操作節奏已定稿。
 - F4 的 detail header 在三個 mode 需維持一致：
   - 工單號
@@ -182,6 +182,13 @@ Mobile card 欄位：
   - `storageFeeWarningAfterDays` 在 form state 內保留字串，送出時才轉正整數
   - `paymentReceivedAt` 只讀，必須以 refresh 後的 server detail response 顯示
   - 有未儲存變更時，切 mode、返回列表、reload 都需確認離開
+- F5A 的 work mode 規則：
+  - 直接接 `POST /api/admin/work-orders/{id}/status`
+  - 只處理 `status`、`note`、`internalNote`
+  - 可選和目前相同的狀態，用於再 append 一筆 `status_history`
+  - `note` 永遠包含在 request 中；空白送 `null`
+  - `internalNote` 空白代表不變更既有內部備註；若要清空，改走 `mode=edit`
+  - 成功後 refresh detail、清空 form，並保留在 `mode=work`
 
 ## Work Order Create
 
@@ -270,6 +277,6 @@ Mobile card 欄位：
 
 前端後續建議順序：
 
-1. 接上 work order detail 的 `work` mutation flow。
-2. 建立 bulk status UI。
-3. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。
+1. 建立 bulk status UI。
+2. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。
+3. 盤點列印流程與 detail / create / bulk status 之間的前端銜接。

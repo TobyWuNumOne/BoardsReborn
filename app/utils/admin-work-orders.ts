@@ -117,6 +117,12 @@ export interface AdminWorkOrderEditFormState {
   storageFeeWarningAfterDays: string;
 }
 
+export interface AdminWorkOrderWorkFormState {
+  internalNote: string;
+  note: string;
+  status: WorkOrderStatus | '';
+}
+
 export interface AdminWorkOrderEditNormalizedSnapshot {
   damageDescription: string | null;
   estimatedCompletionDate: string | null;
@@ -191,8 +197,8 @@ export const ADMIN_WORK_ORDER_STATUS_OPTIONS = [
 
 export const ADMIN_WORK_ORDER_DETAIL_MODE_OPTIONS = [
   { label: '檢視', value: 'view' },
-  { label: '管理修正', value: 'edit' },
   { label: '現場作業', value: 'work' },
+  { label: '管理修正', value: 'edit' },
 ] as const;
 
 export type AdminWorkOrderListSortValue =
@@ -209,6 +215,12 @@ export type AdminWorkOrderPatchPayload = Partial<{
   publicNote: string | null;
   storageFeeWarningAfterDays: number;
 }>;
+
+export interface AdminWorkOrderStatusTransitionPayload {
+  internalNote?: string;
+  note: string | null;
+  status: WorkOrderStatus;
+}
 
 export type WorkOrderFlagKey = keyof WorkOrderListFlags;
 
@@ -241,6 +253,12 @@ const editPayloadSchema = z.object({
   pickupNote: z.string().nullable().optional(),
   publicNote: z.string().nullable().optional(),
   storageFeeWarningAfterDays: z.number().int().min(1).max(32767).optional(),
+});
+
+const statusTransitionPayloadSchema = z.object({
+  internalNote: z.string().optional(),
+  note: z.string().nullable(),
+  status: statusValueSchema,
 });
 
 const pageSizeSchema = z.enum(
@@ -501,6 +519,12 @@ export const createEmptyAdminWorkOrderEditFormState = (): AdminWorkOrderEditForm
   storageFeeWarningAfterDays: '',
 });
 
+export const createEmptyAdminWorkOrderWorkFormState = (): AdminWorkOrderWorkFormState => ({
+  internalNote: '',
+  note: '',
+  status: '',
+});
+
 export const createAdminWorkOrderEditFormState = (
   detail: AdminWorkOrderDetailItem,
 ): AdminWorkOrderEditFormState => ({
@@ -618,6 +642,50 @@ export const buildAdminWorkOrderEditPatchPayload = (
     dirtyFields,
     fieldErrors,
     payload,
+  };
+};
+
+export const isWorkOrderStatusBlockedForBoardType = (
+  boardType: BoardType | null,
+  status: WorkOrderStatus,
+) => boardType === 'SNOWBOARD' && status === 'DRYING';
+
+export const buildAdminWorkOrderStatusTransitionPayload = (
+  formState: AdminWorkOrderWorkFormState,
+) => {
+  const fieldErrors: Record<string, string[]> = {};
+
+  if (!formState.status) {
+    fieldErrors.status = ['請選擇狀態。'];
+  }
+
+  const payload: AdminWorkOrderStatusTransitionPayload = {
+    note: normalizeNullableText(formState.note),
+    status: (formState.status || 'RECEIVED') as WorkOrderStatus,
+  };
+
+  const normalizedInternalNote = normalizeNullableText(formState.internalNote);
+
+  if (normalizedInternalNote) {
+    payload.internalNote = normalizedInternalNote;
+  }
+
+  const parsedPayload = statusTransitionPayloadSchema.safeParse(payload);
+
+  if (!parsedPayload.success) {
+    for (const issue of parsedPayload.error.issues) {
+      const field = issue.path[0];
+
+      if (typeof field === 'string') {
+        fieldErrors[field] ??= [];
+        fieldErrors[field].push(issue.message);
+      }
+    }
+  }
+
+  return {
+    fieldErrors,
+    payload: Object.keys(fieldErrors).length > 0 ? null : payload,
   };
 };
 

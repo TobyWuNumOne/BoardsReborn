@@ -6,13 +6,17 @@ import type {
   AdminWorkOrderDetailResponse,
   AdminWorkOrderEditFormState,
   AdminWorkOrderEditNormalizedSnapshot,
+  AdminWorkOrderWorkFormState,
   ApiErrorEnvelope,
 } from '~/utils/admin-work-orders';
 import {
   ADMIN_WORK_ORDER_DETAIL_MODE_OPTIONS,
+  ADMIN_WORK_ORDER_STATUS_OPTIONS,
   buildAdminWorkOrderEditPatchPayload,
+  buildAdminWorkOrderStatusTransitionPayload,
   createAdminWorkOrderEditFormState,
   createEmptyAdminWorkOrderEditFormState,
+  createEmptyAdminWorkOrderWorkFormState,
   extractApiErrorEnvelope,
   formatAdminDate,
   formatAdminDateTime,
@@ -22,7 +26,9 @@ import {
   getApiErrorStatusCode,
   getBoardTypeLabel,
   getQuoteItemTypeLabel,
+  getWorkOrderStatusMeta,
   getWorkOrderStatusLabel,
+  isWorkOrderStatusBlockedForBoardType,
   normalizeAdminWorkOrderDetailRouteQuery,
   normalizeAdminWorkOrderEditFormState,
 } from '~/utils/admin-work-orders';
@@ -53,6 +59,7 @@ const EDIT_FORM_FIELD_NAMES = new Set([
   'pickupNote',
   'storageFeeWarningAfterDays',
 ]);
+const WORK_FORM_FIELD_NAMES = new Set(['status', 'note', 'internalNote']);
 
 definePageMeta({
   layout: 'admin',
@@ -92,6 +99,12 @@ const shouldSyncEditFormOnNextRefresh = ref(false);
 const isSubmittingEditForm = ref(false);
 const clientEditFieldErrors = ref<Record<string, string[]>>({});
 const submitEditApiError = ref<ApiErrorEnvelope | null>(null);
+const workForm = reactive<AdminWorkOrderWorkFormState>(createEmptyAdminWorkOrderWorkFormState());
+const lastWorkFormWorkOrderId = ref<string | null>(null);
+const isSubmittingWorkForm = ref(false);
+const clientWorkFieldErrors = ref<Record<string, string[]>>({});
+const submitWorkApiError = ref<ApiErrorEnvelope | null>(null);
+const workOrderStatusValues = new Set(ADMIN_WORK_ORDER_STATUS_OPTIONS.map((option) => option.value));
 
 const formatCurrency = (value: number | null) =>
   typeof value === 'number' ? CURRENCY_FORMATTER.format(value) : '—';
@@ -131,6 +144,11 @@ const clearEditFeedback = () => {
   submitEditApiError.value = null;
 };
 
+const clearWorkFeedback = () => {
+  clientWorkFieldErrors.value = {};
+  submitWorkApiError.value = null;
+};
+
 const syncEditFormFromDetail = (workOrder: AdminWorkOrderDetailItem) => {
   const nextFormState = createAdminWorkOrderEditFormState(workOrder);
 
@@ -138,6 +156,11 @@ const syncEditFormFromDetail = (workOrder: AdminWorkOrderDetailItem) => {
   lastSyncedEditSnapshot.value = normalizeAdminWorkOrderEditFormState(nextFormState);
   lastSyncedWorkOrderId.value = workOrder.id;
   clearEditFeedback();
+};
+
+const resetWorkForm = () => {
+  Object.assign(workForm, createEmptyAdminWorkOrderWorkFormState());
+  clearWorkFeedback();
 };
 
 const fetchWorkOrderDetail = async () => {
@@ -244,6 +267,47 @@ const editFormAlertMessages = computed(() => {
   return Array.from(messages);
 });
 
+const workFieldErrors = computed<Record<string, string[]>>(() => {
+  const mergedErrors: Record<string, string[]> = {};
+  const serverFieldErrors = submitWorkApiError.value?.error.fieldErrors ?? {};
+
+  for (const [field, messages] of Object.entries(serverFieldErrors)) {
+    mergedErrors[field] = [...messages];
+  }
+
+  for (const [field, messages] of Object.entries(clientWorkFieldErrors.value)) {
+    mergedErrors[field] = [...(mergedErrors[field] ?? []), ...messages];
+  }
+
+  return mergedErrors;
+});
+
+const workFormAlertMessages = computed(() => {
+  const messages = new Set<string>();
+  const fieldErrors = submitWorkApiError.value?.error.fieldErrors ?? {};
+
+  for (const [field, fieldMessages] of Object.entries(fieldErrors)) {
+    if (field === 'body' || !WORK_FORM_FIELD_NAMES.has(field)) {
+      for (const message of fieldMessages) {
+        messages.add(message);
+      }
+    }
+  }
+
+  if (submitWorkApiError.value && messages.size === 0 && Object.keys(fieldErrors).length === 0) {
+    messages.add(submitWorkApiError.value.error.message);
+  }
+
+  return Array.from(messages);
+});
+
+const canSubmitWorkForm = computed(
+  () => detailMode.value === 'work' && Boolean(workForm.status) && !isSubmittingWorkForm.value,
+);
+const currentStatusMeta = computed(() =>
+  detail.value?.currentStatus ? getWorkOrderStatusMeta(detail.value.currentStatus) : null,
+);
+
 const headerTitle = computed(
   () => detail.value?.paperOrderNo ?? routeWorkOrderId.value ?? '工單詳情',
 );
@@ -253,7 +317,7 @@ const headerSubtitle = computed(() => {
   }
 
   if (detailMode.value === 'work') {
-    return '現場作業模式預留給後續狀態操作；本次先保留完整只讀 detail。';
+    return '用現場作業模式直接追加狀態歷史並同步更新最新狀態。';
   }
 
   return '查看工單摘要、顧客、板子、報價、取件資訊與狀態歷史。';
@@ -261,17 +325,6 @@ const headerSubtitle = computed(() => {
 
 useHead({
   title: detailTitle,
-});
-
-const modeBanner = computed(() => {
-  if (detailMode.value === 'work') {
-    return {
-      description: 'F5B 先不接現場狀態操作；後續會在這裡接上狀態更新、照片與現場流程入口。',
-      title: '現場作業模式待接上',
-    };
-  }
-
-  return null;
 });
 
 watch(
@@ -288,6 +341,11 @@ watch(
     ) {
       syncEditFormFromDetail(nextDetail);
       shouldSyncEditFormOnNextRefresh.value = false;
+    }
+
+    if (nextDetail.id !== lastWorkFormWorkOrderId.value) {
+      resetWorkForm();
+      lastWorkFormWorkOrderId.value = nextDetail.id;
     }
   },
   { immediate: true },
@@ -473,6 +531,23 @@ const handlePaymentReceivedChange = (nextValue: boolean | 'indeterminate') => {
   clearEditFeedback();
 };
 
+const handleWorkFieldInput = () => {
+  clearWorkFeedback();
+};
+
+const handleWorkStatusChange = (value: unknown) => {
+  if (
+    typeof value === 'string' &&
+    workOrderStatusValues.has(value as (typeof ADMIN_WORK_ORDER_STATUS_OPTIONS)[number]['value'])
+  ) {
+    workForm.status = value as AdminWorkOrderWorkFormState['status'];
+  } else {
+    workForm.status = '';
+  }
+
+  clearWorkFeedback();
+};
+
 const submitEditForm = async () => {
   if (
     !detail.value ||
@@ -543,6 +618,79 @@ const submitEditForm = async () => {
     });
   } finally {
     isSubmittingEditForm.value = false;
+  }
+};
+
+const submitWorkForm = async () => {
+  if (!detail.value || isSubmittingWorkForm.value) {
+    return;
+  }
+
+  clearWorkFeedback();
+
+  const { fieldErrors, payload } = buildAdminWorkOrderStatusTransitionPayload(workForm);
+
+  if (Object.keys(fieldErrors).length > 0 || !payload) {
+    clientWorkFieldErrors.value = fieldErrors;
+    toast.error('請先修正表單欄位。');
+    return;
+  }
+
+  isSubmittingWorkForm.value = true;
+
+  try {
+    await getRequestFetch()<{
+      data: {
+        statusHistory: {
+          changedAt: string | null;
+          id: string | null;
+          note: string | null;
+          status: string | null;
+        };
+        workOrder: {
+          cancelledAt: string | null;
+          currentStatus: string | null;
+          deliveredAt: string | null;
+          id: string;
+          paperOrderNo: string | null;
+          readyForPickupAt: string | null;
+          updatedAt: string | null;
+        };
+      };
+    }>(`/api/admin/work-orders/${encodeURIComponent(routeWorkOrderId.value)}/status`, {
+      body: payload,
+      method: 'POST',
+    });
+
+    resetWorkForm();
+    await refresh();
+
+    if (fetchStatus.value !== 'success' || !detail.value) {
+      toast.error('狀態已更新，但重新載入最新資料失敗。');
+      return;
+    }
+
+    toast.success(`狀態已更新為「${getWorkOrderStatusLabel(payload.status)}」`);
+  } catch (submitError) {
+    const statusCode = getApiErrorStatusCode(submitError);
+
+    if (statusCode === 401 || statusCode === 403) {
+      const sessionSnapshot = await adminSession.refreshAdminSession({ force: true });
+      const redirectTarget = getAdminRouteGuardRedirect(sessionSnapshot.status, route.fullPath);
+
+      if (redirectTarget) {
+        await navigateTo(redirectTarget);
+      }
+
+      return;
+    }
+
+    submitWorkApiError.value = extractApiErrorEnvelope(submitError);
+    toast.error('更新狀態失敗。', {
+      description: submitWorkApiError.value?.error.message ?? '請稍後再試。',
+    });
+  } finally {
+    isSubmittingWorkForm.value = false;
   }
 };
 
@@ -641,11 +789,6 @@ if (import.meta.client) {
       </div>
     </div>
 
-    <Alert v-if="modeBanner">
-      <AlertTitle>{{ modeBanner.title }}</AlertTitle>
-      <AlertDescription>{{ modeBanner.description }}</AlertDescription>
-    </Alert>
-
     <div v-if="isInitialLoading" class="grid gap-4">
       <Card v-for="index in 4" :key="index">
         <CardHeader class="gap-3">
@@ -741,6 +884,114 @@ if (import.meta.client) {
           <p class="text-sm text-muted-foreground">
             送出後會 refresh 最新工單資料，再切回檢視模式。
           </p>
+        </CardContent>
+      </Card>
+
+      <Card v-if="detailMode === 'work'">
+        <CardHeader class="gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="space-y-2">
+            <CardTitle>現場狀態操作</CardTitle>
+            <CardDescription>
+              直接追加一筆狀態歷史並同步更新目前狀態。可選同一狀態補記備註。
+            </CardDescription>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Badge
+              v-if="currentStatusMeta"
+              :class="currentStatusMeta.badgeClass"
+              :variant="currentStatusMeta.variant"
+            >
+              目前狀態：{{ currentStatusMeta.label }}
+            </Badge>
+            <Badge variant="outline">板型：{{ getBoardTypeLabel(detail.board.boardType) }}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent class="space-y-6">
+          <Alert v-if="workFormAlertMessages.length > 0" variant="destructive">
+            <AlertTitle>更新狀態時發生錯誤</AlertTitle>
+            <AlertDescription class="space-y-2">
+              <ul class="ml-4 list-disc space-y-1">
+                <li v-for="message in workFormAlertMessages" :key="message">{{ message }}</li>
+              </ul>
+              <p
+                v-if="submitWorkApiError?.error.requestId"
+                class="text-xs text-destructive/80"
+              >
+                requestId: {{ submitWorkApiError.error.requestId }}
+              </p>
+            </AlertDescription>
+          </Alert>
+
+          <div class="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <FieldGroup>
+              <Field :data-invalid="workFieldErrors.status?.length ? 'true' : undefined">
+                <FieldLabel for="work-status">新狀態</FieldLabel>
+                <Select :model-value="workForm.status" @update:model-value="handleWorkStatusChange">
+                  <SelectTrigger id="work-status" class="w-full">
+                    <SelectValue placeholder="選擇要追加的狀態" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="statusOption in ADMIN_WORK_ORDER_STATUS_OPTIONS"
+                      :key="statusOption.value"
+                      :disabled="
+                        isWorkOrderStatusBlockedForBoardType(
+                          detail.board.boardType,
+                          statusOption.value,
+                        )
+                      "
+                      :value="statusOption.value"
+                    >
+                      {{ statusOption.label }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  可選和目前相同的狀態，用於補記另一筆事件備註。雪板不可進除濕中。
+                </FieldDescription>
+                <FieldError :errors="workFieldErrors.status" />
+              </Field>
+            </FieldGroup>
+
+            <FieldGroup>
+              <Field :data-invalid="workFieldErrors.note?.length ? 'true' : undefined">
+                <FieldLabel for="work-note">狀態備註</FieldLabel>
+                <Textarea
+                  id="work-note"
+                  v-model="workForm.note"
+                  :aria-invalid="Boolean(workFieldErrors.note?.length)"
+                  @input="handleWorkFieldInput"
+                />
+                <FieldDescription>空白會以 `null` 送出，但 `note` 欄位仍會包含在 request 中。</FieldDescription>
+                <FieldError :errors="workFieldErrors.note" />
+              </Field>
+
+              <Field :data-invalid="workFieldErrors.internalNote?.length ? 'true' : undefined">
+                <FieldLabel for="work-internal-note">內部備註（可選）</FieldLabel>
+                <Textarea
+                  id="work-internal-note"
+                  v-model="workForm.internalNote"
+                  :aria-invalid="Boolean(workFieldErrors.internalNote?.length)"
+                  @input="handleWorkFieldInput"
+                />
+                <FieldDescription>
+                  留空代表不變更既有內部備註；若要清空，請改用管理修正模式。
+                </FieldDescription>
+                <FieldError :errors="workFieldErrors.internalNote" />
+              </Field>
+            </FieldGroup>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" :disabled="isSubmittingWorkForm" @click="resetWorkForm">
+              清除
+            </Button>
+            <Button type="button" :disabled="!canSubmitWorkForm" @click="submitWorkForm">
+              <Spinner v-if="isSubmittingWorkForm" data-icon="inline-start" />
+              更新狀態
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
