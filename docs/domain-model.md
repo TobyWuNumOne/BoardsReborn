@@ -50,7 +50,7 @@
 - `customers(phone)`
 - `customers(normalized_phone)`，不加 unique constraint
 
-電話正規化第一版只接受可判定為台灣手機的號碼。輸入先移除非數字字元；`09xxxxxxxx` 保持原值，`8869xxxxxxxx` 轉為 `09xxxxxxxx`。其他格式視為 validation error。顧客查詢需要手機後四碼時，由 Nuxt server API 使用同一正規化規則後取末四碼比對。
+電話正規化第一版只接受可判定為台灣手機的號碼。輸入先移除非數字字元；`09xxxxxxxx` 保持原值，`8869xxxxxxxx` 轉為 `09xxxxxxxx`。其他格式視為 validation error。顧客查詢需要手機驗證時，由 Nuxt server API 使用同一正規化規則比對完整手機號碼。
 
 ### `work_orders`
 
@@ -310,6 +310,6 @@ TypeScript 名稱：`LabelLanguage`
 
 - 所有核心資料表都必須 enable row level security。
 - 管理端操作由 Supabase Auth authenticated admin 執行。
-- 顧客查詢不得直接開放 Supabase table read，必須經由 Nuxt server API 驗證工單號，並以 `customers.phone` 的末四碼比對使用者輸入後，才回傳有限欄位。
+- 顧客查詢不得直接開放 Supabase table read，必須經由 Nuxt server API 驗證工單號，並以 `customers.phone` 的完整正規化手機號碼比對使用者輸入後，才回傳有限欄位。
 - Server-only elevated key 只能在 Nitro server API 使用。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。

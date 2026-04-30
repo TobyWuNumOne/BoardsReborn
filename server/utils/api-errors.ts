@@ -4,6 +4,7 @@ export type ApiErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
+  | 'TOO_MANY_REQUESTS'
   | 'VALIDATION_ERROR'
   | 'CONFLICT'
   | 'INVALID_STATUS_TRANSITION'
@@ -50,6 +51,12 @@ export class ForbiddenError extends ApiError {
 export class NotFoundError extends ApiError {
   constructor(message = 'Resource not found.') {
     super({ code: 'NOT_FOUND', message, statusCode: 404 });
+  }
+}
+
+export class TooManyRequestsError extends ApiError {
+  constructor(message = 'Too many requests.') {
+    super({ code: 'TOO_MANY_REQUESTS', message, statusCode: 429 });
   }
 }
 

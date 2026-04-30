@@ -4,7 +4,7 @@
 
 - The authoritative source for current implementation status, completed milestones, and next steps is [docs/progress.md](docs/progress.md).
 - This repository combines documentation-first specs with a minimal Nuxt scaffold; do not present planned product implementation details as if they are already built.
-- Supabase local config, migrations, seed placeholder, generated Database types, server API foundation helpers, admin session/customer/work-order handlers, Tailwind/shadcn frontend foundation, and minimal login/session UI exist; print-agent implementation is still pending.
+- Supabase local config, migrations, seed placeholder, generated Database types, server API foundation helpers, admin/public lookup handlers, Tailwind/shadcn frontend foundation, and minimal login/session UI exist; print-agent implementation is still pending.
 
 ## Read First
 
@@ -59,7 +59,7 @@
 - Entering `READY_FOR_PICKUP`, `DELIVERED`, or `CANCELLED` must also maintain the corresponding timestamp fields.
 - Print is asynchronous through `print_jobs` plus a Python Print Agent. Reprints create new `print_jobs` records.
 - `SENT_TO_PRINTER` means transport succeeded, not that a label was physically printed.
-- Customer progress lookup must go through server API validation with paper order number and phone last four digits. A wrong `phoneLast4` should return `404`.
+- Customer progress lookup must go through server API validation with paper order number and full normalized phone number. A wrong phone value should return `404`.
 - Never expose `SUPABASE_SECRET_KEY` or `PRINT_AGENT_TOKEN` to client code, public runtime config, logs, or responses.
 - Nuxt is the main app and API layer. It is not the USB printer driver layer.
 - Work order creation RPCs should contain core work-order data only unless a task explicitly expands their responsibility; print-job creation remains a separate retryable flow.

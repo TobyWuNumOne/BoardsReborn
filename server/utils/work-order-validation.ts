@@ -36,6 +36,7 @@ const PATCH_ALLOWED_FIELDS = [
 ] as const;
 
 const BULK_STATUS_ALLOWED_FIELDS = ['paperOrderNos', 'status', 'note'] as const;
+const PUBLIC_WORK_ORDER_LOOKUP_ALLOWED_FIELDS = ['paperOrderNo', 'phone'] as const;
 const STATUS_TRANSITION_ALLOWED_FIELDS = ['status', 'note', 'internalNote'] as const;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -51,6 +52,11 @@ export interface CustomerLookupQuery {
 }
 
 export interface PaperOrderResolveQuery {
+  paperOrderNo: string;
+}
+
+export interface PublicWorkOrderLookupInput {
+  normalizedPhone: string;
   paperOrderNo: string;
 }
 
@@ -429,6 +435,48 @@ export const parseCustomerLookupQuery = (query: Record<string, unknown>): Custom
   assertNoErrors(errors);
 
   return { normalizedPhone: normalizedPhone as string };
+};
+
+export const parsePublicWorkOrderLookupBody = (body: unknown): PublicWorkOrderLookupInput => {
+  const errors: ErrorCollector = {};
+
+  if (!isRecord(body)) {
+    throw new ValidationError({ body: ['Must be a JSON object.'] });
+  }
+
+  const unknownFields = Object.keys(body).filter(
+    (field) =>
+      !PUBLIC_WORK_ORDER_LOOKUP_ALLOWED_FIELDS.includes(
+        field as (typeof PUBLIC_WORK_ORDER_LOOKUP_ALLOWED_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const paperOrderNo = hasOwn(body, 'paperOrderNo')
+    ? parsePaperOrderNoValue(body.paperOrderNo, 'paperOrderNo', errors)
+    : undefined;
+
+  if (!hasOwn(body, 'paperOrderNo')) {
+    addError(errors, 'paperOrderNo', 'Is required.');
+  }
+
+  const normalizedPhone = normalizeTaiwanMobilePhone(body.phone);
+
+  if (!hasOwn(body, 'phone')) {
+    addError(errors, 'phone', 'Is required.');
+  } else if (!normalizedPhone) {
+    addError(errors, 'phone', 'Must be a Taiwan mobile phone number.');
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    normalizedPhone: normalizedPhone as string,
+    paperOrderNo: paperOrderNo as string,
+  };
 };
 
 export const parseWorkOrderListQuery = (

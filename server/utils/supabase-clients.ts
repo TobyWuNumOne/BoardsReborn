@@ -36,5 +36,8 @@ export const getServiceRoleSupabaseClient = async (event: H3Event) => {
 };
 
 export type UserScopedSupabaseClient = Awaited<ReturnType<typeof getUserScopedSupabaseClient>>;
+export type ServiceRoleSupabaseClient = Awaited<
+  ReturnType<typeof getServiceRoleSupabaseClient>
+>;
 
 export type SupabaseUserClaims = Awaited<ReturnType<typeof getSupabaseUserClaims>>;

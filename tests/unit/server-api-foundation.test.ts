@@ -6,6 +6,7 @@ import {
   InternalServerError,
   InvalidStatusTransitionError,
   NotFoundError,
+  TooManyRequestsError,
   UnauthorizedError,
   ValidationError,
   type ApiError,
@@ -109,6 +110,7 @@ describe('server API foundation', () => {
       new UnauthorizedError(),
       new ForbiddenError(),
       new NotFoundError(),
+      new TooManyRequestsError(),
       new ValidationError({ 'customer.phone': ['Phone is required.'] }),
       new ConflictError(),
       new InvalidStatusTransitionError(),
@@ -119,12 +121,13 @@ describe('server API foundation', () => {
       'UNAUTHORIZED',
       'FORBIDDEN',
       'NOT_FOUND',
+      'TOO_MANY_REQUESTS',
       'VALIDATION_ERROR',
       'CONFLICT',
       'INVALID_STATUS_TRANSITION',
       'INTERNAL_SERVER_ERROR',
     ]);
-    expect(errors.map((error) => error.statusCode)).toEqual([401, 403, 404, 422, 409, 422, 500]);
+    expect(errors.map((error) => error.statusCode)).toEqual([401, 403, 404, 429, 422, 409, 422, 500]);
   });
 
   it('uses x-request-id when present and writes it back to the response', () => {

@@ -1,24 +1,29 @@
 import { InternalServerError, NotFoundError, ValidationError } from './api-errors';
+import { normalizeTaiwanMobilePhone } from './phone';
 import { throwMappedSupabaseError } from './supabase-errors';
 import {
   type BulkStatusInput,
+  type PublicWorkOrderLookupInput,
   STALE_RECEIVED_DAYS,
   type CreateWorkOrderInput,
   type PatchWorkOrderInput,
   type StatusTransitionInput,
   type WorkOrderListQuery,
 } from './work-order-validation';
-import type { UserScopedSupabaseClient } from './supabase-clients';
+import type { ServiceRoleSupabaseClient, UserScopedSupabaseClient } from './supabase-clients';
 import type { Database, Json } from '../../types/database.types';
 
 type AdminWorkOrderListRow = Database['public']['Views']['admin_work_order_list']['Row'];
 type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
 type CustomerRow = Database['public']['Tables']['customers']['Row'];
+type BoardType = Database['public']['Enums']['board_type'];
+type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 type WorkOrderBulkLookupRow = Pick<WorkOrderRow, 'id' | 'paper_order_no'>;
 type QuoteItemRow = Pick<
   Database['public']['Tables']['quote_items']['Row'],
   'amount' | 'created_at' | 'description' | 'id' | 'item_type'
 >;
+type InitialQuoteItemRow = Pick<Database['public']['Tables']['quote_items']['Row'], 'amount'>;
 type StatusHistoryRow = Pick<
   Database['public']['Tables']['status_history']['Row'],
   'changed_at' | 'id' | 'note' | 'status'
@@ -33,6 +38,18 @@ type WorkOrderResolveRow = Pick<
 > & {
   customers: Pick<CustomerRow, 'id' | 'name'> | null;
 };
+type PublicLookupWorkOrderRow = Pick<
+  WorkOrderRow,
+  | 'board_type'
+  | 'current_status'
+  | 'estimated_completion_date'
+  | 'id'
+  | 'paper_order_no'
+  | 'public_note'
+  | 'updated_at'
+> & {
+  customers: Pick<CustomerRow, 'phone'> | null;
+};
 
 const DASHBOARD_OVERDUE_STATUSES = [
   'RECEIVED',
@@ -40,6 +57,25 @@ const DASHBOARD_OVERDUE_STATUSES = [
   'REPAIRING',
   'READY_FOR_PICKUP',
 ] as const satisfies ReadonlyArray<Database['public']['Enums']['work_order_status']>;
+
+const PUBLIC_WORK_ORDER_LOOKUP_NOT_FOUND_MESSAGE =
+  '查無符合的工單，請確認工單號與手機號碼。';
+const PUBLIC_PROGRESS_STEP_ORDER_BY_BOARD_TYPE = {
+  SNOWBOARD: ['RECEIVED', 'REPAIRING', 'READY_FOR_PICKUP', 'DELIVERED'],
+  SUP: ['RECEIVED', 'DRYING', 'REPAIRING', 'READY_FOR_PICKUP', 'DELIVERED'],
+  SURFBOARD: ['RECEIVED', 'DRYING', 'REPAIRING', 'READY_FOR_PICKUP', 'DELIVERED'],
+} as const satisfies Record<
+  BoardType,
+  ReadonlyArray<'DELIVERED' | 'DRYING' | 'READY_FOR_PICKUP' | 'RECEIVED' | 'REPAIRING'>
+>;
+const PUBLIC_STATUS_LABELS = {
+  CANCELLED: '已取消',
+  DELIVERED: '已交件',
+  DRYING: '除濕中',
+  READY_FOR_PICKUP: '待取件',
+  RECEIVED: '已收件',
+  REPAIRING: '維修中',
+} as const satisfies Record<WorkOrderStatus, string>;
 
 export interface PageInfo {
   hasNextPage: boolean;
@@ -51,6 +87,27 @@ export interface PageInfo {
 }
 
 export type BulkStatusSkipReason = 'INVALID_STATUS_TRANSITION' | 'NOT_FOUND';
+export type PublicProgressStepState = 'current' | 'done' | 'upcoming';
+export type PublicProgressStepKey =
+  | 'DELIVERED'
+  | 'DRYING'
+  | 'READY_FOR_PICKUP'
+  | 'RECEIVED'
+  | 'REPAIRING';
+export type PublicWorkOrderProgress =
+  | {
+      currentStepKey: PublicProgressStepKey;
+      kind: 'timeline';
+      steps: Array<{
+        key: PublicProgressStepKey;
+        label: string;
+        state: PublicProgressStepState;
+      }>;
+    }
+  | {
+      kind: 'cancelled';
+      message: string;
+    };
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -123,6 +180,42 @@ const calculatePageInfo = (page: number, pageSize: number, total: number): PageI
 
 const calculateQuoteTotal = (quoteItems: QuoteItemRow[]): number =>
   quoteItems.reduce((total, quoteItem) => total + quoteItem.amount, 0);
+
+export const getPublicWorkOrderStatusLabel = (status: WorkOrderStatus) => PUBLIC_STATUS_LABELS[status];
+
+export const buildPublicWorkOrderProgress = (
+  boardType: BoardType,
+  currentStatus: WorkOrderStatus,
+): PublicWorkOrderProgress => {
+  if (currentStatus === 'CANCELLED') {
+    return {
+      kind: 'cancelled',
+      message: '此工單已取消',
+    };
+  }
+
+  const stepOrder = PUBLIC_PROGRESS_STEP_ORDER_BY_BOARD_TYPE[
+    boardType
+  ] as ReadonlyArray<PublicProgressStepKey>;
+  const currentStepKey = (
+    stepOrder.includes(currentStatus as PublicProgressStepKey)
+      ? currentStatus
+      : boardType === 'SNOWBOARD' && currentStatus === 'DRYING'
+        ? 'REPAIRING'
+        : 'RECEIVED'
+  ) as PublicProgressStepKey;
+  const currentStepIndex = stepOrder.indexOf(currentStepKey);
+
+  return {
+    currentStepKey,
+    kind: 'timeline',
+    steps: stepOrder.map((stepKey, index) => ({
+      key: stepKey,
+      label: PUBLIC_STATUS_LABELS[stepKey],
+      state: index < currentStepIndex ? 'done' : index === currentStepIndex ? 'current' : 'upcoming',
+    })),
+  };
+};
 
 const calculateDaysWaitingForPickup = (
   notifiedAt: string | null,
@@ -539,6 +632,70 @@ export const resolveAdminWorkOrderByPaperOrderNo = async (
 
   return {
     data: mapWorkOrderResolveRow(data as unknown as WorkOrderResolveRow),
+  };
+};
+
+export const lookupPublicWorkOrder = async (
+  supabase: ServiceRoleSupabaseClient,
+  input: PublicWorkOrderLookupInput,
+) => {
+  const { data: workOrder, error: workOrderError } = await supabase
+    .from('work_orders')
+    .select(
+      [
+        'id',
+        'paper_order_no',
+        'current_status',
+        'estimated_completion_date',
+        'public_note',
+        'updated_at',
+        'board_type',
+        'customers:customer_id(phone)',
+      ].join(', '),
+    )
+    .eq('paper_order_no', input.paperOrderNo)
+    .maybeSingle();
+
+  if (workOrderError) {
+    throwMappedSupabaseError(workOrderError);
+  }
+
+  if (!workOrder) {
+    throw new NotFoundError(PUBLIC_WORK_ORDER_LOOKUP_NOT_FOUND_MESSAGE);
+  }
+
+  const publicLookupWorkOrder = workOrder as unknown as PublicLookupWorkOrderRow;
+  const customerPhone = publicLookupWorkOrder.customers?.phone;
+
+  if (!customerPhone || normalizeTaiwanMobilePhone(customerPhone) !== input.normalizedPhone) {
+    throw new NotFoundError(PUBLIC_WORK_ORDER_LOOKUP_NOT_FOUND_MESSAGE);
+  }
+
+  const { data: initialQuote, error: quoteError } = await supabase
+    .from('quote_items')
+    .select('amount')
+    .eq('work_order_id', publicLookupWorkOrder.id)
+    .eq('item_type', 'INITIAL')
+    .maybeSingle();
+
+  if (quoteError) {
+    throwMappedSupabaseError(quoteError);
+  }
+
+  return {
+    data: {
+      currentStatus: publicLookupWorkOrder.current_status,
+      estimatedCompletionDate: publicLookupWorkOrder.estimated_completion_date,
+      initialQuoteAmount: (initialQuote as InitialQuoteItemRow | null)?.amount ?? null,
+      lastUpdatedAt: publicLookupWorkOrder.updated_at,
+      paperOrderNo: publicLookupWorkOrder.paper_order_no,
+      progress: buildPublicWorkOrderProgress(
+        publicLookupWorkOrder.board_type,
+        publicLookupWorkOrder.current_status,
+      ),
+      publicNote: publicLookupWorkOrder.public_note,
+      statusLabel: getPublicWorkOrderStatusLabel(publicLookupWorkOrder.current_status),
+    },
   };
 };
 

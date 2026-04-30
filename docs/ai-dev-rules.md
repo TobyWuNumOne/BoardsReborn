@@ -27,7 +27,7 @@
 
 - 所有核心資料表都必須 enable row level security。
 - 顧客查詢不得直接開放 Supabase table read。
-- 顧客查詢必須走 Nuxt server API，並驗證工單號與手機後四碼。
+- 顧客查詢必須走 Nuxt server API，並驗證工單號與完整手機號碼。
 - 條碼 payload 一律使用 `paper_order_no`，不可再引入第二套主要識別碼。
 - `PRINT_AGENT_TOKEN` 只能存在 server-side 與 Print Agent 環境，不可傳到 client。
 - Print Agent API 必須驗證 `Authorization: Bearer <PRINT_AGENT_TOKEN>`。
@@ -77,7 +77,7 @@
 - `fieldErrors` 統一為 `Record<string, string[]>`。
 - Request / response 範例更新時必須保持合法 JSON。
 - 照片上傳例外使用 `multipart/form-data`，但 response 仍使用 JSON。
-- 顧客查詢手機後四碼錯誤時，應回傳 `404`，避免透露工單存在性。
+- 顧客查詢手機號碼錯誤時，應回傳 `404`，避免透露工單存在性。
 
 ## Barcode / Printing Rules
 

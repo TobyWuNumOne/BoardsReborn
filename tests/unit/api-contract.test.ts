@@ -16,5 +16,7 @@ describe('API contract', () => {
     expect(apiContract).toContain('GET /api/admin/work-orders/{id}');
     expect(apiContract).toContain('PATCH /api/admin/work-orders/{id}');
     expect(apiContract).toContain('POST /api/admin/work-orders/{id}/status');
+    expect(apiContract).toContain('POST /api/public/work-orders/lookup');
+    expect(apiContract).not.toContain('GET /api/public/work-orders/{paperOrderNo}?phoneLast4=1234');
   });
 });

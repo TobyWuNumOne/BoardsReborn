@@ -34,7 +34,7 @@
 
 ### Public API
 
-- `planned` `GET /api/public/work-orders/{paperOrderNo}?phoneLast4=1234`：顧客查詢工單進度。
+- `implemented` `POST /api/public/work-orders/lookup`：顧客查詢工單進度。
 
 ### Print Agent API
 
@@ -70,9 +70,9 @@ token 無效時回傳 `401`。Print Agent token 只能存在 server-side 與 age
 顧客查詢不需要登入，但必須提供：
 
 - 紙本工單號。
-- 手機後四碼。
+- 完整手機號碼。
 
-`phoneLast4` 是 request 參數，不是資料庫欄位。Server 應正規化 `customers.phone` 後取末四碼比對。
+Server 應正規化 `customers.phone` 後比對完整台灣手機號碼。
 條碼內容直接等於 `paperOrderNo`。單張掃碼查詢不需要第二套 barcode identifier。
 
 顧客查詢只回傳有限欄位，不回傳內部備註、完整電話、照片路徑或狀態操作歷史。
@@ -126,6 +126,7 @@ List response 格式：
 - `UNAUTHORIZED`
 - `FORBIDDEN`
 - `NOT_FOUND`
+- `TOO_MANY_REQUESTS`
 - `VALIDATION_ERROR`
 - `CONFLICT`
 - `STORAGE_UPLOAD_FAILED`
@@ -934,9 +935,18 @@ Response：
 
 ## Public Work Order Lookup
 
-### `GET /api/public/work-orders/{paperOrderNo}?phoneLast4=1234`
+### `POST /api/public/work-orders/lookup`
 
-顧客查詢進度。Server 以工單關聯顧客的 `customers.phone` 末四碼比對 `phoneLast4`。手機後四碼不符合時，回傳 `404`，避免透露工單是否存在。
+顧客查詢進度。Server 以工單關聯顧客的 `customers.phone` 正規化後比對完整手機號碼。手機號碼不符合時，回傳 `404`，避免透露工單是否存在。
+
+Request：
+
+```json
+{
+  "paperOrderNo": "BR-2026-0001",
+  "phone": "0912345678"
+}
+```
 
 Response：
 
@@ -949,10 +959,53 @@ Response：
     "estimatedCompletionDate": "2026-04-26",
     "initialQuoteAmount": 500,
     "publicNote": "維修中，預估下週完成",
-    "lastUpdatedAt": "2026-04-20T09:30:00.000Z"
+    "lastUpdatedAt": "2026-04-20T09:30:00.000Z",
+    "progress": {
+      "kind": "timeline",
+      "currentStepKey": "REPAIRING",
+      "steps": [
+        { "key": "RECEIVED", "label": "已收件", "state": "done" },
+        { "key": "DRYING", "label": "除濕中", "state": "done" },
+        { "key": "REPAIRING", "label": "維修中", "state": "current" },
+        { "key": "READY_FOR_PICKUP", "label": "待取件", "state": "upcoming" },
+        { "key": "DELIVERED", "label": "已交件", "state": "upcoming" }
+      ]
+    }
   }
 }
 ```
+
+Request rules：
+
+- `paperOrderNo` 會 trim 前後空白，長度必須是 `3..50`。
+- `phone` 必須是可正規化為台灣手機的完整號碼。
+- 只接受 `paperOrderNo` 與 `phone` 兩個欄位；未知欄位回 `422 VALIDATION_ERROR`。
+- `lastUpdatedAt` 固定等於 `work_orders.updated_at`。
+
+`progress` 是 discriminated union：
+
+- `timeline`
+  - `steps[].state` 只允許 `done`、`current`、`upcoming`
+  - `SURFBOARD / SUP` steps 固定為 `RECEIVED -> DRYING -> REPAIRING -> READY_FOR_PICKUP -> DELIVERED`
+  - `SNOWBOARD` steps 固定為 `RECEIVED -> REPAIRING -> READY_FOR_PICKUP -> DELIVERED`
+- `cancelled`
+  - `CANCELLED` 工單固定回傳：
+
+```json
+{
+  "kind": "cancelled",
+  "message": "此工單已取消"
+}
+```
+
+`CANCELLED` 不回 timeline steps。
+
+第一版 public lookup 另加簡單 rate limit：
+
+- `10 requests / minute / IP`
+- MVP 可使用 server-side in-memory store
+- rate limit key 取 `x-forwarded-for` 第一個 IP；若無則 fallback 到 `remoteAddress`
+- 超限回 `429 TOO_MANY_REQUESTS`
 
 顧客查詢不可回傳：
 

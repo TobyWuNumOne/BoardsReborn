@@ -24,10 +24,10 @@ import {
   getTaipeiTodayDateString,
   hasAdminWorkOrderCreateUnsavedChanges,
   normalizeAdminWorkOrderCreateFormState,
-  normalizeTaiwanMobilePhoneInput,
   shouldResetCustomerLookupResolution,
 } from '~/utils/admin-work-order-create';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
+import { normalizeTaiwanMobilePhoneInput } from '~/utils/phone';
 import { cn } from '@/lib/utils';
 
 type RequestFetch = <T>(request: string, options?: Record<string, unknown>) => Promise<T>;

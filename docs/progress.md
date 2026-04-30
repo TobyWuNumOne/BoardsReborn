@@ -12,15 +12,16 @@
 ## 目前快照
 
 - 最後更新：2026-04-30
-- 目前階段：admin dashboard、工單列表、詳情、建單與 bulk status 頁已有第一版雛形，下一步往列印流程與前端第二版細節調整推進
+- 目前階段：admin 主流程與 public customer lookup 第一版已建立，下一步往列印流程與前端第二版細節調整推進
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
-  - `server/api/` 已有 admin session、customer lookup 與 work-order create/list/detail/update/status/resolve/bulk-status handlers。
+  - `server/api/` 已有 admin session、customer lookup、public lookup 與 work-order create/list/detail/update/status/resolve/bulk-status handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - 前端已導入 Tailwind CSS v4、shadcn-vue primitives、`shadcn-nuxt` 與 SSR width baseline。
 - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序與分頁，`/admin/work-orders/[id]` 已提供 `mode=view|edit|work` detail route，且 `mode=edit` 已接上 PATCH；`/admin/work-orders/new` 已接上 lookup-first 現場建單流程；`/admin/work-orders/bulk-status` 已接上 preview 搜尋與批量狀態更新。
+  - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、公開備註與最近更新時間。
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
@@ -47,7 +48,7 @@
 | Admin work-order create UI             | done    | `/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價與成功導向 detail。        |
 | Admin bulk status UI                   | done    | `/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作與批量結果摘要。    |
 | Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。                                         |
-| Customer lookup flow                   | pending | Public lookup contract 已定義，但尚未實作。                                                          |
+| Customer lookup flow                   | done    | `POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。 |
 | Production workflow 與部署硬化         | pending | 超出 scaffold baseline 的建置與部署流程尚未建立。                                                    |
 
 ## 已完成
@@ -75,6 +76,7 @@
 - Admin work-order detail UI：單一路由 detail page、`mode=view|edit|work` query canonicalization、detail data keyed only by id、view mode 只讀區塊、edit mode PATCH 表單、work mode 狀態更新卡與 404/422 分流已建立。
 - Admin work-order create UI：單頁現場收件建單頁、lookup-first 顧客流程、`intakeDate -> estimatedCompletionDate` 預設規則、初始報價映射與成功導向 detail 已建立。
 - Admin bulk status UI：獨立 `/admin/work-orders/bulk-status` 頁面、resolve fan-out preview、共享狀態 select、依狀態分組的快捷操作與最近一次批量結果摘要已建立。
+- Public customer lookup：`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，使用完整手機號碼驗證、server-generated progress timeline / cancelled state 與 MVP in-memory rate limit。
 - Admin dashboard quick entries：已接上工單列表與建單頁入口，排除 create entry 仍停留 disabled placeholder 的不一致狀態。
 - Admin sidebar navigation：已補上 bulk status 入口，讓現場批量操作不只依賴 dashboard quick entry 與列表頁 header。
 - Admin dashboard quick entries：已再補上 bulk status 入口。
@@ -86,7 +88,7 @@
 
 - 在 `docs/frontend.md` 的規範下延續 admin 前端主流程。
 - 盤點第一版 admin 前端雛形的欄位、文案與互動細節，準備與甲方確認後整理第二版調整清單。
-- 盤點列印流程與既有 detail / create / bulk status 頁面的銜接方式。
+- 盤點列印流程與既有 detail / create / bulk status / public lookup 頁面的銜接方式。
 - 使用 generated Database types、admin gate helper 與 create RPC 延續後續 API 實作。
 - 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
 
@@ -94,7 +96,7 @@
 
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
 - 實作列印任務 API 與 Python Print Agent 起始骨架。
-- 盤點 detail / create / bulk status 與後續列印流程之間的 UI / 操作銜接。
+- 盤點 detail / create / bulk status / public lookup 與後續列印流程之間的 UI / 操作銜接。
 
 ## Frontend Strategy 待辦
 
@@ -127,7 +129,7 @@
 - Schema 與 status rules 已寫入 migration；create/list/detail/update/status/resolve/bulk-status 已串接，列印相關 endpoint 尚未建立。
 - Admin 單筆 detail/update/status endpoint 保留 UUID path 作為 internal resource identity；現場掃碼或人工輸入紙本工單號時，前端應先呼叫 `GET /api/admin/work-orders/resolve?paperOrderNo=...` 取得 UUID，再呼叫既有 UUID-based endpoint。
 - Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
-- Public customer lookup restriction 已寫入規格，但尚未由實際 backend code 強制執行。
+- Public customer lookup 已落地，但目前 rate limit 採 in-memory store，只適用 local / single-instance MVP，未達 production-grade distributed limiter。
 - 工單建立目前不建立 `print_jobs`；列印任務會在後續獨立流程補上。
 - Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁與 bulk status 第一版；列印相關 UI 仍待實作。
 - Admin 前端目前仍屬第一版雛形；雖然大方向與主流程已可展示，但欄位配置、文案、資訊密度、互動回饋與模式切換細節尚未定案，預期需在與甲方討論後進行第二版調整。

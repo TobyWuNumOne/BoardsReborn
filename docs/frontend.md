@@ -13,6 +13,7 @@
 - `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation。
 - `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API。
 - `/admin/work-orders/bulk-status` 已實作第一版批量狀態頁，採 preview 搜尋、共享狀態與依狀態分組的快捷操作。
+- `/repair-status` 已實作顧客查進度頁，採同頁查詢表單與結果切換。
 - 目前 admin 前端頁面大多屬第一版雛形：已建立主要流程、資訊架構與操作方向，但欄位編排、文案、資訊層級、互動回饋與 mode 細節不視為最終定稿，預期會在與甲方討論後進入第二版調整。
 
 ## Styling Strategy
@@ -35,6 +36,10 @@
 - `/admin/work-orders/new`
 - `/admin/work-orders/bulk-status`
 - `/admin/work-orders/[id]`
+
+第一版 public customer route：
+
+- `/repair-status`
 
 暫不建立獨立的 `/admin/customers`、`/admin/quotes`、`/admin/photos`、`/admin/print-jobs`。顧客、報價、照片與列印資訊先放在工單流程內，等複雜度提高後再拆頁。
 
@@ -62,6 +67,24 @@
 - `逾期` 可導到 `/admin/work-orders?overdueEstimatedCompletion=true`
 - `今日新建` 第一版不導頁，因現有 list query 尚無對應 filter
 - `generatedAt` 只作為最後更新時間顯示，不作為 cache key 或邏輯依據
+
+## Public Lookup
+
+- `/repair-status` 是顧客查進度頁，不需要登入。
+- 第一版使用：
+  - 紙本工單號
+  - 完整台灣手機號碼
+- 結果頁只顯示：
+  - 工單號
+  - 目前狀態
+  - progress timeline / cancelled state
+  - 預估完成日
+  - 初始報價
+  - 公開備註
+  - 最近更新時間
+- public progress 由 server 回傳，不由前端自行推導。
+- `CANCELLED` 時只顯示取消狀態，不渲染一般 stepper。
+- 不把完整手機號碼或工單號寫進 URL query。
 
 版型規則：
 

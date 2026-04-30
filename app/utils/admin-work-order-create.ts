@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Database } from '../../types/database.types';
+import { normalizeTaiwanMobilePhoneInput } from './phone';
 
 type BoardType = Database['public']['Enums']['board_type'];
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
@@ -378,24 +379,6 @@ const formatUtcDateString = (date: Date) => {
   const day = String(date.getUTCDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
-};
-
-export const normalizeTaiwanMobilePhoneInput = (value: string | null | undefined) => {
-  const digitsOnly = trimValue(value).replaceAll(/\D/g, '');
-
-  if (!digitsOnly) {
-    return null;
-  }
-
-  if (/^09\d{8}$/.test(digitsOnly)) {
-    return digitsOnly;
-  }
-
-  if (/^8869\d{8}$/.test(digitsOnly)) {
-    return `0${digitsOnly.slice(3)}`;
-  }
-
-  return null;
 };
 
 export const shouldResetCustomerLookupResolution = (
