@@ -8,6 +8,7 @@
 - Tailwind CSS 透過 `@tailwindcss/vite` 接入 Nuxt。
 - shadcn-vue 透過 `shadcn-nuxt` 與 CLI-generated primitives 接入。
 - 目前 `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎。
+- `/admin` 已接上 dashboard live data，第一版顯示處理中工單 breakdown、管理 summary 與 quick entries。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
 - `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 仍是 shell。
 - `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API。
@@ -35,7 +36,45 @@
 
 暫不建立獨立的 `/admin/customers`、`/admin/quotes`、`/admin/photos`、`/admin/print-jobs`。顧客、報價、照片與列印資訊先放在工單流程內，等複雜度提高後再拆頁。
 
-`/admin` 是真正 dashboard，不是工單列表。第一版 dashboard 放摘要卡與快速入口，不放完整 table。
+`/admin` 是真正 dashboard，不是工單列表。第一版 dashboard 放 summary cards 與快速入口，不放完整 table。
+
+第一版 dashboard 由兩塊 summary 組成：
+
+- `處理中工單` 區塊
+  - 已收件
+  - 除濕中
+  - 維修中
+- 右側 / 下方 3 張 summary cards
+  - 待取件
+  - 逾期
+  - 今日新建
+
+規則：
+
+- 只顯示 summary，不做圖表、不做 polling。
+- `處理中工單` header 顯示總數 `activeWorkOrders`，且固定等於 `RECEIVED + DRYING + REPAIRING`。
+- `已收件` 可導到 `/admin/work-orders?status=RECEIVED`
+- `除濕中` 可導到 `/admin/work-orders?status=DRYING`
+- `維修中` 可導到 `/admin/work-orders?status=REPAIRING`
+- `待取件` 可導到 `/admin/work-orders?status=READY_FOR_PICKUP`
+- `逾期` 可導到 `/admin/work-orders?overdueEstimatedCompletion=true`
+- `今日新建` 第一版不導頁，因現有 list query 尚無對應 filter
+- `generatedAt` 只作為最後更新時間顯示，不作為 cache key 或邏輯依據
+
+版型規則：
+
+- desktop（`xl` 起）：
+  - 左欄：`處理中工單` + `Quick entries`
+  - 右欄：`待取件 / 逾期 / 今日新建`
+  - 左右兩欄等寬
+- tablet（`md` 到 `<xl`）：
+  - 單欄往下排
+  - 順序固定為 `處理中工單 → 其他 summary → Quick entries`
+  - `處理中工單` 3 個子卡與其他 3 張 summary cards 都可維持 3 欄
+- mobile（`<md`）：
+  - 單欄往下排
+  - 順序同 tablet
+  - `處理中工單` 與其他 3 張 summary cards 都改單欄 stack，優先放大點擊區
 
 工單詳情採單一路由 + mode query：
 
@@ -52,8 +91,8 @@
 
 ## Layout
 
-- Desktop / tablet：top bar + left sidebar + main content。
-- Mobile：top bar + single-column content；第一版不做永久 sidebar。
+- Desktop（`xl` 起）：top bar + left sidebar + main content。
+- Tablet / mobile（`<xl`）：top bar + single-column content，sidebar 使用 offcanvas / sheet；第一版不做永久 sidebar。
 - Sidebar / sheet / mobile layout 已加入 `app/plugins/ssr-width.ts`，以 `provideSSRWidth(1024, nuxtApp.vueApp)` 作為第一版 SSR width baseline。
 - Sidebar 第一版只放：
   - Dashboard
@@ -92,8 +131,8 @@
 
 ## Work Order List
 
-- Desktop / tablet 使用原生 table。
-- Mobile 使用 card list，不把完整 table 硬塞進手機版。
+- Desktop（`xl` 起）使用原生 table。
+- Tablet / mobile（`<xl`）使用 card list，不把完整 table 硬塞進較窄 viewport。
 - 第一版不導入 TanStack Table；等排序、欄位控制、批量選取或虛擬列表需求明確後再評估。
 
 Desktop / tablet table 欄位：
@@ -231,7 +270,6 @@ Mobile card 欄位：
 
 前端後續建議順序：
 
-1. 建立 admin dashboard live data。
-2. 接上 work order detail 的 `work` mutation flow。
-3. 建立 bulk status UI。
-4. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。
+1. 接上 work order detail 的 `work` mutation flow。
+2. 建立 bulk status UI。
+3. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。

@@ -16,6 +16,7 @@
 
 ### Admin API
 
+- `implemented` `GET /api/admin/dashboard`：回傳管理端 dashboard summary metrics。
 - `implemented` `GET /api/admin/session`：回傳目前 admin session 與最小 profile。
 - `implemented` `GET /api/admin/customers/lookup`：建單時查候選 customer。
 - `implemented` `GET /api/admin/work-orders`：工單列表。
@@ -160,6 +161,48 @@ Response：`200`
 ```
 
 這支 endpoint 只回傳最小必要欄位，不回傳 email、role 或其他無關 profile 資訊。
+
+## Admin Dashboard
+
+### `GET /api/admin/dashboard`
+
+回傳管理端 dashboard 第一版 summary metrics。這支 endpoint 只提供總覽數字，不回傳工單列表，也不取代 `/api/admin/work-orders`。
+
+Response：`200`
+
+```json
+{
+  "data": {
+    "summary": {
+      "activeWorkOrders": 18,
+      "activeWorkOrdersByStatus": {
+        "RECEIVED": 5,
+        "DRYING": 4,
+        "REPAIRING": 9
+      },
+      "readyForPickup": 6,
+      "overdue": 3,
+      "createdToday": 4
+    },
+    "generatedAt": "2026-04-29T10:45:00.000Z"
+  }
+}
+```
+
+`summary` 第一版固定包含：
+
+- `activeWorkOrders`：
+  只計算 `RECEIVED`、`DRYING`、`REPAIRING`，且固定等於 `activeWorkOrdersByStatus.RECEIVED + DRYING + REPAIRING`。
+- `activeWorkOrdersByStatus`：
+  只包含 `RECEIVED`、`DRYING`、`REPAIRING` 三個處理中狀態的 breakdown。
+- `readyForPickup`：
+  只計算 `READY_FOR_PICKUP`。
+- `overdue`：
+  與列表 `overdueEstimatedCompletion` 規則一致，只計算 `RECEIVED`、`DRYING`、`REPAIRING`、`READY_FOR_PICKUP`，排除 `DELIVERED`、`CANCELLED`。
+- `createdToday`：
+  以 `created_at` 為準，依 `Asia/Taipei` 本地日曆日計算，邊界固定為 `created_at >= startOfDay` 且 `created_at < nextDay`。
+
+`generatedAt` 只用於 UI 顯示「最後更新時間」，不作為 cache key，也不參與邏輯判斷。
 
 ## Admin Work Orders
 

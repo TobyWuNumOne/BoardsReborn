@@ -11,8 +11,8 @@
 
 ## 目前快照
 
-- 最後更新：2026-04-29
-- 目前階段：admin 工單列表、詳情與建單頁已有第一版雛形，下一步持續補 dashboard live data、detail 的 work mutation，並在與甲方討論後整理前端第二版細節調整
+- 最後更新：2026-04-30
+- 目前階段：admin dashboard、工單列表、詳情與建單頁已有第一版雛形，下一步持續補 detail 的 work mutation，並在與甲方討論後整理前端第二版細節調整
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -21,7 +21,7 @@
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - 前端已導入 Tailwind CSS v4、shadcn-vue primitives、`shadcn-nuxt` 與 SSR width baseline。
 - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序與分頁，`/admin/work-orders/[id]` 已提供 `mode=view|edit|work` detail route，且 `mode=edit` 已接上 PATCH；`/admin/work-orders/new` 已接上 lookup-first 現場建單流程。
-- `/admin` dashboard 仍是 placeholder，但 Quick entries 已可直接進入工單列表與建單頁。
+  - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
   - Supabase Database types 已產生於 `types/database.types.ts`。
@@ -41,7 +41,7 @@
 | Server API foundation                  | done    | 共用 requestId、typed errors、Supabase client helpers 與 admin gate 已建立。                         |
 | Admin work-order API                   | partial | Create/list/detail/update/status/resolve/bulk-status 與 customer lookup 已建立；print 仍未實作。     |
 | Auth 與管理端流程                      | done    | Admin gate helper、session endpoint、login/logout UI、admin middleware 與 session bootstrap 已建立。 |
-| Frontend strategy / UI foundation      | done    | Tailwind CSS v4、shadcn-vue primitives、admin shell 與 frontend rules 已建立。                       |
+| Frontend strategy / UI foundation      | done    | Tailwind CSS v4、shadcn-vue primitives、admin shell、dashboard summary 與 frontend rules 已建立。   |
 | Admin work-order list UI               | done    | `/admin/work-orders` 已接上 list API、URL query state、table/card list 與 detail 導頁。              |
 | Admin work-order detail UI             | partial | `/admin/work-orders/[id]` 已接上 detail API 與 `view/edit/work` mode；`view` 與 `edit` 為第一版可用雛形，`work` 仍待接狀態操作，且細節仍待與甲方討論後進二版調整。 |
 | Admin work-order create UI             | done    | `/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價與成功導向 detail。        |
@@ -74,19 +74,20 @@
 - Admin work-order detail UI：單一路由 detail page、`mode=view|edit|work` query canonicalization、detail data keyed only by id、view mode 只讀區塊、edit mode PATCH 表單與 404/422 分流已建立。
 - Admin work-order create UI：單頁現場收件建單頁、lookup-first 顧客流程、`intakeDate -> estimatedCompletionDate` 預設規則、初始報價映射與成功導向 detail 已建立。
 - Admin dashboard quick entries：已接上工單列表與建單頁入口，排除 create entry 仍停留 disabled placeholder 的不一致狀態。
+- Admin dashboard live data：`/admin` 已接上真實 summary metrics，第一版顯示互動式處理中工單 breakdown、待取件、逾期與今日新建。
+- Admin responsive breakpoint tuning：sidebar desktop breakpoint 與工單列表 table breakpoint 已同步上移到 `xl`，避免 `768px~1279px` 區間同時顯示固定 sidebar 與 table 造成內容擠壓。
 - Admin 前端第一版雛形：列表與詳情頁的主要流程、資料顯示與基本操作骨架已到位，可作為後續與甲方討論 UI/流程細節的基礎。
 
 ## 目前焦點
 
 - 在 `docs/frontend.md` 的規範下延續 admin 前端主流程。
-- 依既有 admin API 補 admin dashboard live data 與 detail 的 `work` mode。
+- 依既有 admin API 補 detail 的 `work` mode。
 - 盤點第一版 admin 前端雛形的欄位、文案與互動細節，準備與甲方確認後整理第二版調整清單。
 - 使用 generated Database types、admin gate helper 與 create RPC 延續後續 API 實作。
 - 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
 
 ## 下一步
 
-- 實作 admin dashboard live data。
 - 接上 detail page 的 `work` mutation flow。
 - 盤點建單頁與 detail / bulk status / 列印流程之間的後續操作銜接。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
@@ -100,7 +101,7 @@
 - [x] 定案 admin route map、layout、work order list 呈現、status badge、UI state 與 component boundaries。
 - [x] 安裝 Tailwind CSS / shadcn-vue，並更新 README 工具鏈基線。
 - [x] 重整既有 homepage / login / forbidden / admin placeholder 到新 styling strategy。
-- [ ] 實作 admin dashboard live data。
+- [x] 實作 admin dashboard live data。
 - [x] 實作 work order list page。
 - [x] 實作 work order detail page（`view` 完整）。
 - [x] 接上 work order detail page 的 `edit` PATCH 表單。
@@ -125,7 +126,7 @@
 - Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
 - Public customer lookup restriction 已寫入規格，但尚未由實際 backend code 強制執行。
 - 工單建立目前不建立 `print_jobs`；列印任務會在後續獨立流程補上。
-- Admin 前端目前已有 Tailwind/shadcn shell、工單列表、detail 的 `view/edit` 與建單頁第一版，但 dashboard 仍是 placeholder，detail 的 `work` mutation 與列印相關 UI 仍待實作。
+- Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit` 與建單頁第一版；detail 的 `work` mutation 與列印相關 UI 仍待實作。
 - Admin 前端目前仍屬第一版雛形；雖然大方向與主流程已可展示，但欄位配置、文案、資訊密度、互動回饋與模式切換細節尚未定案，預期需在與甲方討論後進行第二版調整。
 - Nuxt 4 在此專案目前的本機開發組合下，`experimental.appManifest` 會導致 `/_nuxt/builds/meta/dev.json` 404；目前已先關閉這個實驗功能，以穩定開發中的 admin 頁面導航與刷新行為。
 - shadcn-vue latest 的 `reka-vega` style registry base style 在初始化時回 404；本次以 `--no-base-style` 初始化並依官方 neutral theme scaffold 手動補齊 global CSS tokens。

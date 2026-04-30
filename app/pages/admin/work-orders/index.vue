@@ -542,14 +542,14 @@ const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 筆�
     </Alert>
 
     <template v-if="isInitialLoading">
-      <Card class="hidden md:block">
+      <Card class="hidden xl:block">
         <CardContent class="space-y-4 pt-6">
           <Skeleton class="h-10 w-full" />
           <Skeleton v-for="index in 6" :key="index" class="h-14 w-full" />
         </CardContent>
       </Card>
 
-      <div class="grid gap-3 md:hidden">
+      <div class="grid gap-3 xl:hidden">
         <Card v-for="index in 3" :key="index">
           <CardContent class="space-y-3 pt-6">
             <Skeleton class="h-5 w-32" />
@@ -616,7 +616,7 @@ const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 筆�
           <span>{{ pageSummary }}</span>
         </div>
 
-        <div class="hidden items-center justify-center gap-2 md:flex">
+        <div class="hidden items-center justify-center gap-2 xl:flex">
           <Button
             :disabled="!response.pageInfo.hasPreviousPage"
             type="button"
@@ -644,7 +644,7 @@ const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 筆�
           </Button>
         </div>
 
-        <div class="flex items-center justify-between gap-2 md:hidden">
+        <div class="flex items-center justify-between gap-2 xl:hidden">
           <Button
             :disabled="!response.pageInfo.hasPreviousPage"
             type="button"

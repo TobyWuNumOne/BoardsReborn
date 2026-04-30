@@ -5,7 +5,9 @@ import { throwMappedSupabaseError } from '../../server/utils/supabase-errors';
 import {
   bulkAdminWorkOrderStatus,
   buildWorkOrderPatchUpdates,
+  getAdminDashboardSummary,
   getStaleReceivedDays,
+  getTaipeiDayRange,
   mapStatusTransitionResult,
   mapWorkOrderListRow,
   mapWorkOrderResolveRow,
@@ -89,6 +91,115 @@ const createBulkStatusClient = ({
       rpc(_name: string, args: Record<string, unknown>) {
         calls.rpcArgs.push(args);
         return Promise.resolve(rpcResolver(args));
+      },
+    },
+  };
+};
+
+const createDashboardSummaryClient = (counts: {
+  createdToday: number;
+  drying: number;
+  overdue: number;
+  readyForPickup: number;
+  received: number;
+  repairing: number;
+}) => {
+  const resolveCount = (builder: Record<string, unknown>) => {
+    const eqFilters = (builder.eq as Array<{ column: string; value: unknown }> | undefined) ?? [];
+    const gteFilter = builder.gte as { column: string; value: unknown } | undefined;
+    const ltFilter = builder.lt as { column: string; value: unknown } | undefined;
+
+    if (eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'RECEIVED')) {
+      return counts.received;
+    }
+
+    if (eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'DRYING')) {
+      return counts.drying;
+    }
+
+    if (eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'REPAIRING')) {
+      return counts.repairing;
+    }
+
+    if (eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'READY_FOR_PICKUP')) {
+      return counts.readyForPickup;
+    }
+
+    if (
+      eqFilters.some(
+        (filter) =>
+          filter.column === 'is_overdue_estimated_completion' && filter.value === true,
+      )
+    ) {
+      return counts.overdue;
+    }
+
+    if (gteFilter?.column === 'created_at' && ltFilter?.column === 'created_at') {
+      return counts.createdToday;
+    }
+
+    return 0;
+  };
+
+  const createQuery = (table: string, builder: Record<string, unknown> = {}) => ({
+    eq(column: string, value: unknown) {
+      return createQuery(table, {
+        ...builder,
+        eq: [
+          ...(((builder.eq as Array<Record<string, unknown>> | undefined) ?? [])),
+          { column, value },
+        ],
+      });
+    },
+    gte(column: string, value: unknown) {
+      return createQuery(table, {
+        ...builder,
+        gte: { column, value },
+      });
+    },
+    in(column: string, values: unknown[]) {
+      return createQuery(table, {
+        ...builder,
+        in: { column, values },
+      });
+    },
+    lt(column: string, value: unknown) {
+      return Promise.resolve({
+        count: resolveCount({
+          ...builder,
+          lt: { column, value },
+          table,
+        }),
+        error: null,
+      });
+    },
+    select(columns: string, options?: Record<string, unknown>) {
+      return createQuery(table, {
+        ...builder,
+        columns,
+        options,
+      });
+    },
+    then(
+      onFulfilled?: ((value: { count: number; error: null }) => unknown) | null,
+      onRejected?: ((reason: unknown) => unknown) | null,
+    ) {
+      const payload = {
+        count: resolveCount({
+          ...builder,
+          table,
+        }),
+        error: null,
+      };
+
+      return Promise.resolve(payload).then(onFulfilled ?? undefined, onRejected ?? undefined);
+    },
+  });
+
+  return {
+    client: {
+      from(table: string) {
+        return createQuery(table);
       },
     },
   };
@@ -217,6 +328,13 @@ describe('work order API validation', () => {
       staleReceivedBefore: '2026-04-15T00:00:00.000Z',
     });
     expectValidationField(() => parseWorkOrderListQuery({ sort: 'customer_name:asc' }), 'sort');
+  });
+
+  it('calculates Taipei day range with inclusive start and exclusive next day', () => {
+    expect(getTaipeiDayRange(new Date('2026-04-29T02:45:00.000Z'))).toEqual({
+      endExclusive: '2026-04-29T16:00:00.000Z',
+      startInclusive: '2026-04-28T16:00:00.000Z',
+    });
   });
 
   it('validates bulk status bodies, trims note, and dedupes paper order numbers', () => {
@@ -364,6 +482,35 @@ describe('work order API validation', () => {
       },
       paperOrderNo: 'BR-2026-0001',
       quoteTotalAmount: 700,
+    });
+  });
+
+  it('aggregates dashboard summary counts from admin_work_order_list', async () => {
+    const now = new Date('2026-04-29T02:45:00.000Z');
+    const { client } = createDashboardSummaryClient({
+      createdToday: 4,
+      drying: 4,
+      overdue: 3,
+      readyForPickup: 6,
+      received: 5,
+      repairing: 9,
+    });
+
+    expect(await getAdminDashboardSummary(client as never, now)).toEqual({
+      data: {
+        generatedAt: '2026-04-29T02:45:00.000Z',
+        summary: {
+          activeWorkOrders: 18,
+          activeWorkOrdersByStatus: {
+            RECEIVED: 5,
+            DRYING: 4,
+            REPAIRING: 9,
+          },
+          createdToday: 4,
+          overdue: 3,
+          readyForPickup: 6,
+        },
+      },
     });
   });
 

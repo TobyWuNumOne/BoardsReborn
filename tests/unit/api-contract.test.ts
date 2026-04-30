@@ -6,6 +6,9 @@ const apiContract = readFileSync(resolve(process.cwd(), 'docs/api-contract.md'),
 
 describe('API contract', () => {
   it('documents the admin session flow and keeps UUID work-order endpoints explicit', () => {
+    expect(apiContract).toContain('GET /api/admin/dashboard');
+    expect(apiContract).toContain('activeWorkOrdersByStatus');
+    expect(apiContract).toContain('activeWorkOrdersByStatus.RECEIVED + DRYING + REPAIRING');
     expect(apiContract).toContain('GET /api/admin/session');
     expect(apiContract).toContain('這支 endpoint 只回傳最小必要欄位');
     expect(apiContract).toContain('GET /api/admin/work-orders/resolve');

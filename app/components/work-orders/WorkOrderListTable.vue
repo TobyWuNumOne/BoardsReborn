@@ -27,7 +27,7 @@ const emitView = (id: string | null) => {
 </script>
 
 <template>
-  <div class="hidden overflow-hidden rounded-lg border bg-card md:block">
+  <div class="hidden overflow-hidden rounded-lg border bg-card xl:block">
     <Table>
       <TableHeader>
         <TableRow>

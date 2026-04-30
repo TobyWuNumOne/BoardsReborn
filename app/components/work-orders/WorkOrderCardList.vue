@@ -27,7 +27,7 @@ const emitView = (id: string | null) => {
 </script>
 
 <template>
-  <div class="grid gap-3 md:hidden">
+  <div class="grid gap-3 xl:hidden">
     <Card
       v-for="workOrder in items"
       :key="workOrder.id ?? workOrder.paperOrderNo ?? 'work-order-card'"

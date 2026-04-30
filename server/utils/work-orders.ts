@@ -34,6 +34,13 @@ type WorkOrderResolveRow = Pick<
   customers: Pick<CustomerRow, 'id' | 'name'> | null;
 };
 
+const DASHBOARD_OVERDUE_STATUSES = [
+  'RECEIVED',
+  'DRYING',
+  'REPAIRING',
+  'READY_FOR_PICKUP',
+] as const satisfies ReadonlyArray<Database['public']['Enums']['work_order_status']>;
+
 export interface PageInfo {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
@@ -48,6 +55,58 @@ export type BulkStatusSkipReason = 'INVALID_STATUS_TRANSITION' | 'NOT_FOUND';
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 const toJsonObject = (value: unknown): Json => value as Json;
+
+const getTaipeiDateParts = (date: Date) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+  });
+  const parts = formatter.formatToParts(date);
+  const year = Number(parts.find((part) => part.type === 'year')?.value);
+  const month = Number(parts.find((part) => part.type === 'month')?.value);
+  const day = Number(parts.find((part) => part.type === 'day')?.value);
+
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day) ||
+    year <= 0 ||
+    month <= 0 ||
+    day <= 0
+  ) {
+    throw new InternalServerError('Unable to calculate Taipei date range.');
+  }
+
+  return { day, month, year };
+};
+
+export const getTaipeiDayRange = (date = new Date()) => {
+  const parts = getTaipeiDateParts(date);
+  const startOfDay = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, -8, 0, 0, 0));
+  const nextDay = new Date(startOfDay.getTime() + DAY_IN_MS);
+
+  return {
+    endExclusive: nextDay.toISOString(),
+    startInclusive: startOfDay.toISOString(),
+  };
+};
+
+const getExactCount = async (
+  query: PromiseLike<{
+    count: number | null;
+    error: unknown;
+  }>,
+) => {
+  const { count, error } = await query;
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  return count ?? 0;
+};
 
 const calculatePageInfo = (page: number, pageSize: number, total: number): PageInfo => {
   const totalPages = Math.ceil(total / pageSize);
@@ -379,6 +438,74 @@ export const listAdminWorkOrders = async (
   return {
     data: (data ?? []).map((row) => mapWorkOrderListRow(row)),
     pageInfo: calculatePageInfo(query.page, query.pageSize, total),
+  };
+};
+
+export const getAdminDashboardSummary = async (
+  supabase: UserScopedSupabaseClient,
+  now = new Date(),
+) => {
+  const taipeiDayRange = getTaipeiDayRange(now);
+  const generatedAt = now.toISOString();
+
+  const [received, drying, repairing, readyForPickup, overdue, createdToday] = await Promise.all([
+    getExactCount(
+      supabase
+        .from('admin_work_order_list')
+        .select('id', { count: 'exact', head: true })
+        .eq('current_status', 'RECEIVED'),
+    ),
+    getExactCount(
+      supabase
+        .from('admin_work_order_list')
+        .select('id', { count: 'exact', head: true })
+        .eq('current_status', 'DRYING'),
+    ),
+    getExactCount(
+      supabase
+        .from('admin_work_order_list')
+        .select('id', { count: 'exact', head: true })
+        .eq('current_status', 'REPAIRING'),
+    ),
+    getExactCount(
+      supabase
+        .from('admin_work_order_list')
+        .select('id', { count: 'exact', head: true })
+        .eq('current_status', 'READY_FOR_PICKUP'),
+    ),
+    getExactCount(
+      supabase
+        .from('admin_work_order_list')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_overdue_estimated_completion', true)
+        .in('current_status', [...DASHBOARD_OVERDUE_STATUSES]),
+    ),
+    getExactCount(
+      supabase
+        .from('admin_work_order_list')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', taipeiDayRange.startInclusive)
+        .lt('created_at', taipeiDayRange.endExclusive),
+    ),
+  ]);
+
+  const activeWorkOrders = received + drying + repairing;
+
+  return {
+    data: {
+      generatedAt,
+      summary: {
+        activeWorkOrders,
+        activeWorkOrdersByStatus: {
+          RECEIVED: received,
+          DRYING: drying,
+          REPAIRING: repairing,
+        },
+        createdToday,
+        overdue,
+        readyForPickup,
+      },
+    },
   };
 };
 
