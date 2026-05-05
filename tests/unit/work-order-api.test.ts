@@ -109,26 +109,35 @@ const createDashboardSummaryClient = (counts: {
     const gteFilter = builder.gte as { column: string; value: unknown } | undefined;
     const ltFilter = builder.lt as { column: string; value: unknown } | undefined;
 
-    if (eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'RECEIVED')) {
+    if (
+      eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'RECEIVED')
+    ) {
       return counts.received;
     }
 
-    if (eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'DRYING')) {
+    if (
+      eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'DRYING')
+    ) {
       return counts.drying;
     }
 
-    if (eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'REPAIRING')) {
+    if (
+      eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'REPAIRING')
+    ) {
       return counts.repairing;
     }
 
-    if (eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'READY_FOR_PICKUP')) {
+    if (
+      eqFilters.some(
+        (filter) => filter.column === 'current_status' && filter.value === 'READY_FOR_PICKUP',
+      )
+    ) {
       return counts.readyForPickup;
     }
 
     if (
       eqFilters.some(
-        (filter) =>
-          filter.column === 'is_overdue_estimated_completion' && filter.value === true,
+        (filter) => filter.column === 'is_overdue_estimated_completion' && filter.value === true,
       )
     ) {
       return counts.overdue;
@@ -146,7 +155,7 @@ const createDashboardSummaryClient = (counts: {
       return createQuery(table, {
         ...builder,
         eq: [
-          ...(((builder.eq as Array<Record<string, unknown>> | undefined) ?? [])),
+          ...((builder.eq as Array<Record<string, unknown>> | undefined) ?? []),
           { column, value },
         ],
       });
@@ -248,7 +257,11 @@ describe('work order API validation', () => {
 
   it('requires explicit customer create or reuse mode for work order creation', () => {
     const createInput = parseCreateWorkOrderBody({
-      board: { boardType: 'SURFBOARD', sizeLabel: "6'2" },
+      board: {
+        boardLengthClass: 'SHORTBOARD',
+        boardType: 'SURFBOARD',
+        sizeLabel: "6'2",
+      },
       customer: { name: '王小明', phone: '0912-345-678' },
       customerMode: 'create',
       quoteItems: [],
@@ -259,6 +272,7 @@ describe('work order API validation', () => {
     });
 
     expect(createInput.customer?.phone).toBe('0912345678');
+    expect(createInput.board.boardLengthClass).toBe('SHORTBOARD');
     expect(createInput.workOrder.paymentReceived).toBe(false);
 
     const reuseInput = parseCreateWorkOrderBody({
@@ -284,6 +298,39 @@ describe('work order API validation', () => {
           },
         }),
       'customer',
+    );
+  });
+
+  it('requires boardLengthClass for SURFBOARD and rejects it for other board types', () => {
+    expectValidationField(
+      () =>
+        parseCreateWorkOrderBody({
+          board: { boardType: 'SURFBOARD' },
+          customer: { name: '王小明', phone: '0912345678' },
+          customerMode: 'create',
+          workOrder: {
+            intakeDate: '2026-04-20',
+            paperOrderNo: 'BR-2026-0100',
+          },
+        }),
+      'board.boardLengthClass',
+    );
+
+    expectValidationField(
+      () =>
+        parseCreateWorkOrderBody({
+          board: {
+            boardLengthClass: 'LONGBOARD',
+            boardType: 'SUP',
+          },
+          customer: { name: '王小明', phone: '0912345678' },
+          customerMode: 'create',
+          workOrder: {
+            intakeDate: '2026-04-20',
+            paperOrderNo: 'BR-2026-0101',
+          },
+        }),
+      'board.boardLengthClass',
     );
   });
 
@@ -446,6 +493,7 @@ describe('work order API validation', () => {
     expect(
       mapWorkOrderListRow(
         {
+          board_length_class: 'SHORTBOARD',
           board_size_label: "6'2",
           board_type: 'SURFBOARD',
           created_at: '2026-04-20T08:00:00.000Z',
@@ -473,7 +521,11 @@ describe('work order API validation', () => {
         new Date('2026-04-28T08:30:00.000Z'),
       ),
     ).toMatchObject({
-      board: { boardType: 'SURFBOARD', sizeLabel: "6'2" },
+      board: {
+        boardLengthClass: 'SHORTBOARD',
+        boardType: 'SURFBOARD',
+        sizeLabel: "6'2",
+      },
       customer: { id: 'customer-id', name: '王小明', phone: '0912345678' },
       flags: {
         overdueEstimatedCompletion: false,

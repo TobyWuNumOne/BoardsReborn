@@ -14,6 +14,10 @@ const statusTransitionMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260422120000_admin_status_transition.sql'),
   'utf8',
 );
+const boardLengthClassMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260504110000_work_order_board_length_class.sql'),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -69,5 +73,24 @@ describe('initial Supabase migration', () => {
     expect(statusTransitionMigration).toContain('coalesce(cancelled_at, v_transitioned_at)');
     expect(statusTransitionMigration).toContain('SNOWBOARD work orders cannot enter DRYING');
     expect(statusTransitionMigration).not.toContain('insert into public.print_jobs');
+  });
+
+  it('adds board_length_class without breaking legacy work order rows', () => {
+    expect(boardLengthClassMigration).toContain('create type public.board_length_class as enum');
+    expect(boardLengthClassMigration).toContain(
+      'alter table public.work_orders\nadd column board_length_class public.board_length_class',
+    );
+    expect(boardLengthClassMigration).toContain(
+      'create or replace function public.enforce_work_order_board_length_class',
+    );
+    expect(boardLengthClassMigration).toContain(
+      'before insert or update of board_type, board_length_class on public.work_orders',
+    );
+    expect(boardLengthClassMigration).toContain('SURFBOARD work orders require board_length_class');
+    expect(boardLengthClassMigration).toContain(
+      'Only SURFBOARD work orders can set board_length_class',
+    );
+    expect(boardLengthClassMigration).toContain('work_orders.board_length_class');
+    expect(boardLengthClassMigration).toContain("p_board ->> 'boardLengthClass'");
   });
 });

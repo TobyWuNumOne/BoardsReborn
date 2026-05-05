@@ -17,6 +17,7 @@ import {
 } from '~/utils/admin-work-orders';
 import {
   ADMIN_WORK_ORDER_CREATE_BOARD_COLOR_OPTIONS,
+  ADMIN_WORK_ORDER_CREATE_BOARD_LENGTH_CLASS_OPTIONS,
   ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS,
   buildAdminWorkOrderCreatePayload,
   createAdminWorkOrderCreateInitialFormState,
@@ -62,6 +63,7 @@ const submitApiError = shallowRef<ApiErrorEnvelope | null>(null);
 const isSubmitting = ref(false);
 const lastLookupPhone = ref<string | null>(null);
 const unsavedGuardEnabled = ref(true);
+const intakeDatePopoverOpen = ref(false);
 const estimatedDatePopoverOpen = ref(false);
 
 const currentSnapshot = computed(() => normalizeAdminWorkOrderCreateFormState(form));
@@ -96,7 +98,9 @@ const getSafeCalendarDate = (value: string) => {
 };
 const estimatedCalendarValue = computed({
   get: () =>
-    getSafeCalendarDate(form.estimatedCompletionDate || form.intakeDate || getTaipeiTodayDateString()),
+    getSafeCalendarDate(
+      form.estimatedCompletionDate || form.intakeDate || getTaipeiTodayDateString(),
+    ),
   set: (value) => {
     if (!value) {
       return;
@@ -106,6 +110,18 @@ const estimatedCalendarValue = computed({
     form.estimatedCompletionDateManuallyEdited = true;
     estimatedDatePopoverOpen.value = false;
     delete clientFieldErrors.value.estimatedCompletionDate;
+  },
+});
+const intakeCalendarValue = computed({
+  get: () => getSafeCalendarDate(form.intakeDate || getTaipeiTodayDateString()),
+  set: (value) => {
+    if (!value) {
+      return;
+    }
+
+    form.intakeDate = value.toString();
+    intakeDatePopoverOpen.value = false;
+    clearFieldError('intakeDate');
   },
 });
 
@@ -161,6 +177,8 @@ const resetForm = () => {
   lookupStatus.value = 'idle';
   lastLookupPhone.value = null;
   unsavedGuardEnabled.value = true;
+  intakeDatePopoverOpen.value = false;
+  estimatedDatePopoverOpen.value = false;
   baselineSnapshot.value = normalizeAdminWorkOrderCreateFormState(nextState);
 };
 
@@ -234,11 +252,14 @@ const lookupCustomers = async () => {
   lookupStatus.value = 'loading';
 
   try {
-    const response = await getRequestFetch()<AdminCustomerLookupResponse>('/api/admin/customers/lookup', {
-      query: {
-        phone: form.customerPhone,
+    const response = await getRequestFetch()<AdminCustomerLookupResponse>(
+      '/api/admin/customers/lookup',
+      {
+        query: {
+          phone: form.customerPhone,
+        },
       },
-    });
+    );
 
     lookupResults.value = response.data;
     lastLookupPhone.value = normalizedPhone;
@@ -293,10 +314,13 @@ const submitCreateForm = async () => {
   isSubmitting.value = true;
 
   try {
-    const response = await getRequestFetch()<AdminWorkOrderCreateResponse>('/api/admin/work-orders', {
-      body: payload,
-      method: 'POST',
-    });
+    const response = await getRequestFetch()<AdminWorkOrderCreateResponse>(
+      '/api/admin/work-orders',
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
 
     clearUnsavedGuard();
     toast.success('工單已建立');
@@ -322,7 +346,22 @@ const handleBoardTypeChange = (value: unknown) => {
       ? (value as typeof form.boardType)
       : '';
 
+  if (form.boardType !== 'SURFBOARD') {
+    form.boardLengthClass = '';
+  }
+
   clearFieldError('boardType');
+  clearFieldError('boardLengthClass');
+};
+
+const handleBoardLengthClassChange = (value: unknown) => {
+  form.boardLengthClass =
+    typeof value === 'string' &&
+    ADMIN_WORK_ORDER_CREATE_BOARD_LENGTH_CLASS_OPTIONS.some((option) => option.value === value)
+      ? (value as typeof form.boardLengthClass)
+      : '';
+
+  clearFieldError('boardLengthClass');
 };
 
 const handleBoardColorChoice = (value: string) => {
@@ -382,6 +421,10 @@ watch(
 watch(
   () => form.damageDescription,
   () => clearFieldError('damageDescription'),
+);
+watch(
+  () => form.boardLengthClass,
+  () => clearFieldError('boardLengthClass'),
 );
 watch(
   () => form.initialQuoteAmount,
@@ -473,7 +516,24 @@ if (import.meta.client) {
 
           <Field>
             <FieldLabel for="intake-date">收件日期</FieldLabel>
-            <Input id="intake-date" v-model="form.intakeDate" type="date" />
+            <Popover v-model:open="intakeDatePopoverOpen">
+              <PopoverTrigger as-child>
+                <Button
+                  id="intake-date"
+                  type="button"
+                  variant="outline"
+                  class="w-full justify-between text-left font-normal"
+                >
+                  <span>
+                    {{ form.intakeDate ? formatAdminDate(form.intakeDate) : '選擇日期' }}
+                  </span>
+                  <CalendarIcon class="text-muted-foreground size-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent class="w-auto p-3">
+                <Calendar v-model="intakeCalendarValue" initial-focus />
+              </PopoverContent>
+            </Popover>
             <FieldDescription>預設今天，可手動改成補登日期。</FieldDescription>
             <FieldError :errors="mergedFieldErrors.intakeDate" />
           </Field>
@@ -568,7 +628,10 @@ if (import.meta.client) {
             <FieldError :errors="mergedFieldErrors.customerName" />
           </Field>
 
-          <div v-if="form.customerModeDecision === 'reuse' && selectedCustomer" class="md:col-span-2">
+          <div
+            v-if="form.customerModeDecision === 'reuse' && selectedCustomer"
+            class="md:col-span-2"
+          >
             <Alert>
               <AlertTitle>已選擇既有顧客</AlertTitle>
               <AlertDescription>
@@ -605,7 +668,11 @@ if (import.meta.client) {
                   )
                 "
               >
-                <RadioGroupItem :id="`board-type-${option.value}`" :value="option.value" class="mt-0.5" />
+                <RadioGroupItem
+                  :id="`board-type-${option.value}`"
+                  :value="option.value"
+                  class="mt-0.5"
+                />
                 <div class="space-y-1">
                   <p class="font-medium">{{ option.label }}</p>
                   <p class="text-sm text-muted-foreground">{{ option.description }}</p>
@@ -613,6 +680,41 @@ if (import.meta.client) {
               </label>
             </RadioGroup>
             <FieldError :errors="mergedFieldErrors.boardType" />
+          </Field>
+
+          <Field v-if="form.boardType === 'SURFBOARD'">
+            <FieldLabel>長度分類</FieldLabel>
+            <RadioGroup
+              :model-value="form.boardLengthClass || undefined"
+              class="grid gap-3 md:grid-cols-3"
+              @update:model-value="handleBoardLengthClassChange"
+            >
+              <label
+                v-for="option in ADMIN_WORK_ORDER_CREATE_BOARD_LENGTH_CLASS_OPTIONS"
+                :key="option.value"
+                :for="`board-length-class-${option.value}`"
+                :class="
+                  cn(
+                    'flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors',
+                    form.boardLengthClass === option.value
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:bg-muted/30',
+                  )
+                "
+              >
+                <RadioGroupItem
+                  :id="`board-length-class-${option.value}`"
+                  :value="option.value"
+                  class="mt-0.5"
+                />
+                <div class="space-y-1">
+                  <p class="font-medium">{{ option.label }}</p>
+                  <p class="text-sm text-muted-foreground">{{ option.description }}</p>
+                </div>
+              </label>
+            </RadioGroup>
+            <FieldDescription>只對衝浪板使用，不從尺寸標記自動推論。</FieldDescription>
+            <FieldError :errors="mergedFieldErrors.boardLengthClass" />
           </Field>
 
           <div class="grid gap-4 md:grid-cols-3">
@@ -623,7 +725,11 @@ if (import.meta.client) {
 
             <Field>
               <FieldLabel for="board-brand">品牌</FieldLabel>
-              <Input id="board-brand" v-model="form.boardBrand" placeholder="例如 Channel Islands" />
+              <Input
+                id="board-brand"
+                v-model="form.boardBrand"
+                placeholder="例如 Channel Islands"
+              />
             </Field>
 
             <Field>
@@ -690,7 +796,11 @@ if (import.meta.client) {
                   class="w-full justify-between text-left font-normal"
                 >
                   <span>
-                    {{ form.estimatedCompletionDate ? formatAdminDate(form.estimatedCompletionDate) : '選擇日期' }}
+                    {{
+                      form.estimatedCompletionDate
+                        ? formatAdminDate(form.estimatedCompletionDate)
+                        : '選擇日期'
+                    }}
                   </span>
                   <CalendarIcon class="text-muted-foreground size-4" />
                 </Button>
@@ -705,11 +815,7 @@ if (import.meta.client) {
 
           <Field>
             <FieldLabel for="public-note">公開備註</FieldLabel>
-            <Textarea
-              id="public-note"
-              v-model="form.publicNote"
-              placeholder="顧客可見的補充說明"
-            />
+            <Textarea id="public-note" v-model="form.publicNote" placeholder="顧客可見的補充說明" />
           </Field>
 
           <Field class="md:col-span-2">
@@ -755,7 +861,9 @@ if (import.meta.client) {
               <Checkbox id="payment-received" v-model="form.paymentReceived" class="mt-0.5" />
               <div class="space-y-1">
                 <FieldLabel for="payment-received">已收款</FieldLabel>
-                <p class="text-sm text-muted-foreground">可先標記已收款，建立後由後端維護收款時間。</p>
+                <p class="text-sm text-muted-foreground">
+                  可先標記已收款，建立後由後端維護收款時間。
+                </p>
               </div>
             </div>
           </Field>
@@ -764,7 +872,9 @@ if (import.meta.client) {
             <Alert>
               <TriangleAlertIcon class="size-4" />
               <AlertTitle>已標記收款，但尚未填初始報價</AlertTitle>
-              <AlertDescription>這不會阻擋建單，但建議確認現場是否真的不需要先記錄初始報價。</AlertDescription>
+              <AlertDescription
+                >這不會阻擋建單，但建議確認現場是否真的不需要先記錄初始報價。</AlertDescription
+              >
             </Alert>
           </div>
         </CardContent>
@@ -773,7 +883,9 @@ if (import.meta.client) {
       <Card>
         <CardHeader>
           <CardTitle>5. 備註與提交</CardTitle>
-          <CardDescription>建單頁第一版只建立工單本身；後續拍照與列印會在詳情頁補上。</CardDescription>
+          <CardDescription
+            >建單頁第一版只建立工單本身；後續拍照與列印會在詳情頁補上。</CardDescription
+          >
         </CardHeader>
         <CardContent class="space-y-3 text-sm text-muted-foreground">
           <p>建立成功後狀態固定為「已收件」。</p>
@@ -781,7 +893,9 @@ if (import.meta.client) {
         </CardContent>
       </Card>
 
-      <div class="sticky bottom-0 z-10 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur">
+      <div
+        class="sticky bottom-0 z-10 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur"
+      >
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div class="space-y-1 text-sm text-muted-foreground">
             <p>主要入口已集中在本頁，適合平板現場快速收件。</p>
@@ -798,7 +912,11 @@ if (import.meta.client) {
             >
               清除
             </Button>
-            <Button type="submit" class="w-full md:w-auto" :disabled="isSubmitting || isLookupLoading">
+            <Button
+              type="submit"
+              class="w-full md:w-auto"
+              :disabled="isSubmitting || isLookupLoading"
+            >
               {{ isSubmitting ? '建立中…' : '建立工單' }}
             </Button>
           </div>

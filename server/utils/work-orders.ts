@@ -58,8 +58,7 @@ const DASHBOARD_OVERDUE_STATUSES = [
   'READY_FOR_PICKUP',
 ] as const satisfies ReadonlyArray<Database['public']['Enums']['work_order_status']>;
 
-const PUBLIC_WORK_ORDER_LOOKUP_NOT_FOUND_MESSAGE =
-  '查無符合的工單，請確認工單號與手機號碼。';
+const PUBLIC_WORK_ORDER_LOOKUP_NOT_FOUND_MESSAGE = '查無符合的工單，請確認工單號與手機號碼。';
 const PUBLIC_PROGRESS_STEP_ORDER_BY_BOARD_TYPE = {
   SNOWBOARD: ['RECEIVED', 'REPAIRING', 'READY_FOR_PICKUP', 'DELIVERED'],
   SUP: ['RECEIVED', 'DRYING', 'REPAIRING', 'READY_FOR_PICKUP', 'DELIVERED'],
@@ -181,7 +180,8 @@ const calculatePageInfo = (page: number, pageSize: number, total: number): PageI
 const calculateQuoteTotal = (quoteItems: QuoteItemRow[]): number =>
   quoteItems.reduce((total, quoteItem) => total + quoteItem.amount, 0);
 
-export const getPublicWorkOrderStatusLabel = (status: WorkOrderStatus) => PUBLIC_STATUS_LABELS[status];
+export const getPublicWorkOrderStatusLabel = (status: WorkOrderStatus) =>
+  PUBLIC_STATUS_LABELS[status];
 
 export const buildPublicWorkOrderProgress = (
   boardType: BoardType,
@@ -212,7 +212,8 @@ export const buildPublicWorkOrderProgress = (
     steps: stepOrder.map((stepKey, index) => ({
       key: stepKey,
       label: PUBLIC_STATUS_LABELS[stepKey],
-      state: index < currentStepIndex ? 'done' : index === currentStepIndex ? 'current' : 'upcoming',
+      state:
+        index < currentStepIndex ? 'done' : index === currentStepIndex ? 'current' : 'upcoming',
     })),
   };
 };
@@ -268,6 +269,7 @@ const isStaleReceived = (
 
 export const mapWorkOrderListRow = (row: AdminWorkOrderListRow, now = new Date()) => ({
   board: {
+    boardLengthClass: row.board_length_class,
     boardType: row.board_type,
     sizeLabel: row.board_size_label,
   },
@@ -345,6 +347,7 @@ const mapWorkOrderDetail = (
 
   return {
     board: {
+      boardLengthClass: workOrder.board_length_class,
       boardType: workOrder.board_type,
       brand: workOrder.board_brand,
       color: workOrder.board_color,
@@ -614,6 +617,7 @@ export const resolveAdminWorkOrderByPaperOrderNo = async (
         'paper_order_no',
         'current_status',
         'board_type',
+        'board_length_class',
         'board_size_label',
         'updated_at',
         'customers:customer_id(id, name)',
@@ -738,6 +742,7 @@ export const getAdminWorkOrderDetail = async (supabase: UserScopedSupabaseClient
           'current_status',
           'customer_id',
           'board_type',
+          'board_length_class',
           'board_brand',
           'board_model',
           'board_size_label',

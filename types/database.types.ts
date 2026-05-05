@@ -299,6 +299,7 @@ export type Database = {
         Row: {
           board_brand: string | null;
           board_color: string | null;
+          board_length_class: Database['public']['Enums']['board_length_class'] | null;
           board_model: string | null;
           board_serial_label: string | null;
           board_size_label: string | null;
@@ -328,6 +329,7 @@ export type Database = {
         Insert: {
           board_brand?: string | null;
           board_color?: string | null;
+          board_length_class?: Database['public']['Enums']['board_length_class'] | null;
           board_model?: string | null;
           board_serial_label?: string | null;
           board_size_label?: string | null;
@@ -357,6 +359,7 @@ export type Database = {
         Update: {
           board_brand?: string | null;
           board_color?: string | null;
+          board_length_class?: Database['public']['Enums']['board_length_class'] | null;
           board_model?: string | null;
           board_serial_label?: string | null;
           board_size_label?: string | null;
@@ -397,6 +400,7 @@ export type Database = {
     Views: {
       admin_work_order_list: {
         Row: {
+          board_length_class: Database['public']['Enums']['board_length_class'] | null;
           board_size_label: string | null;
           board_type: Database['public']['Enums']['board_type'] | null;
           created_at: string | null;
@@ -462,6 +466,7 @@ export type Database = {
       };
     };
     Enums: {
+      board_length_class: 'SHORTBOARD' | 'MID_LENGTH' | 'LONGBOARD';
       board_type: 'SURFBOARD' | 'SUP' | 'SNOWBOARD';
       label_language: 'TSPL' | 'ZPL' | 'EPL' | 'DPL';
       photo_type: 'INTAKE' | 'IN_PROGRESS' | 'SPECIAL_CONDITION' | 'COMPLETION';
@@ -1156,6 +1161,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      board_length_class: ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'],
       board_type: ['SURFBOARD', 'SUP', 'SNOWBOARD'],
       label_language: ['TSPL', 'ZPL', 'EPL', 'DPL'],
       photo_type: ['INTAKE', 'IN_PROGRESS', 'SPECIAL_CONDITION', 'COMPLETION'],

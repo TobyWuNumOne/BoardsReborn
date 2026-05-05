@@ -5,6 +5,7 @@ import {
   formatAdminDateTime,
   getActiveWorkOrderFlags,
   getAdjustedPageForPageInfo,
+  getBoardLengthClassLabel,
   getBoardTypeLabel,
   getVisiblePageNumbers,
   getWorkOrderStatusLabel,
@@ -94,6 +95,8 @@ describe('admin work-order list UI helpers', () => {
 
   it('formats labels, flags, and page helpers consistently', () => {
     expect(getBoardTypeLabel('SURFBOARD')).toBe('衝浪板');
+    expect(getBoardLengthClassLabel('MID_LENGTH')).toBe('中尺寸');
+    expect(getBoardLengthClassLabel(null)).toBe('—');
     expect(getWorkOrderStatusLabel('READY_FOR_PICKUP')).toBe('已完工待取件');
     expect(
       getActiveWorkOrderFlags({

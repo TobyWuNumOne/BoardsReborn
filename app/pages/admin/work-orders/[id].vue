@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { parseDate } from '@internationalized/date';
+import { CalendarIcon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import type {
   AdminWorkOrderDetailItem,
@@ -22,6 +24,7 @@ import {
   formatAdminDateTime,
   getAdminWorkOrderDetailAsyncKey,
   getAdminWorkOrderDetailModeLabel,
+  getBoardLengthClassLabel,
   getAdminWorkOrderEditDirtyFields,
   getApiErrorStatusCode,
   getBoardTypeLabel,
@@ -47,6 +50,12 @@ const CURRENCY_FORMATTER = new Intl.NumberFormat('zh-TW', {
   currency: 'TWD',
   maximumFractionDigits: 0,
   style: 'currency',
+});
+const TAIPEI_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  day: '2-digit',
+  month: '2-digit',
+  timeZone: 'Asia/Taipei',
+  year: 'numeric',
 });
 const LIST_ROUTE = '/admin/work-orders';
 const EDIT_LEAVE_CONFIRM_MESSAGE = '目前有未儲存的變更，確定要離開編輯模式嗎？';
@@ -97,6 +106,7 @@ const lastSyncedEditSnapshot = ref<AdminWorkOrderEditNormalizedSnapshot | null>(
 const lastSyncedWorkOrderId = ref<string | null>(null);
 const shouldSyncEditFormOnNextRefresh = ref(false);
 const isSubmittingEditForm = ref(false);
+const editEstimatedDatePopoverOpen = ref(false);
 const clientEditFieldErrors = ref<Record<string, string[]>>({});
 const submitEditApiError = ref<ApiErrorEnvelope | null>(null);
 const workForm = reactive<AdminWorkOrderWorkFormState>(createEmptyAdminWorkOrderWorkFormState());
@@ -104,7 +114,9 @@ const lastWorkFormWorkOrderId = ref<string | null>(null);
 const isSubmittingWorkForm = ref(false);
 const clientWorkFieldErrors = ref<Record<string, string[]>>({});
 const submitWorkApiError = ref<ApiErrorEnvelope | null>(null);
-const workOrderStatusValues = new Set(ADMIN_WORK_ORDER_STATUS_OPTIONS.map((option) => option.value));
+const workOrderStatusValues = new Set(
+  ADMIN_WORK_ORDER_STATUS_OPTIONS.map((option) => option.value),
+);
 
 const formatCurrency = (value: number | null) =>
   typeof value === 'number' ? CURRENCY_FORMATTER.format(value) : '—';
@@ -137,6 +149,23 @@ const formatBooleanLabel = (
   }
 
   return '—';
+};
+
+const getTaipeiTodayDateString = () => {
+  const parts = TAIPEI_DATE_FORMATTER.formatToParts(new Date());
+  const year = parts.find((part) => part.type === 'year')?.value ?? '1970';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+
+  return `${year}-${month}-${day}`;
+};
+
+const getSafeCalendarDate = (value: string) => {
+  try {
+    return parseDate(value);
+  } catch {
+    return parseDate(getTaipeiTodayDateString());
+  }
 };
 
 const clearEditFeedback = () => {
@@ -322,6 +351,21 @@ const headerSubtitle = computed(() => {
 
   return '查看工單摘要、顧客、板子、報價、取件資訊與狀態歷史。';
 });
+const editEstimatedCalendarValue = computed({
+  get: () =>
+    getSafeCalendarDate(
+      editForm.estimatedCompletionDate || detail.value?.intakeDate || getTaipeiTodayDateString(),
+    ),
+  set: (value) => {
+    if (!value) {
+      return;
+    }
+
+    editForm.estimatedCompletionDate = value.toString();
+    editEstimatedDatePopoverOpen.value = false;
+    handleEditFieldInput();
+  },
+});
 
 useHead({
   title: detailTitle,
@@ -402,6 +446,10 @@ const boardFields = computed<DetailField[]>(() => {
     {
       label: '板型',
       value: getBoardTypeLabel(detail.value.board.boardType),
+    },
+    {
+      label: '長度分類',
+      value: getBoardLengthClassLabel(detail.value.board.boardLengthClass),
     },
     {
       label: '品牌',
@@ -519,6 +567,7 @@ const resetEditForm = () => {
     return;
   }
 
+  editEstimatedDatePopoverOpen.value = false;
   syncEditFormFromDetail(detail.value);
 };
 
@@ -872,10 +921,7 @@ if (import.meta.client) {
               <ul class="ml-4 list-disc space-y-1">
                 <li v-for="message in editFormAlertMessages" :key="message">{{ message }}</li>
               </ul>
-              <p
-                v-if="submitEditApiError?.error.requestId"
-                class="text-xs text-destructive/80"
-              >
+              <p v-if="submitEditApiError?.error.requestId" class="text-xs text-destructive/80">
                 requestId: {{ submitEditApiError.error.requestId }}
               </p>
             </AlertDescription>
@@ -905,6 +951,9 @@ if (import.meta.client) {
               目前狀態：{{ currentStatusMeta.label }}
             </Badge>
             <Badge variant="outline">板型：{{ getBoardTypeLabel(detail.board.boardType) }}</Badge>
+            <Badge variant="outline">
+              長度分類：{{ getBoardLengthClassLabel(detail.board.boardLengthClass) }}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent class="space-y-6">
@@ -914,10 +963,7 @@ if (import.meta.client) {
               <ul class="ml-4 list-disc space-y-1">
                 <li v-for="message in workFormAlertMessages" :key="message">{{ message }}</li>
               </ul>
-              <p
-                v-if="submitWorkApiError?.error.requestId"
-                class="text-xs text-destructive/80"
-              >
+              <p v-if="submitWorkApiError?.error.requestId" class="text-xs text-destructive/80">
                 requestId: {{ submitWorkApiError.error.requestId }}
               </p>
             </AlertDescription>
@@ -963,7 +1009,9 @@ if (import.meta.client) {
                   :aria-invalid="Boolean(workFieldErrors.note?.length)"
                   @input="handleWorkFieldInput"
                 />
-                <FieldDescription>空白會以 `null` 送出，但 `note` 欄位仍會包含在 request 中。</FieldDescription>
+                <FieldDescription
+                  >空白會以 `null` 送出，但 `note` 欄位仍會包含在 request 中。</FieldDescription
+                >
                 <FieldError :errors="workFieldErrors.note" />
               </Field>
 
@@ -984,7 +1032,12 @@ if (import.meta.client) {
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" :disabled="isSubmittingWorkForm" @click="resetWorkForm">
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="isSubmittingWorkForm"
+              @click="resetWorkForm"
+            >
               清除
             </Button>
             <Button type="button" :disabled="!canSubmitWorkForm" @click="submitWorkForm">
@@ -1004,15 +1057,50 @@ if (import.meta.client) {
           <CardContent v-if="detailMode === 'edit'" class="space-y-6">
             <div class="grid gap-6 md:grid-cols-2">
               <FieldGroup>
-                <Field :data-invalid="editFieldErrors.estimatedCompletionDate?.length ? 'true' : undefined">
+                <Field
+                  :data-invalid="
+                    editFieldErrors.estimatedCompletionDate?.length ? 'true' : undefined
+                  "
+                >
                   <FieldLabel for="edit-estimated-completion-date">預估完成日</FieldLabel>
-                  <Input
-                    id="edit-estimated-completion-date"
-                    v-model="editForm.estimatedCompletionDate"
-                    :aria-invalid="Boolean(editFieldErrors.estimatedCompletionDate?.length)"
-                    type="date"
-                    @input="handleEditFieldInput"
-                  />
+                  <Popover v-model:open="editEstimatedDatePopoverOpen">
+                    <PopoverTrigger as-child>
+                      <Button
+                        id="edit-estimated-completion-date"
+                        type="button"
+                        variant="outline"
+                        class="w-full justify-between text-left font-normal"
+                        :aria-invalid="Boolean(editFieldErrors.estimatedCompletionDate?.length)"
+                      >
+                        <span>
+                          {{
+                            editForm.estimatedCompletionDate
+                              ? formatAdminDate(editForm.estimatedCompletionDate)
+                              : '選擇日期'
+                          }}
+                        </span>
+                        <CalendarIcon class="text-muted-foreground size-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent class="w-auto p-3">
+                      <Calendar v-model="editEstimatedCalendarValue" initial-focus />
+                    </PopoverContent>
+                  </Popover>
+                  <div class="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      :disabled="!editForm.estimatedCompletionDate"
+                      @click="
+                        editForm.estimatedCompletionDate = '';
+                        editEstimatedDatePopoverOpen = false;
+                        handleEditFieldInput();
+                      "
+                    >
+                      清空日期
+                    </Button>
+                  </div>
                   <FieldDescription>可留空；留空送出時會更新為 null。</FieldDescription>
                   <FieldError :errors="editFieldErrors.estimatedCompletionDate" />
                 </Field>
@@ -1028,7 +1116,8 @@ if (import.meta.client) {
                     <FieldContent class="gap-2">
                       <FieldLabel for="edit-payment-received">已收款</FieldLabel>
                       <FieldDescription
-                        >切換後由 server 維護 `paymentReceivedAt`，前端不本地推算。</FieldDescription
+                        >切換後由 server 維護
+                        `paymentReceivedAt`，前端不本地推算。</FieldDescription
                       >
                       <FieldError :errors="editFieldErrors.paymentReceived" />
                     </FieldContent>
@@ -1087,7 +1176,10 @@ if (import.meta.client) {
         </Card>
       </div>
 
-      <div v-if="detailMode === 'edit'" class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div
+        v-if="detailMode === 'edit'"
+        class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+      >
         <Card>
           <CardHeader>
             <CardTitle>維修與備註</CardTitle>

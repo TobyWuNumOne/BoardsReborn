@@ -9,6 +9,7 @@ import {
 
 const detailFixture: AdminWorkOrderDetailItem = {
   board: {
+    boardLengthClass: 'SHORTBOARD',
     boardType: 'SURFBOARD',
     brand: 'CI',
     color: 'White',

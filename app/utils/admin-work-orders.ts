@@ -4,6 +4,7 @@ import type { Database } from '../../types/database.types';
 
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 type BoardType = Database['public']['Enums']['board_type'];
+type BoardLengthClass = Database['public']['Enums']['board_length_class'];
 type QuoteItemType = Database['public']['Enums']['quote_item_type'];
 
 export interface WorkOrderListFlags {
@@ -14,6 +15,7 @@ export interface WorkOrderListFlags {
 
 export interface AdminWorkOrderListItem {
   board: {
+    boardLengthClass: BoardLengthClass | null;
     boardType: BoardType | null;
     sizeLabel: string | null;
   };
@@ -75,6 +77,7 @@ export interface AdminWorkOrderPickupInfo {
 
 export interface AdminWorkOrderDetailItem {
   board: {
+    boardLengthClass: BoardLengthClass | null;
     boardType: BoardType | null;
     brand: string | null;
     color: string | null;
@@ -291,7 +294,11 @@ const detailModeValueSchema = z.enum(
 
 const editPayloadSchema = z.object({
   damageDescription: z.string().nullable().optional(),
-  estimatedCompletionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  estimatedCompletionDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
   internalNote: z.string().nullable().optional(),
   paymentReceived: z.boolean().optional(),
   pickupNote: z.string().nullable().optional(),
@@ -377,6 +384,12 @@ const BOARD_TYPE_LABELS: Record<BoardType, string> = {
   SNOWBOARD: '雪板',
   SUP: 'SUP',
   SURFBOARD: '衝浪板',
+};
+
+const BOARD_LENGTH_CLASS_LABELS: Record<BoardLengthClass, string> = {
+  LONGBOARD: '長板',
+  MID_LENGTH: '中尺寸',
+  SHORTBOARD: '短板',
 };
 
 const QUOTE_ITEM_TYPE_LABELS: Record<QuoteItemType, string> = {
@@ -500,6 +513,9 @@ export const getWorkOrderStatusLabel = (status: WorkOrderStatus | null) =>
 
 export const getBoardTypeLabel = (boardType: BoardType | null) =>
   boardType ? BOARD_TYPE_LABELS[boardType] : '—';
+
+export const getBoardLengthClassLabel = (boardLengthClass: BoardLengthClass | null) =>
+  boardLengthClass ? BOARD_LENGTH_CLASS_LABELS[boardLengthClass] : '—';
 
 export const getQuoteItemTypeLabel = (itemType: QuoteItemType | null) =>
   itemType ? QUOTE_ITEM_TYPE_LABELS[itemType] : '—';

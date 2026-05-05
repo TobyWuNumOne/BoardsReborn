@@ -172,6 +172,8 @@ Desktop / tablet table 欄位：
 - 最近更新
 - 操作
 
+板型欄位顯示 `板型 / 長度分類 / 尺寸標記`。legacy `boardLengthClass = null` 顯示 `—`。
+
 Mobile card 欄位：
 
 - 工單號
@@ -181,6 +183,8 @@ Mobile card 欄位：
 - 預估完成日
 - 提醒 badges
 - 最近更新
+
+Mobile card 也需顯示衝浪板長度分類；若為非 `SURFBOARD` 或 legacy null，顯示 `—`。
 
 ## Work Order Detail
 
@@ -201,6 +205,7 @@ Mobile card 欄位：
   - 報價資訊
   - 取件資訊
   - 狀態歷史
+- detail header 若顯示板型摘要，需一併顯示衝浪板長度分類摘要。
 - F5B 的 edit mode 規則：
   - 單一整頁表單與單一 Save / Reset
   - dirty comparison 使用 normalized values，不直接比 raw input
@@ -226,6 +231,7 @@ Mobile card 欄位：
   - 查詢顧客
   - 板型
   - 固定可見的建立按鈕
+- 只有 `boardType = SURFBOARD` 時才顯示 `boardLengthClass` 選項（短板 / 中尺寸 / 長板）；切換到 `SUP` / `SNOWBOARD` 時需清空該欄位。
 - 顧客流程固定為 lookup-first：
   - 先查手機
   - 查到候選顧客時由店員手動選 reuse，或改成建立新顧客

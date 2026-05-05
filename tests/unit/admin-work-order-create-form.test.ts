@@ -27,6 +27,7 @@ describe('admin work-order create helpers', () => {
     formState.customerModeDecision = 'create';
     formState.customerName = '王小明';
     formState.boardType = 'SURFBOARD';
+    formState.boardLengthClass = 'SHORTBOARD';
     formState.boardBrand = 'Channel Islands';
     formState.damageDescription = '鼻頭裂傷';
     formState.paymentReceived = true;
@@ -36,6 +37,7 @@ describe('admin work-order create helpers', () => {
     expect(result.fieldErrors).toEqual({});
     expect(result.payload).toEqual({
       board: {
+        boardLengthClass: 'SHORTBOARD',
         boardType: 'SURFBOARD',
         brand: 'Channel Islands',
       },
@@ -101,6 +103,35 @@ describe('admin work-order create helpers', () => {
     expect(blankOtherColor.payload?.board.color).toBeUndefined();
   });
 
+  it('requires boardLengthClass for surfboards and rejects it for non-surfboards', () => {
+    const surfboardForm = createAdminWorkOrderCreateInitialFormState('2026-04-29');
+
+    surfboardForm.paperOrderNo = 'BR-2026-0003';
+    surfboardForm.customerPhone = '0912345678';
+    surfboardForm.customerModeDecision = 'create';
+    surfboardForm.customerName = '王小明';
+    surfboardForm.boardType = 'SURFBOARD';
+    surfboardForm.damageDescription = '尾端裂傷';
+
+    expect(buildAdminWorkOrderCreatePayload(surfboardForm).fieldErrors).toMatchObject({
+      boardLengthClass: ['請選擇衝浪板長度分類。'],
+    });
+
+    const snowboardForm = createAdminWorkOrderCreateInitialFormState('2026-04-29');
+
+    snowboardForm.paperOrderNo = 'BR-2026-0004';
+    snowboardForm.customerPhone = '0912345678';
+    snowboardForm.customerModeDecision = 'create';
+    snowboardForm.customerName = '王小明';
+    snowboardForm.boardType = 'SNOWBOARD';
+    snowboardForm.boardLengthClass = 'LONGBOARD';
+    snowboardForm.damageDescription = '表面刮傷';
+
+    expect(buildAdminWorkOrderCreatePayload(snowboardForm).fieldErrors).toMatchObject({
+      boardLengthClass: ['只有衝浪板可以設定長度分類。'],
+    });
+  });
+
   it('detects lookup reset need and unsaved draft changes explicitly', () => {
     expect(shouldResetCustomerLookupResolution('0912345678', '0912-345-678')).toBe(false);
     expect(shouldResetCustomerLookupResolution('0912345678', '0912345679')).toBe(true);
@@ -110,9 +141,19 @@ describe('admin work-order create helpers', () => {
     const baseline = normalizeAdminWorkOrderCreateFormState(formState);
 
     formState.customerName = '  ';
-    expect(hasAdminWorkOrderCreateUnsavedChanges(baseline, normalizeAdminWorkOrderCreateFormState(formState))).toBe(false);
+    expect(
+      hasAdminWorkOrderCreateUnsavedChanges(
+        baseline,
+        normalizeAdminWorkOrderCreateFormState(formState),
+      ),
+    ).toBe(false);
 
     formState.paperOrderNo = 'BR-2026-9999';
-    expect(hasAdminWorkOrderCreateUnsavedChanges(baseline, normalizeAdminWorkOrderCreateFormState(formState))).toBe(true);
+    expect(
+      hasAdminWorkOrderCreateUnsavedChanges(
+        baseline,
+        normalizeAdminWorkOrderCreateFormState(formState),
+      ),
+    ).toBe(true);
   });
 });

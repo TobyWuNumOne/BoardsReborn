@@ -209,6 +209,8 @@ Response：`200`
 
 API 中的 `board` object 是 `work_orders` 上的板子快照欄位組合，不代表有獨立 `boards` table。
 
+`board.boardLengthClass` 只對 `boardType = SURFBOARD` 使用，不從 `sizeLabel` 自動推論。第一版允許 legacy row 在 list / detail response 中回 `null`；新建立的 SURFBOARD 工單必須提供 `boardLengthClass`，`SUP` / `SNOWBOARD` 不可帶值。
+
 Admin 單筆 detail / update / status endpoint 使用 `work_orders.id` 作為 internal resource identity。現場掃碼或人工輸入時，前端應先用 `paperOrderNo` 呼叫 resolve endpoint 取得 UUID，再呼叫 UUID-based endpoint。
 
 ### `GET /api/admin/work-orders`
@@ -258,6 +260,7 @@ Response：
         "phone": "0912345678"
       },
       "board": {
+        "boardLengthClass": "SHORTBOARD",
         "boardType": "SURFBOARD",
         "sizeLabel": "6'2"
       },
@@ -336,6 +339,7 @@ Request：
   },
   "board": {
     "boardType": "SURFBOARD",
+    "boardLengthClass": "SHORTBOARD",
     "brand": "Channel Islands",
     "model": "Happy",
     "sizeLabel": "6'2",
@@ -361,6 +365,11 @@ Request：
 }
 ```
 
+`board.boardLengthClass` 規則：
+
+- `SURFBOARD`：必填，值只能是 `SHORTBOARD`、`MID_LENGTH`、`LONGBOARD`
+- `SUP` / `SNOWBOARD`：不得帶值；若帶值回 `422 VALIDATION_ERROR`
+
 若要重用既有顧客，request 使用：
 
 ```json
@@ -369,6 +378,7 @@ Request：
   "customerId": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
   "board": {
     "boardType": "SURFBOARD",
+    "boardLengthClass": "MID_LENGTH",
     "sizeLabel": "6'2"
   },
   "workOrder": {
@@ -414,6 +424,7 @@ Response：
     },
     "board": {
       "boardType": "SURFBOARD",
+      "boardLengthClass": "SHORTBOARD",
       "brand": "Channel Islands",
       "color": "white",
       "model": "Happy",

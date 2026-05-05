@@ -3,9 +3,11 @@ import type { Database } from '../../types/database.types';
 import { normalizeTaiwanMobilePhoneInput } from './phone';
 
 type BoardType = Database['public']['Enums']['board_type'];
+type BoardLengthClass = Database['public']['Enums']['board_length_class'];
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 
 const BOARD_TYPES = ['SURFBOARD', 'SUP', 'SNOWBOARD'] as const;
+const BOARD_LENGTH_CLASSES = ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'] as const;
 const BOARD_COLOR_OPTIONS = [
   'WHITE',
   'BLACK',
@@ -27,8 +29,7 @@ const taipeiDateFormatter = new Intl.DateTimeFormat('en-CA', {
   year: 'numeric',
 });
 
-export type AdminWorkOrderCreateCustomerModeDecision =
-  (typeof CUSTOMER_MODE_DECISIONS)[number];
+export type AdminWorkOrderCreateCustomerModeDecision = (typeof CUSTOMER_MODE_DECISIONS)[number];
 export type AdminWorkOrderBoardColorOption = (typeof BOARD_COLOR_OPTIONS)[number];
 
 export interface AdminCustomerLookupCandidate {
@@ -54,6 +55,7 @@ export interface AdminWorkOrderCreateResponse {
 
 export interface AdminWorkOrderCreateFormState {
   boardBrand: string;
+  boardLengthClass: BoardLengthClass | '';
   boardColorChoice: AdminWorkOrderBoardColorOption | '';
   boardColorOther: string;
   boardModel: string;
@@ -77,6 +79,7 @@ export interface AdminWorkOrderCreateFormState {
 
 export interface AdminWorkOrderCreateNormalizedSnapshot {
   boardBrand: string;
+  boardLengthClass: BoardLengthClass | '';
   boardColorChoice: AdminWorkOrderBoardColorOption | '';
   boardColorOther: string;
   boardModel: string;
@@ -99,6 +102,7 @@ export interface AdminWorkOrderCreateNormalizedSnapshot {
 
 export interface AdminWorkOrderCreatePayload {
   board: {
+    boardLengthClass?: BoardLengthClass | null;
     boardType: BoardType;
     brand?: string | null;
     color?: string | null;
@@ -135,6 +139,16 @@ export const ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS = [
   description: string;
   label: string;
   value: BoardType;
+}>;
+
+export const ADMIN_WORK_ORDER_CREATE_BOARD_LENGTH_CLASS_OPTIONS = [
+  { description: '高機動與短板操作取向', label: '短板', value: 'SHORTBOARD' },
+  { description: '介於短板與長板之間的中尺寸板型', label: '中尺寸', value: 'MID_LENGTH' },
+  { description: '長板與長距離巡航板型', label: '長板', value: 'LONGBOARD' },
+] as const satisfies ReadonlyArray<{
+  description: string;
+  label: string;
+  value: BoardLengthClass;
 }>;
 
 export const ADMIN_WORK_ORDER_CREATE_BOARD_COLOR_OPTIONS = [
@@ -187,6 +201,7 @@ export const ADMIN_WORK_ORDER_CREATE_BOARD_COLOR_OPTIONS = [
 const createFormSchema = z
   .object({
     boardBrand: z.string().max(80, '品牌不可超過 80 字。'),
+    boardLengthClass: z.string(),
     boardColorChoice: z.string(),
     boardColorOther: z.string().max(40, '顏色描述不可超過 40 字。'),
     boardModel: z.string().max(80, '型號不可超過 80 字。'),
@@ -266,6 +281,22 @@ const createFormSchema = z
         code: 'custom',
         message: '請選擇板型。',
         path: ['boardType'],
+      });
+    }
+
+    if (value.boardType === 'SURFBOARD') {
+      if (!BOARD_LENGTH_CLASSES.includes(value.boardLengthClass as BoardLengthClass)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: '請選擇衝浪板長度分類。',
+          path: ['boardLengthClass'],
+        });
+      }
+    } else if (value.boardLengthClass) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '只有衝浪板可以設定長度分類。',
+        path: ['boardLengthClass'],
       });
     }
 
@@ -421,6 +452,7 @@ export const createAdminWorkOrderCreateInitialFormState = (
   today = getTaipeiTodayDateString(),
 ): AdminWorkOrderCreateFormState => ({
   boardBrand: '',
+  boardLengthClass: '',
   boardColorChoice: '',
   boardColorOther: '',
   boardModel: '',
@@ -446,6 +478,7 @@ export const normalizeAdminWorkOrderCreateFormState = (
   formState: AdminWorkOrderCreateFormState,
 ): AdminWorkOrderCreateNormalizedSnapshot => ({
   boardBrand: trimValue(formState.boardBrand),
+  boardLengthClass: formState.boardLengthClass,
   boardColorChoice: formState.boardColorChoice,
   boardColorOther: trimValue(formState.boardColorOther),
   boardModel: trimValue(formState.boardModel),
@@ -542,6 +575,10 @@ export const buildAdminWorkOrderCreatePayload = (
 
   if (parsedForm.data.boardBrand) {
     payload.board.brand = parsedForm.data.boardBrand;
+  }
+
+  if (parsedForm.data.boardType === 'SURFBOARD' && parsedForm.data.boardLengthClass) {
+    payload.board.boardLengthClass = parsedForm.data.boardLengthClass as BoardLengthClass;
   }
 
   if (boardColor) {

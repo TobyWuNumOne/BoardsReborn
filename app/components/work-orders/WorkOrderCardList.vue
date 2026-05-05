@@ -4,6 +4,7 @@ import {
   formatAdminDate,
   formatAdminDateTime,
   getAdminWorkOrderDetailPath,
+  getBoardLengthClassLabel,
   getBoardTypeLabel,
 } from '~/utils/admin-work-orders';
 import WorkOrderFlagBadges from '~/components/work-orders/WorkOrderFlagBadges.vue';
@@ -56,6 +57,10 @@ const emitView = (id: string | null) => {
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground">板型</span>
             <span>{{ getBoardTypeLabel(workOrder.board.boardType) }}</span>
+          </div>
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground">長度分類</span>
+            <span>{{ getBoardLengthClassLabel(workOrder.board.boardLengthClass) }}</span>
           </div>
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground">尺寸</span>

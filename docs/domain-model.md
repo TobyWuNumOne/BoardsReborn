@@ -4,6 +4,7 @@
 
 - 操作介面以工單為中心，資料模型拆分為顧客、工單、狀態歷史、照片、報價項目、列印任務。
 - 第一版不建立獨立 `boards` table。板子資訊是工單當下的快照欄位，直接存在 `work_orders`。
+- `board_length_class` 是獨立欄位，只對 `SURFBOARD` 使用，不從 `board_size_label` 自動推論。
 - 條碼內容直接使用 `paper_order_no`，不新增獨立 barcode identifier 或 barcode table。
 - Schema 來源以 `supabase/migrations/*.sql` 為準。
 - 欄位命名使用 `snake_case`。
@@ -56,37 +57,40 @@
 
 工單是第一版操作中心。因為第一版不做板子歷史維修彙整頁，也不需要跨工單追蹤同一塊板，所以板子資訊直接作為工單快照存在這張表。
 
-| 欄位                             | 型別                | 規則                                                  |
-| -------------------------------- | ------------------- | ----------------------------------------------------- |
-| `id`                             | `uuid`              | Primary key                                           |
-| `paper_order_no`                 | `varchar(50)`       | required，unique，沿用紙本工單號；trim 後長度 3 到 50 |
-| `customer_id`                    | `uuid`              | required，references `customers.id`                   |
-| `board_type`                     | `board_type`        | required，見 `BoardType`                              |
-| `board_brand`                    | `varchar(80)`       | nullable                                              |
-| `board_model`                    | `varchar(80)`       | nullable                                              |
-| `board_size_label`               | `varchar(40)`       | nullable，例如長度或尺寸描述                          |
-| `board_color`                    | `varchar(40)`       | nullable                                              |
-| `board_serial_label`             | `varchar(80)`       | nullable，板上貼紙或人工標記                          |
-| `intake_date`                    | `date`              | required                                              |
-| `damage_description`             | `text`              | nullable，可描述示意圖標記內容                        |
-| `estimated_completion_date`      | `date`              | nullable，老闆檢查後填寫，可修改                      |
-| `current_status`                 | `work_order_status` | required，latest status cache，不可取代 history       |
-| `payment_received`               | `boolean`           | required，default `false`                             |
-| `payment_received_at`            | `timestamptz`       | nullable，由 Nuxt API 在付款標記為 true 時維護        |
-| `customer_confirmed_at`          | `timestamptz`       | nullable                                              |
-| `ready_for_pickup_at`            | `timestamptz`       | nullable                                              |
-| `notified_at`                    | `timestamptz`       | nullable，完工通知時間                                |
-| `picked_up_at`                   | `timestamptz`       | nullable，取件時間                                    |
-| `delivered_at`                   | `timestamptz`       | nullable                                              |
-| `cancelled_at`                   | `timestamptz`       | nullable                                              |
-| `pickup_note`                    | `text`              | nullable                                              |
-| `storage_fee_warning_after_days` | `smallint`          | required，default `14`                                |
-| `public_note`                    | `text`              | nullable，顧客查詢可見                                |
-| `internal_note`                  | `text`              | nullable，內部備註                                    |
-| `created_at`                     | `timestamptz`       | required，default `now()`                             |
-| `updated_at`                     | `timestamptz`       | required，default `now()`                             |
+| 欄位                             | 型別                 | 規則                                                  |
+| -------------------------------- | -------------------- | ----------------------------------------------------- |
+| `id`                             | `uuid`               | Primary key                                           |
+| `paper_order_no`                 | `varchar(50)`        | required，unique，沿用紙本工單號；trim 後長度 3 到 50 |
+| `customer_id`                    | `uuid`               | required，references `customers.id`                   |
+| `board_type`                     | `board_type`         | required，見 `BoardType`                              |
+| `board_length_class`             | `board_length_class` | nullable，只對 `SURFBOARD` 使用                       |
+| `board_brand`                    | `varchar(80)`        | nullable                                              |
+| `board_model`                    | `varchar(80)`        | nullable                                              |
+| `board_size_label`               | `varchar(40)`        | nullable，例如長度或尺寸描述                          |
+| `board_color`                    | `varchar(40)`        | nullable                                              |
+| `board_serial_label`             | `varchar(80)`        | nullable，板上貼紙或人工標記                          |
+| `intake_date`                    | `date`               | required                                              |
+| `damage_description`             | `text`               | nullable，可描述示意圖標記內容                        |
+| `estimated_completion_date`      | `date`               | nullable，老闆檢查後填寫，可修改                      |
+| `current_status`                 | `work_order_status`  | required，latest status cache，不可取代 history       |
+| `payment_received`               | `boolean`            | required，default `false`                             |
+| `payment_received_at`            | `timestamptz`        | nullable，由 Nuxt API 在付款標記為 true 時維護        |
+| `customer_confirmed_at`          | `timestamptz`        | nullable                                              |
+| `ready_for_pickup_at`            | `timestamptz`        | nullable                                              |
+| `notified_at`                    | `timestamptz`        | nullable，完工通知時間                                |
+| `picked_up_at`                   | `timestamptz`        | nullable，取件時間                                    |
+| `delivered_at`                   | `timestamptz`        | nullable                                              |
+| `cancelled_at`                   | `timestamptz`        | nullable                                              |
+| `pickup_note`                    | `text`               | nullable                                              |
+| `storage_fee_warning_after_days` | `smallint`           | required，default `14`                                |
+| `public_note`                    | `text`               | nullable，顧客查詢可見                                |
+| `internal_note`                  | `text`               | nullable，內部備註                                    |
+| `created_at`                     | `timestamptz`        | required，default `now()`                             |
+| `updated_at`                     | `timestamptz`        | required，default `now()`                             |
 
 `id` 是資料庫 primary key 與 admin 單筆 API 的 internal resource identity。`paper_order_no` 是現場與條碼操作輸入；工單條碼內容直接等於 `paper_order_no`。掃碼或人工輸入工單號時，前端應先透過 admin resolve endpoint 取得 `work_orders.id`，再呼叫 UUID-based detail / update / status endpoint。批量更新時仍以多個 `paper_order_no` 作為 payload。
+
+`board_length_class` 只對 `SURFBOARD` 使用，值為 `SHORTBOARD`、`MID_LENGTH`、`LONGBOARD`。第一版不從 `board_size_label` 自動推論，由現場人員明確選擇。為保留既有 legacy SURFBOARD 工單不被 migration 阻斷，資料庫使用 board-field scoped trigger 針對新 insert 與 `board_type` / `board_length_class` 變更做檢查：`SURFBOARD` 必須有值，`SUP` / `SNOWBOARD` 必須是 `null`。舊資料若仍為 `null` 可保留，UI 以 `—` 顯示。
 
 第一版不拆 `pickup_info` table。取件通知、取件時間與待取件提醒欄位直接放在 `work_orders`，降低 MVP schema 複雜度。若未來取件流程變複雜，再以 migration 拆表。
 
@@ -201,6 +205,14 @@ TypeScript 名稱：`BoardType`
 - `SURFBOARD`
 - `SUP`
 - `SNOWBOARD`
+
+### SQL enum：`board_length_class`
+
+TypeScript 名稱：`BoardLengthClass`
+
+- `SHORTBOARD`
+- `MID_LENGTH`
+- `LONGBOARD`
 
 ### SQL enum：`work_order_status`
 

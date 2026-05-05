@@ -3,6 +3,7 @@ import type { AdminWorkOrderListItem } from '~/utils/admin-work-orders';
 import {
   formatAdminDate,
   formatAdminDateTime,
+  getBoardLengthClassLabel,
   getBoardTypeLabel,
   getAdminWorkOrderDetailPath,
 } from '~/utils/admin-work-orders';
@@ -73,7 +74,11 @@ const emitView = (id: string | null) => {
             <div class="flex flex-col gap-0.5">
               <span>{{ getBoardTypeLabel(workOrder.board.boardType) }}</span>
               <span v-if="workOrder.board.sizeLabel" class="text-sm text-muted-foreground">
+                {{ getBoardLengthClassLabel(workOrder.board.boardLengthClass) }} /
                 {{ workOrder.board.sizeLabel }}
+              </span>
+              <span v-else class="text-sm text-muted-foreground">
+                {{ getBoardLengthClassLabel(workOrder.board.boardLengthClass) }}
               </span>
             </div>
           </TableCell>

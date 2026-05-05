@@ -15,6 +15,7 @@ export const WORK_ORDER_LIST_SORT_FIELDS = [
 ] as const;
 
 const BOARD_TYPES = ['SURFBOARD', 'SUP', 'SNOWBOARD'] as const;
+const BOARD_LENGTH_CLASSES = ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'] as const;
 const QUOTE_ITEM_TYPES = ['INITIAL', 'ADDITIONAL', 'ADJUSTMENT'] as const;
 const WORK_ORDER_STATUSES = [
   'RECEIVED',
@@ -43,6 +44,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export type BoardType = Database['public']['Enums']['board_type'];
+export type BoardLengthClass = Database['public']['Enums']['board_length_class'];
 export type QuoteItemType = Database['public']['Enums']['quote_item_type'];
 export type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 export type WorkOrderListSortField = (typeof WORK_ORDER_LIST_SORT_FIELDS)[number];
@@ -80,6 +82,7 @@ export interface WorkOrderListQuery {
 
 export interface CreateWorkOrderInput {
   board: {
+    boardLengthClass?: BoardLengthClass | null;
     boardType: BoardType;
     brand?: string | null;
     color?: string | null;
@@ -591,6 +594,7 @@ export const parseCreateWorkOrderBody = (body: unknown): CreateWorkOrderInput =>
 
   const parsedInput: CreateWorkOrderInput = {
     board: {
+      boardLengthClass: null,
       boardType: 'SURFBOARD',
     },
     customerMode: customerMode ?? 'create',
@@ -637,6 +641,17 @@ export const parseCreateWorkOrderBody = (body: unknown): CreateWorkOrderInput =>
 
   if (board) {
     parsedInput.board = {
+      boardLengthClass:
+        board.boardLengthClass === undefined
+          ? undefined
+          : board.boardLengthClass === null
+            ? null
+            : parseEnum(
+                board.boardLengthClass,
+                'board.boardLengthClass',
+                BOARD_LENGTH_CLASSES,
+                errors,
+              ),
       boardType: parseEnum(board.boardType, 'board.boardType', BOARD_TYPES, errors) ?? 'SURFBOARD',
       brand: parseOptionalString(board.brand, 'board.brand', errors, { maxLength: 80 }),
       color: parseOptionalString(board.color, 'board.color', errors, { maxLength: 40 }),
@@ -648,6 +663,21 @@ export const parseCreateWorkOrderBody = (body: unknown): CreateWorkOrderInput =>
         maxLength: 40,
       }),
     };
+
+    if (parsedInput.board.boardType === 'SURFBOARD') {
+      if (!parsedInput.board.boardLengthClass) {
+        addError(errors, 'board.boardLengthClass', 'Is required for SURFBOARD.');
+      }
+    } else if (
+      parsedInput.board.boardLengthClass !== undefined &&
+      parsedInput.board.boardLengthClass !== null
+    ) {
+      addError(
+        errors,
+        'board.boardLengthClass',
+        'Can only be set when board.boardType is SURFBOARD.',
+      );
+    }
   }
 
   if (workOrder) {
