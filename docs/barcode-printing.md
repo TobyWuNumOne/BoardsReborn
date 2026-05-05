@@ -35,7 +35,7 @@
 Nuxt 負責：
 
 - 建立工單。
-- 建立初始列印任務。
+- 在列印流程中建立列印任務。
 - 建立補印任務。
 - 提供 Print Agent 拉取任務的 API。
 - 接收 Print Agent 的列印結果回報。
@@ -100,7 +100,8 @@ Agent 使用 `Authorization: Bearer <PRINT_AGENT_TOKEN>` 呼叫 Nuxt API。
 
 補印是標準流程，不是異常 workaround。
 
-- 建立工單時，系統建立初始 `print_jobs`。
+- 建立工單主資料時不要求同步建立 `print_jobs`。
+- 需要列印時，系統建立新的 `print_jobs`。
 - 如果列印失敗或標籤破損，使用者可建立補印任務。
 - 補印必須新增 `print_jobs` 記錄，不覆蓋舊任務。
 - 建立工單不要求同步列印成功。

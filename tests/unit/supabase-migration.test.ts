@@ -6,6 +6,18 @@ const migration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260421090000_initial_schema.sql'),
   'utf8',
 );
+const adminApiMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260422110000_admin_work_order_api.sql'),
+  'utf8',
+);
+const statusTransitionMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260422120000_admin_status_transition.sql'),
+  'utf8',
+);
+const boardLengthClassMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260504110000_work_order_board_length_class.sql'),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -29,5 +41,56 @@ describe('initial Supabase migration', () => {
     expect(migration).toContain("values (\n  'repair-photos'");
     expect(migration).toContain('public = excluded.public');
     expect(migration).toContain("bucket_id = 'repair-photos'");
+  });
+
+  it('adds admin work-order API database support without coupling print jobs to create', () => {
+    expect(adminApiMigration).toContain(
+      'create or replace function public.normalize_tw_mobile_phone',
+    );
+    expect(adminApiMigration).toContain('normalized_phone varchar(10)');
+    expect(adminApiMigration).toContain('customers_normalized_phone_idx');
+    expect(adminApiMigration).not.toContain('unique index customers_normalized_phone');
+    expect(adminApiMigration).toContain(
+      'create or replace function public.create_admin_work_order',
+    );
+    expect(adminApiMigration).toContain('insert into public.customers');
+    expect(adminApiMigration).toContain('insert into public.work_orders');
+    expect(adminApiMigration).toContain('insert into public.status_history');
+    expect(adminApiMigration).toContain('insert into public.quote_items');
+    expect(adminApiMigration).not.toContain('insert into public.print_jobs');
+  });
+
+  it('adds an atomic admin status transition RPC', () => {
+    expect(statusTransitionMigration).toContain(
+      'create or replace function public.transition_admin_work_order_status',
+    );
+    expect(statusTransitionMigration).toContain('security invoker');
+    expect(statusTransitionMigration).toContain('for update');
+    expect(statusTransitionMigration).toContain('insert into public.status_history');
+    expect(statusTransitionMigration).toContain('current_status = p_status');
+    expect(statusTransitionMigration).toContain('coalesce(ready_for_pickup_at, v_transitioned_at)');
+    expect(statusTransitionMigration).toContain('coalesce(delivered_at, v_transitioned_at)');
+    expect(statusTransitionMigration).toContain('coalesce(cancelled_at, v_transitioned_at)');
+    expect(statusTransitionMigration).toContain('SNOWBOARD work orders cannot enter DRYING');
+    expect(statusTransitionMigration).not.toContain('insert into public.print_jobs');
+  });
+
+  it('adds board_length_class without breaking legacy work order rows', () => {
+    expect(boardLengthClassMigration).toContain('create type public.board_length_class as enum');
+    expect(boardLengthClassMigration).toContain(
+      'alter table public.work_orders\nadd column board_length_class public.board_length_class',
+    );
+    expect(boardLengthClassMigration).toContain(
+      'create or replace function public.enforce_work_order_board_length_class',
+    );
+    expect(boardLengthClassMigration).toContain(
+      'before insert or update of board_type, board_length_class on public.work_orders',
+    );
+    expect(boardLengthClassMigration).toContain('SURFBOARD work orders require board_length_class');
+    expect(boardLengthClassMigration).toContain(
+      'Only SURFBOARD work orders can set board_length_class',
+    );
+    expect(boardLengthClassMigration).toContain('work_orders.board_length_class');
+    expect(boardLengthClassMigration).toContain("p_board ->> 'boardLengthClass'");
   });
 });

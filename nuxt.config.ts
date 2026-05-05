@@ -1,27 +1,35 @@
+import tailwindcss from '@tailwindcss/vite';
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
-const supabaseModuleEnabled = Boolean(supabaseUrl && supabaseKey);
-const supabaseConfig = supabaseModuleEnabled
-  ? {
-      supabase: {
-        url: supabaseUrl,
-        key: supabaseKey,
-        redirect: false,
-      },
-    }
-  : {};
+const publicAppUrl = process.env.NUXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const supabaseCookieSecure = (() => {
+  try {
+    return new URL(publicAppUrl).protocol === 'https:';
+  } catch {
+    return process.env.NODE_ENV === 'production';
+  }
+})();
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-21',
   devtools: { enabled: true },
+  experimental: {
+    appManifest: false,
+  },
 
-  modules: [
-    '@nuxt/eslint',
-    '@nuxt/test-utils/module',
-    ...(supabaseModuleEnabled ? ['@nuxtjs/supabase'] : []),
-  ],
+  modules: ['@nuxt/eslint', '@nuxt/test-utils/module', '@nuxtjs/supabase', 'shadcn-nuxt'],
 
   css: ['~/assets/css/main.css'],
+
+  vite: {
+    plugins: [tailwindcss()],
+  },
+
+  shadcn: {
+    prefix: '',
+    componentDir: '~/components/ui',
+  },
 
   typescript: {
     strict: true,
@@ -34,9 +42,18 @@ export default defineNuxtConfig({
     adminEmail: process.env.ADMIN_EMAIL || '',
     adminPassword: process.env.ADMIN_PASSWORD || '',
     public: {
-      appUrl: process.env.NUXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      appUrl: publicAppUrl,
     },
   },
 
-  ...supabaseConfig,
+  supabase: {
+    url: supabaseUrl,
+    key: supabaseKey,
+    secretKey: process.env.SUPABASE_SECRET_KEY,
+    redirect: false,
+    cookieOptions: {
+      secure: supabaseCookieSecure,
+    },
+    types: '~~/types/database.types.ts',
+  },
 });

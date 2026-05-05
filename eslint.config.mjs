@@ -21,6 +21,15 @@ if (!Object.groupBy) {
 
 const { default: withNuxt } = await import('./.nuxt/eslint.config.mjs');
 
-export default withNuxt({
-  ignores: ['.nuxt/**', '.output/**', 'coverage/**'],
-});
+export default withNuxt(
+  {
+    ignores: ['.nuxt/**', '.output/**', 'coverage/**'],
+  },
+  {
+    files: ['app/components/ui/**/*.vue'],
+    rules: {
+      'vue/html-self-closing': 'off',
+      'vue/require-default-prop': 'off',
+    },
+  },
+);

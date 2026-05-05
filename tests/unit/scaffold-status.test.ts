@@ -9,8 +9,10 @@ describe('useScaffoldStatus', () => {
       expect.arrayContaining([
         expect.objectContaining({ label: 'Nuxt app', state: 'ready' }),
         expect.objectContaining({ label: 'Tooling', state: 'ready' }),
-        expect.objectContaining({ label: 'Server API', state: 'pending' }),
+        expect.objectContaining({ label: 'Server API', state: 'ready' }),
+        expect.objectContaining({ label: 'Frontend styling', state: 'ready' }),
         expect.objectContaining({ label: 'Supabase schema', state: 'ready' }),
+        expect.objectContaining({ label: 'Print Agent', state: 'pending' }),
       ]),
     );
   });

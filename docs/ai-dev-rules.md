@@ -27,14 +27,16 @@
 
 - 所有核心資料表都必須 enable row level security。
 - 顧客查詢不得直接開放 Supabase table read。
-- 顧客查詢必須走 Nuxt server API，並驗證工單號與手機後四碼。
+- 顧客查詢必須走 Nuxt server API，並驗證工單號與完整手機號碼。
 - 條碼 payload 一律使用 `paper_order_no`，不可再引入第二套主要識別碼。
 - `PRINT_AGENT_TOKEN` 只能存在 server-side 與 Print Agent 環境，不可傳到 client。
 - Print Agent API 必須驗證 `Authorization: Bearer <PRINT_AGENT_TOKEN>`。
 - `SUPABASE_SECRET_KEY` 只能在 server-side 使用。
+- Service-role Supabase client 只能由明確 server-only helper 匯出；一般 admin route helper 不可自動 fallback 到 service-role client。
 - 不可把 server-only key 放進 public runtime config。
 - 不可把 server-only key 傳到 client、console、response、log 或錯誤訊息。
 - 管理端 API 必須檢查 Supabase Auth session。
+- 管理端 API gate 不能只檢查 Auth user；必須查 `admin_profiles.id = auth user sub`。查詢 admin profile 時只取最小必要欄位；若 schema 已有 active 狀態欄位，必須一併檢查。
 
 ## Frontend Toolchain
 
@@ -69,10 +71,13 @@
 - 不可把 Supabase auto-generated API 當公開產品 contract。
 - 所有 list API 都必須支援 filter、sort、pagination。
 - List response 必須使用 `{ data, pageInfo }`。
-- Error response 必須使用 `{ error: { code, message, fieldErrors?, requestId? } }`。
+- Error response 必須使用 `{ error: { code, message, fieldErrors?, requestId } }`。
+- `requestId` 優先使用 request header `x-request-id`；缺少時使用 `crypto.randomUUID()` 產生，並寫回 response header 與錯誤 envelope。
+- 已知 API 錯誤必須用 typed error classes 表示，不可在 route handler 裡散落字串判斷。
+- `fieldErrors` 統一為 `Record<string, string[]>`。
 - Request / response 範例更新時必須保持合法 JSON。
 - 照片上傳例外使用 `multipart/form-data`，但 response 仍使用 JSON。
-- 顧客查詢手機後四碼錯誤時，應回傳 `404`，避免透露工單存在性。
+- 顧客查詢手機號碼錯誤時，應回傳 `404`，避免透露工單存在性。
 
 ## Barcode / Printing Rules
 

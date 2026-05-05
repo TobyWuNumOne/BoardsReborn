@@ -10,6 +10,39 @@
 - 日期格式使用 `YYYY-MM-DD`。
 - enum value 使用大寫字串，需與 [domain model](domain-model.md) 一致。
 
+## API Index
+
+以下索引用來快速查看目前有哪些 API 與實作狀態；詳細 request / response / 規則仍以下方正式 contract 為準。
+
+### Admin API
+
+- `implemented` `GET /api/admin/dashboard`：回傳管理端 dashboard summary metrics。
+- `implemented` `GET /api/admin/session`：回傳目前 admin session 與最小 profile。
+- `implemented` `GET /api/admin/customers/lookup`：建單時查候選 customer。
+- `implemented` `GET /api/admin/work-orders`：工單列表。
+- `implemented` `GET /api/admin/work-orders/resolve`：用 `paperOrderNo` 解析 internal UUID。
+- `implemented` `POST /api/admin/work-orders`：建立工單。
+- `implemented` `GET /api/admin/work-orders/{id}`：工單詳情。
+- `implemented` `PATCH /api/admin/work-orders/{id}`：更新非狀態欄位。
+- `implemented` `POST /api/admin/work-orders/{id}/status`：單筆狀態更新。
+- `implemented` `POST /api/admin/work-orders/bulk-status`：批量狀態更新。
+- `planned` `POST /api/admin/work-orders/{id}/print-jobs`：建立補印任務。
+- `planned` `POST /api/admin/work-orders/{id}/photos`：上傳工單照片。
+- `planned` `GET /api/admin/work-orders/{id}/photos`：查詢工單照片。
+- `planned` `POST /api/admin/work-orders/{id}/quote-items`：新增報價項目。
+- `planned` `PATCH /api/admin/work-orders/{id}/pickup-info`：更新取件資訊。
+
+### Public API
+
+- `implemented` `POST /api/public/work-orders/lookup`：顧客查詢工單進度。
+
+### Print Agent API
+
+- `planned` `GET /api/print-jobs/next`：取得下一筆待印任務。
+- `planned` `POST /api/print-jobs/{id}/start`：Print Agent 開始處理任務。
+- `planned` `POST /api/print-jobs/{id}/result`：Print Agent 回報列印結果。
+- `planned` `POST /api/print-jobs/{id}/retry`：重試列印任務。
+
 ## Authentication
 
 ### 管理端 API
@@ -17,6 +50,8 @@
 管理端 API 使用 Supabase Auth session。第一版只有單一管理者角色，但 API path 仍使用 `/api/admin/*`。
 
 未登入或 session 無效時回傳 `401`。
+已登入但沒有對應 `admin_profiles` row 時回傳 `403`。
+管理端 gate 只支援 Supabase cookie session；第一版不支援 Bearer admin auth。
 
 ### Print Agent API
 
@@ -35,9 +70,9 @@ token 無效時回傳 `401`。Print Agent token 只能存在 server-side 與 age
 顧客查詢不需要登入，但必須提供：
 
 - 紙本工單號。
-- 手機後四碼。
+- 完整手機號碼。
 
-`phoneLast4` 是 request 參數，不是資料庫欄位。Server 應正規化 `customers.phone` 後取末四碼比對。
+Server 應正規化 `customers.phone` 後比對完整台灣手機號碼。
 條碼內容直接等於 `paperOrderNo`。單張掃碼查詢不需要第二套 barcode identifier。
 
 顧客查詢只回傳有限欄位，不回傳內部備註、完整電話、照片路徑或狀態操作歷史。
@@ -91,17 +126,92 @@ List response 格式：
 - `UNAUTHORIZED`
 - `FORBIDDEN`
 - `NOT_FOUND`
+- `TOO_MANY_REQUESTS`
 - `VALIDATION_ERROR`
 - `CONFLICT`
-- `INVALID_STATUS_TRANSITION`
 - `STORAGE_UPLOAD_FAILED`
 - `PRINT_JOB_NOT_CLAIMED`
 - `PRINT_JOB_ALREADY_CLAIMED`
 - `INTERNAL_SERVER_ERROR`
 
+`requestId` 優先沿用 request header `x-request-id`；若 request 沒有帶，server 使用 `crypto.randomUUID()` 產生。所有 API response 都應寫回 response header `x-request-id`；錯誤 response 也必須把同一個值放進 error envelope 的 `requestId`。
+
+`fieldErrors` 統一使用 `Record<string, string[]>` 結構。已知 API 錯誤應由 server-side typed error classes 表示，route handler 不應散落以字串判斷錯誤類型。
+
+第一版 query、body、path validation 失敗一律回 `422 VALIDATION_ERROR`。紙本工單號唯一性衝突回 `409 CONFLICT`。查無 customer 或 work order 回 `404 NOT_FOUND`。
+
+## Admin Session
+
+### `GET /api/admin/session`
+
+回傳目前管理端 session 狀態與最小 admin profile。這支 endpoint 是前端 login / session UI 唯一的 admin bootstrap 來源。
+
+- 未登入時回 `401 UNAUTHORIZED`
+- 已登入但沒有 `admin_profiles` row 時回 `403 FORBIDDEN`
+- 已登入且為 admin 時回 `200`
+
+Response：`200`
+
+```json
+{
+  "data": {
+    "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
+    "displayName": "BoardsReborn Admin"
+  }
+}
+```
+
+這支 endpoint 只回傳最小必要欄位，不回傳 email、role 或其他無關 profile 資訊。
+
+## Admin Dashboard
+
+### `GET /api/admin/dashboard`
+
+回傳管理端 dashboard 第一版 summary metrics。這支 endpoint 只提供總覽數字，不回傳工單列表，也不取代 `/api/admin/work-orders`。
+
+Response：`200`
+
+```json
+{
+  "data": {
+    "summary": {
+      "activeWorkOrders": 18,
+      "activeWorkOrdersByStatus": {
+        "RECEIVED": 5,
+        "DRYING": 4,
+        "REPAIRING": 9
+      },
+      "readyForPickup": 6,
+      "overdue": 3,
+      "createdToday": 4
+    },
+    "generatedAt": "2026-04-29T10:45:00.000Z"
+  }
+}
+```
+
+`summary` 第一版固定包含：
+
+- `activeWorkOrders`：
+  只計算 `RECEIVED`、`DRYING`、`REPAIRING`，且固定等於 `activeWorkOrdersByStatus.RECEIVED + DRYING + REPAIRING`。
+- `activeWorkOrdersByStatus`：
+  只包含 `RECEIVED`、`DRYING`、`REPAIRING` 三個處理中狀態的 breakdown。
+- `readyForPickup`：
+  只計算 `READY_FOR_PICKUP`。
+- `overdue`：
+  與列表 `overdueEstimatedCompletion` 規則一致，只計算 `RECEIVED`、`DRYING`、`REPAIRING`、`READY_FOR_PICKUP`，排除 `DELIVERED`、`CANCELLED`。
+- `createdToday`：
+  以 `created_at` 為準，依 `Asia/Taipei` 本地日曆日計算，邊界固定為 `created_at >= startOfDay` 且 `created_at < nextDay`。
+
+`generatedAt` 只用於 UI 顯示「最後更新時間」，不作為 cache key，也不參與邏輯判斷。
+
 ## Admin Work Orders
 
 API 中的 `board` object 是 `work_orders` 上的板子快照欄位組合，不代表有獨立 `boards` table。
+
+`board.boardLengthClass` 只對 `boardType = SURFBOARD` 使用，不從 `sizeLabel` 自動推論。第一版允許 legacy row 在 list / detail response 中回 `null`；新建立的 SURFBOARD 工單必須提供 `boardLengthClass`，`SUP` / `SNOWBOARD` 不可帶值。
+
+Admin 單筆 detail / update / status endpoint 使用 `work_orders.id` 作為 internal resource identity。現場掃碼或人工輸入時，前端應先用 `paperOrderNo` 呼叫 resolve endpoint 取得 UUID，再呼叫 UUID-based endpoint。
 
 ### `GET /api/admin/work-orders`
 
@@ -118,6 +228,24 @@ Query examples：
 /api/admin/work-orders?customerPhone=0912345678
 ```
 
+`q` 第一版只搜尋 `paper_order_no`。`customerPhone` 會先依台灣手機正規化規則轉為 `09xxxxxxxx` 後查詢。`staleReceived=true` 第一版使用 7 天門檻。
+
+列表 response 的 `flags` 用來表達管理端提醒，不是正式狀態，也不會寫回 `work_order_status`：
+
+- `overdueEstimatedCompletion`
+- `pickupOverdue`
+- `staleReceived`
+
+第一版允許排序欄位：
+
+- `created_at`
+- `updated_at`
+- `intake_date`
+- `estimated_completion_date`
+- `current_status`
+- `paper_order_no`
+- `quote_total_amount`
+
 Response：
 
 ```json
@@ -132,12 +260,19 @@ Response：
         "phone": "0912345678"
       },
       "board": {
+        "color": "BLUE",
+        "boardLengthClass": "SHORTBOARD",
         "boardType": "SURFBOARD",
         "sizeLabel": "6'2"
       },
       "currentStatus": "REPAIRING",
       "intakeDate": "2026-04-20",
       "estimatedCompletionDate": "2026-04-26",
+      "flags": {
+        "overdueEstimatedCompletion": false,
+        "pickupOverdue": false,
+        "staleReceived": true
+      },
       "quoteTotalAmount": 700,
       "paymentReceived": true,
       "paymentReceivedAt": "2026-04-20T08:00:00.000Z",
@@ -156,14 +291,57 @@ Response：
 }
 ```
 
+### `GET /api/admin/work-orders/resolve`
+
+依紙本工單號 exact match 查出系統內部工單 UUID。這支 endpoint 用於掃碼、搜尋工單號後進入詳情、批量狀態 preview 或後續更新流程，不做 fuzzy search，也不取代 list API。
+
+Query example：
+
+```text
+/api/admin/work-orders/resolve?paperOrderNo=BR-2026-0001
+```
+
+`paperOrderNo` 會 trim 前後空白，長度必須是 `3..50`。第一版不新增固定格式 regex。查無工單時回 `404 NOT_FOUND`。
+
+Response：
+
+```json
+{
+  "data": {
+    "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+    "paperOrderNo": "BR-2026-0001",
+    "currentStatus": "REPAIRING",
+    "customer": {
+      "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
+      "name": "王小明",
+      "phone": "0912345678"
+    },
+    "board": {
+      "boardType": "SURFBOARD",
+      "boardLengthClass": "SHORTBOARD",
+      "sizeLabel": "6'2",
+      "color": "BLUE"
+    },
+    "estimatedCompletionDate": "2026-04-26",
+    "flags": {
+      "overdueEstimatedCompletion": false,
+      "pickupOverdue": false,
+      "staleReceived": false
+    },
+    "lastUpdatedAt": "2026-04-20T08:30:00.000Z"
+  }
+}
+```
+
 ### `POST /api/admin/work-orders`
 
-建立工單。建立成功時，系統必須同時建立第一筆 `status_history`。
+建立工單。建立成功時，系統必須以單一 transaction 建立核心工單資料與第一筆 `status_history`。
 
 Request：
 
 ```json
 {
+  "customerMode": "create",
   "customer": {
     "name": "王小明",
     "phone": "0912345678",
@@ -171,6 +349,7 @@ Request：
   },
   "board": {
     "boardType": "SURFBOARD",
+    "boardLengthClass": "SHORTBOARD",
     "brand": "Channel Islands",
     "model": "Happy",
     "sizeLabel": "6'2",
@@ -196,6 +375,30 @@ Request：
 }
 ```
 
+`board.boardLengthClass` 規則：
+
+- `SURFBOARD`：必填，值只能是 `SHORTBOARD`、`MID_LENGTH`、`LONGBOARD`
+- `SUP` / `SNOWBOARD`：不得帶值；若帶值回 `422 VALIDATION_ERROR`
+
+若要重用既有顧客，request 使用：
+
+```json
+{
+  "customerMode": "reuse",
+  "customerId": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
+  "board": {
+    "boardType": "SURFBOARD",
+    "boardLengthClass": "MID_LENGTH",
+    "sizeLabel": "6'2"
+  },
+  "workOrder": {
+    "paperOrderNo": "BR-2026-0001",
+    "intakeDate": "2026-04-20"
+  },
+  "quoteItems": []
+}
+```
+
 Response：`201`
 
 ```json
@@ -205,17 +408,12 @@ Response：`201`
     "paperOrderNo": "BR-2026-0001",
     "currentStatus": "RECEIVED",
     "quoteTotalAmount": 500,
-    "printJob": {
-      "id": "a347e6ea-a025-48ef-9ca1-bec9d63a5676",
-      "status": "QUEUED",
-      "labelLanguage": "TSPL"
-    },
     "createdAt": "2026-04-20T08:00:00.000Z"
   }
 }
 ```
 
-建立工單成功後，Nuxt API 應建立一筆初始 `print_job`。列印失敗不應影響工單建立成功；使用者可從補印流程建立新的列印任務。
+建立工單不建立 `print_jobs`。列印任務由後續獨立流程建立；列印流程失敗不可影響工單主資料建立成功。
 
 ### `GET /api/admin/work-orders/{id}`
 
@@ -236,10 +434,14 @@ Response：
     },
     "board": {
       "boardType": "SURFBOARD",
+      "boardLengthClass": "SHORTBOARD",
       "brand": "Channel Islands",
+      "color": "white",
       "model": "Happy",
+      "serialLabel": "A12",
       "sizeLabel": "6'2"
     },
+    "intakeDate": "2026-04-20",
     "damageDescription": "鼻頭裂傷，疑似進水",
     "estimatedCompletionDate": "2026-04-26",
     "paymentReceived": true,
@@ -291,7 +493,17 @@ Response：
 
 ### `PATCH /api/admin/work-orders/{id}`
 
-更新工單基本欄位。不可透過此 endpoint 更新狀態；狀態必須走 append history endpoint。
+更新工單非狀態欄位。不可透過此 endpoint 更新狀態；狀態必須走 append history endpoint。
+
+第一版只允許更新：
+
+- `estimatedCompletionDate`
+- `damageDescription`
+- `paymentReceived`
+- `publicNote`
+- `internalNote`
+- `pickupNote`
+- `storageFeeWarningAfterDays`
 
 Request：
 
@@ -320,64 +532,78 @@ Response：
 
 ### `POST /api/admin/work-orders/{id}/status`
 
-新增狀態歷史並同步更新 `work_orders.current_status`。
+新增狀態歷史並同步更新 `work_orders.current_status`。這是唯一可更新工單狀態的單筆 admin endpoint；`PATCH /api/admin/work-orders/{id}` 不接受狀態欄位。
 
 Request：
 
 ```json
 {
-  "status": "DRYING",
-  "note": "確認進水，先除濕"
+  "status": "READY_FOR_PICKUP",
+  "note": "已完成，等待取件",
+  "internalNote": "老闆已確認可取件"
 }
 ```
+
+`note`、`internalNote` 可省略或傳 `null`。trim 後空字串視為 `null`。`internalNote` 有傳入時更新 `work_orders.internal_note`；未傳入時保持原值。`reason` 不是第一版支援欄位，若送入會以 unknown field 回 `422 VALIDATION_ERROR`。
 
 Response：`201`
 
 ```json
 {
   "data": {
-    "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-    "currentStatus": "DRYING",
+    "workOrder": {
+      "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+      "paperOrderNo": "BR-2026-0001",
+      "currentStatus": "READY_FOR_PICKUP",
+      "readyForPickupAt": "2026-04-20T09:30:00.000Z",
+      "deliveredAt": null,
+      "cancelledAt": null,
+      "updatedAt": "2026-04-20T09:30:00.000Z"
+    },
     "statusHistory": {
       "id": "8b1c52b7-5bfd-4ff3-bd69-467963515bc8",
-      "status": "DRYING",
+      "status": "READY_FOR_PICKUP",
       "changedAt": "2026-04-20T09:30:00.000Z",
-      "note": "確認進水，先除濕"
+      "note": "已完成，等待取件"
     }
   }
 }
 ```
 
-若雪板進入 `DRYING`，回傳 `422 INVALID_STATUS_TRANSITION`。
+若雪板進入 `DRYING`，回傳 `422 VALIDATION_ERROR`，`fieldErrors.status` 說明不可轉換。
 
 狀態 timestamp 維護規則：
 
-- 進入 `READY_FOR_PICKUP` 時，維護 `work_orders.ready_for_pickup_at`；若此操作同時代表已通知顧客，維護 `work_orders.notified_at`。
-- 進入 `DELIVERED` 時，維護 `work_orders.delivered_at` 與 `work_orders.picked_up_at`。
-- 進入 `CANCELLED` 時，維護 `work_orders.cancelled_at`。
+- 進入 `READY_FOR_PICKUP` 時，維護 `work_orders.ready_for_pickup_at`，若已有值則保留第一次時間。
+- 進入 `DELIVERED` 時，維護 `work_orders.delivered_at` 與 `work_orders.picked_up_at`，若已有值則保留第一次時間。
+- 進入 `CANCELLED` 時，維護 `work_orders.cancelled_at`，若已有值則保留第一次時間。
 - 狀態可重複 append，例如 `REPAIRING` 到 `REPAIRING` 可用於補充事件備註。
 
 ### `POST /api/admin/work-orders/bulk-status`
 
-批量狀態更新。前端掃描多張條碼後，直接把掃描到的 `paperOrderNo` 陣列送進來。
+批量狀態更新。前端掃描多張條碼後，直接把掃描到的 `paperOrderNos` 陣列送進來。
 
 Request：
 
 ```json
 {
-  "paperOrderNos": ["BR-2026-0001", "BR-2026-0002", "BR-2026-0003"],
+  "paperOrderNos": ["BR-2026-0001", "BR-2026-0002", "BR-2026-0001", "BR-2026-0003"],
   "status": "REPAIRING",
   "note": "今日統一開工"
 }
 ```
+
+只接受 `paperOrderNos`、`status`、`note` 三個欄位。第一版不支援 `internalNote`、`reason`；若出現未知欄位，整體回 `422 VALIDATION_ERROR`。
 
 Response：`200`
 
 ```json
 {
   "data": {
-    "requestedCount": 3,
+    "requestedCount": 4,
+    "dedupedCount": 3,
     "updatedCount": 2,
+    "skippedCount": 1,
     "updated": [
       {
         "paperOrderNo": "BR-2026-0001",
@@ -404,10 +630,21 @@ Response：`200`
 
 規則：
 
+- `paperOrderNos` 必須是非空字串陣列；每筆值會 trim 前後空白，長度必須是 `3..50`。
+- `status` 必須是既有 `work_order_status` enum；`note` 可省略或為 `null`，trim 後空字串視為 `null`。
+- `requestedCount` 等於原始輸入陣列長度，包含重複值。
+- `dedupedCount` 等於 server trim + 去重後，實際嘗試處理的唯一工單號數。
+- `updatedCount` 等於成功完成狀態更新的工單數；`skippedCount` 等於略過的工單數。
+- `updated[]` 與 `skipped[]` 依去重後的首次出現順序輸出，不依資料庫查詢順序。
+- `skipped.reason` 第一版固定只允許 `NOT_FOUND` 與 `INVALID_STATUS_TRANSITION`。這是 batch result label，不是 shared error envelope code。
 - `paperOrderNos` 內每張工單都要 individually 驗證。
 - 每張成功更新的工單都必須 individually append 一筆 `status_history`。
+- 單張找不到工單時，該筆進 `skipped.reason = NOT_FOUND`。
+- 單張狀態轉換違反商業規則時，該筆進 `skipped.reason = INVALID_STATUS_TRANSITION`。
 - 單張失敗不可讓整批全部回滾；應回傳 `updated` 與 `skipped` 明細。
-- `paperOrderNos` 應去重後處理，但 response 仍應按唯一工單回報結果。
+- Bulk endpoint 不是單一 transaction；每張工單仍 individually 執行既有單筆 status transition RPC。
+- 若途中發生未知系統錯誤，立即停止後續項目處理，整體回 `500 INTERNAL_SERVER_ERROR`。
+- 在未知錯誤發生前已成功完成的 individual updates 可能已經 committed，不保證整批 rollback。
 
 ### `POST /api/admin/work-orders/{id}/print-jobs`
 
@@ -689,13 +926,14 @@ Response：
 
 ## Admin Customers
 
-### `GET /api/admin/customers`
+### `GET /api/admin/customers/lookup`
 
-Query examples：
+建單流程用的顧客候選查詢；不是完整 customer list / CRUD。
+
+Query：
 
 ```text
-/api/admin/customers?q=王&page=1&pageSize=20
-/api/admin/customers?phone=0912345678
+/api/admin/customers/lookup?phone=0912345678
 ```
 
 Response：
@@ -707,30 +945,29 @@ Response：
       "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
       "name": "王小明",
       "phone": "0912345678",
-      "workOrderCount": 2,
+      "note": "偏好下午聯絡",
       "createdAt": "2026-04-20T08:00:00.000Z"
     }
-  ],
-  "pageInfo": {
-    "page": 1,
-    "pageSize": 20,
-    "total": 1,
-    "totalPages": 1,
-    "hasNextPage": false,
-    "hasPreviousPage": false
-  }
+  ]
 }
 ```
 
-### `GET /api/admin/customers/{id}/work-orders`
-
-回傳某位顧客的工單列表，格式同 `GET /api/admin/work-orders`。
+此 endpoint 只依正規化後的台灣手機號碼查候選顧客；不提供顧客修改、刪除或完整列表。
 
 ## Public Work Order Lookup
 
-### `GET /api/public/work-orders/{paperOrderNo}?phoneLast4=1234`
+### `POST /api/public/work-orders/lookup`
 
-顧客查詢進度。Server 以工單關聯顧客的 `customers.phone` 末四碼比對 `phoneLast4`。手機後四碼不符合時，回傳 `404`，避免透露工單是否存在。
+顧客查詢進度。Server 以工單關聯顧客的 `customers.phone` 正規化後比對完整手機號碼。手機號碼不符合時，回傳 `404`，避免透露工單是否存在。
+
+Request：
+
+```json
+{
+  "paperOrderNo": "BR-2026-0001",
+  "phone": "0912345678"
+}
+```
 
 Response：
 
@@ -743,10 +980,53 @@ Response：
     "estimatedCompletionDate": "2026-04-26",
     "initialQuoteAmount": 500,
     "publicNote": "維修中，預估下週完成",
-    "lastUpdatedAt": "2026-04-20T09:30:00.000Z"
+    "lastUpdatedAt": "2026-04-20T09:30:00.000Z",
+    "progress": {
+      "kind": "timeline",
+      "currentStepKey": "REPAIRING",
+      "steps": [
+        { "key": "RECEIVED", "label": "已收件", "state": "done" },
+        { "key": "DRYING", "label": "除濕中", "state": "done" },
+        { "key": "REPAIRING", "label": "維修中", "state": "current" },
+        { "key": "READY_FOR_PICKUP", "label": "待取件", "state": "upcoming" },
+        { "key": "DELIVERED", "label": "已交件", "state": "upcoming" }
+      ]
+    }
   }
 }
 ```
+
+Request rules：
+
+- `paperOrderNo` 會 trim 前後空白，長度必須是 `3..50`。
+- `phone` 必須是可正規化為台灣手機的完整號碼。
+- 只接受 `paperOrderNo` 與 `phone` 兩個欄位；未知欄位回 `422 VALIDATION_ERROR`。
+- `lastUpdatedAt` 固定等於 `work_orders.updated_at`。
+
+`progress` 是 discriminated union：
+
+- `timeline`
+  - `steps[].state` 只允許 `done`、`current`、`upcoming`
+  - `SURFBOARD / SUP` steps 固定為 `RECEIVED -> DRYING -> REPAIRING -> READY_FOR_PICKUP -> DELIVERED`
+  - `SNOWBOARD` steps 固定為 `RECEIVED -> REPAIRING -> READY_FOR_PICKUP -> DELIVERED`
+- `cancelled`
+  - `CANCELLED` 工單固定回傳：
+
+```json
+{
+  "kind": "cancelled",
+  "message": "此工單已取消"
+}
+```
+
+`CANCELLED` 不回 timeline steps。
+
+第一版 public lookup 另加簡單 rate limit：
+
+- `10 requests / minute / IP`
+- MVP 可使用 server-side in-memory store
+- rate limit key 取 `x-forwarded-for` 第一個 IP；若無則 fallback 到 `remoteAddress`
+- 超限回 `429 TOO_MANY_REQUESTS`
 
 顧客查詢不可回傳：
 
