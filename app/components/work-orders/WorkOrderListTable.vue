@@ -7,6 +7,7 @@ import {
   getBoardTypeLabel,
   getAdminWorkOrderDetailPath,
 } from '~/utils/admin-work-orders';
+import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
 import WorkOrderFlagBadges from '~/components/work-orders/WorkOrderFlagBadges.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 
@@ -80,6 +81,7 @@ const emitView = (id: string | null) => {
               <span v-else class="text-sm text-muted-foreground">
                 {{ getBoardLengthClassLabel(workOrder.board.boardLengthClass) }}
               </span>
+              <WorkOrderBoardColorSwatch :color="workOrder.board.color" />
             </div>
           </TableCell>
           <TableCell>{{ formatAdminDate(workOrder.estimatedCompletionDate) }}</TableCell>

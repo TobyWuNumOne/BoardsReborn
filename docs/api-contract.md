@@ -260,6 +260,7 @@ Response：
         "phone": "0912345678"
       },
       "board": {
+        "color": "BLUE",
         "boardLengthClass": "SHORTBOARD",
         "boardType": "SURFBOARD",
         "sizeLabel": "6'2"
@@ -292,7 +293,7 @@ Response：
 
 ### `GET /api/admin/work-orders/resolve`
 
-依紙本工單號 exact match 查出系統內部工單 UUID。這支 endpoint 用於掃碼、搜尋工單號後進入詳情或後續更新流程，不做 fuzzy search，也不取代 list API。
+依紙本工單號 exact match 查出系統內部工單 UUID。這支 endpoint 用於掃碼、搜尋工單號後進入詳情、批量狀態 preview 或後續更新流程，不做 fuzzy search，也不取代 list API。
 
 Query example：
 
@@ -312,11 +313,20 @@ Response：
     "currentStatus": "REPAIRING",
     "customer": {
       "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
-      "name": "王小明"
+      "name": "王小明",
+      "phone": "0912345678"
     },
     "board": {
       "boardType": "SURFBOARD",
-      "sizeLabel": "6'2"
+      "boardLengthClass": "SHORTBOARD",
+      "sizeLabel": "6'2",
+      "color": "BLUE"
+    },
+    "estimatedCompletionDate": "2026-04-26",
+    "flags": {
+      "overdueEstimatedCompletion": false,
+      "pickupOverdue": false,
+      "staleReceived": false
     },
     "lastUpdatedAt": "2026-04-20T08:30:00.000Z"
   }

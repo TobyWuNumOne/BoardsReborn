@@ -493,6 +493,7 @@ describe('work order API validation', () => {
     expect(
       mapWorkOrderListRow(
         {
+          board_color: 'BLUE',
           board_length_class: 'SHORTBOARD',
           board_size_label: "6'2",
           board_type: 'SURFBOARD',
@@ -522,6 +523,7 @@ describe('work order API validation', () => {
       ),
     ).toMatchObject({
       board: {
+        color: 'BLUE',
         boardLengthClass: 'SHORTBOARD',
         boardType: 'SURFBOARD',
         sizeLabel: "6'2",
@@ -569,19 +571,26 @@ describe('work order API validation', () => {
   it('maps resolve rows to the camelCase API contract', () => {
     expect(
       mapWorkOrderResolveRow({
+        board_color: 'GREEN',
+        board_length_class: 'SHORTBOARD',
         board_size_label: "6'2",
         board_type: 'SURFBOARD',
         current_status: 'REPAIRING',
-        customers: {
-          id: 'customer-id',
-          name: '王小明',
-        },
+        customer_id: 'customer-id',
+        customer_name: '王小明',
+        customer_phone: '0912345678',
+        estimated_completion_date: '2026-04-26',
         id: 'work-order-id',
+        is_overdue_estimated_completion: false,
+        is_pickup_overdue: false,
+        latest_received_at: '2026-04-20T08:00:00.000Z',
         paper_order_no: 'BR-2026-0001',
         updated_at: '2026-04-20T08:30:00.000Z',
       }),
     ).toEqual({
       board: {
+        color: 'GREEN',
+        boardLengthClass: 'SHORTBOARD',
         boardType: 'SURFBOARD',
         sizeLabel: "6'2",
       },
@@ -589,6 +598,13 @@ describe('work order API validation', () => {
       customer: {
         id: 'customer-id',
         name: '王小明',
+        phone: '0912345678',
+      },
+      estimatedCompletionDate: '2026-04-26',
+      flags: {
+        overdueEstimatedCompletion: false,
+        pickupOverdue: false,
+        staleReceived: false,
       },
       id: 'work-order-id',
       lastUpdatedAt: '2026-04-20T08:30:00.000Z',
@@ -609,7 +625,7 @@ describe('work order API validation', () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
 
-    expect(calls.table).toBe('work_orders');
+    expect(calls.table).toBe('admin_work_order_list');
     expect(calls.eq).toEqual({
       column: 'paper_order_no',
       value: 'BR-2026-0001',

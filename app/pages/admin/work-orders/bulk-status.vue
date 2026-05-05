@@ -11,8 +11,10 @@ import type {
 import {
   ADMIN_WORK_ORDER_STATUS_OPTIONS,
   extractApiErrorEnvelope,
+  formatAdminDate,
   formatAdminDateTime,
   getApiErrorStatusCode,
+  getBoardLengthClassLabel,
   getBoardTypeLabel,
   getWorkOrderStatusLabel,
 } from '~/utils/admin-work-orders';
@@ -27,6 +29,8 @@ import {
   resolveAdminBulkStatusPreview,
 } from '~/utils/admin-work-order-bulk-status';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
+import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
+import WorkOrderFlagBadges from '~/components/work-orders/WorkOrderFlagBadges.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 import { Textarea } from '~/components/ui/textarea';
 
@@ -644,21 +648,42 @@ watch(bulkInput, (nextValue, previousValue) => {
                     <WorkOrderStatusBadge :status="item.currentStatus" />
                   </div>
 
-                  <div class="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
+                  <div class="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
                     <div class="flex flex-col gap-1">
-                      <span>板型</span>
+                      <span class="text-muted-foreground">顧客手機</span>
+                      <span class="text-foreground">{{ item.customer.phone ?? '—' }}</span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <span class="text-muted-foreground">板型</span>
+                      <span class="text-foreground">{{ getBoardTypeLabel(item.board.boardType) }}</span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <span class="text-muted-foreground">長度分類</span>
                       <span class="text-foreground">
-                        {{ getBoardTypeLabel(item.board.boardType) }}
-                        <span v-if="item.board.sizeLabel">/ {{ item.board.sizeLabel }}</span>
+                        {{ getBoardLengthClassLabel(item.board.boardLengthClass) }}
                       </span>
                     </div>
                     <div class="flex flex-col gap-1">
-                      <span>最近更新</span>
-                      <span class="text-foreground">{{ formatAdminDateTime(item.lastUpdatedAt) }}</span>
+                      <span class="text-muted-foreground">尺寸</span>
+                      <span class="text-foreground">{{ item.board.sizeLabel ?? '—' }}</span>
                     </div>
                     <div class="flex flex-col gap-1">
-                      <span>UUID</span>
-                      <span class="truncate text-foreground">{{ item.id }}</span>
+                      <span class="text-muted-foreground">顏色</span>
+                      <WorkOrderBoardColorSwatch :color="item.board.color" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <span class="text-muted-foreground">預估完成日</span>
+                      <span class="text-foreground">
+                        {{ formatAdminDate(item.estimatedCompletionDate) }}
+                      </span>
+                    </div>
+                    <div class="flex flex-col gap-1 xl:col-span-2">
+                      <span class="text-muted-foreground">提醒</span>
+                      <WorkOrderFlagBadges :flags="item.flags" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <span class="text-muted-foreground">最近更新</span>
+                      <span class="text-foreground">{{ formatAdminDateTime(item.lastUpdatedAt) }}</span>
                     </div>
                   </div>
                 </div>

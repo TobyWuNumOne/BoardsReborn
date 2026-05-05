@@ -15,6 +15,7 @@ export interface WorkOrderListFlags {
 
 export interface AdminWorkOrderListItem {
   board: {
+    color: string | null;
     boardLengthClass: BoardLengthClass | null;
     boardType: BoardType | null;
     sizeLabel: string | null;
@@ -112,6 +113,8 @@ export interface AdminWorkOrderDetailResponse {
 
 export interface AdminWorkOrderResolveItem {
   board: {
+    color: string | null;
+    boardLengthClass: BoardLengthClass | null;
     boardType: BoardType | null;
     sizeLabel: string | null;
   };
@@ -119,7 +122,10 @@ export interface AdminWorkOrderResolveItem {
   customer: {
     id: string;
     name: string | null;
+    phone: string | null;
   };
+  estimatedCompletionDate: string | null;
+  flags: WorkOrderListFlags;
   id: string;
   lastUpdatedAt: string | null;
   paperOrderNo: string;
@@ -270,6 +276,10 @@ export interface AdminWorkOrderStatusTransitionPayload {
 }
 
 export type WorkOrderFlagKey = keyof WorkOrderListFlags;
+export interface BoardColorSwatchMeta {
+  label: string;
+  swatchClass: string;
+}
 
 const sortValueSchema = z.enum(
   ADMIN_WORK_ORDER_LIST_SORT_OPTIONS.map((option) => option.value) as [
@@ -390,6 +400,37 @@ const BOARD_LENGTH_CLASS_LABELS: Record<BoardLengthClass, string> = {
   LONGBOARD: '長板',
   MID_LENGTH: '中尺寸',
   SHORTBOARD: '短板',
+};
+
+const BOARD_COLOR_SWATCH_META: Record<string, BoardColorSwatchMeta> = {
+  BLACK: {
+    label: '黑色',
+    swatchClass: 'border-slate-950 bg-slate-950',
+  },
+  BLUE: {
+    label: '藍色',
+    swatchClass: 'border-blue-500 bg-blue-500',
+  },
+  GRAY: {
+    label: '灰色',
+    swatchClass: 'border-slate-400 bg-slate-400',
+  },
+  GREEN: {
+    label: '綠色',
+    swatchClass: 'border-emerald-500 bg-emerald-500',
+  },
+  RED: {
+    label: '紅色',
+    swatchClass: 'border-red-500 bg-red-500',
+  },
+  WHITE: {
+    label: '白色',
+    swatchClass: 'border-slate-300 bg-white',
+  },
+  YELLOW: {
+    label: '黃色',
+    swatchClass: 'border-amber-400 bg-amber-300',
+  },
 };
 
 const QUOTE_ITEM_TYPE_LABELS: Record<QuoteItemType, string> = {
@@ -516,6 +557,21 @@ export const getBoardTypeLabel = (boardType: BoardType | null) =>
 
 export const getBoardLengthClassLabel = (boardLengthClass: BoardLengthClass | null) =>
   boardLengthClass ? BOARD_LENGTH_CLASS_LABELS[boardLengthClass] : '—';
+
+export const getBoardColorSwatchMeta = (color: string | null): BoardColorSwatchMeta | null => {
+  const trimmedColor = color?.trim();
+
+  if (!trimmedColor) {
+    return null;
+  }
+
+  return (
+    BOARD_COLOR_SWATCH_META[trimmedColor] ?? {
+      label: trimmedColor,
+      swatchClass: 'border-slate-300 bg-background',
+    }
+  );
+};
 
 export const getQuoteItemTypeLabel = (itemType: QuoteItemType | null) =>
   itemType ? QUOTE_ITEM_TYPE_LABELS[itemType] : '—';

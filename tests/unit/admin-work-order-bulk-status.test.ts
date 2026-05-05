@@ -17,6 +17,8 @@ const createResolvedWorkOrder = (
   boardType: AdminWorkOrderResolveItem['board']['boardType'] = 'SURFBOARD',
 ): AdminWorkOrderResolveItem => ({
   board: {
+    color: 'BLUE',
+    boardLengthClass: boardType === 'SURFBOARD' ? 'SHORTBOARD' : null,
     boardType,
     sizeLabel: "6'2",
   },
@@ -24,6 +26,13 @@ const createResolvedWorkOrder = (
   customer: {
     id: `customer-${paperOrderNo}`,
     name: `客戶 ${paperOrderNo}`,
+    phone: '0912345678',
+  },
+  estimatedCompletionDate: '2026-05-10',
+  flags: {
+    overdueEstimatedCompletion: false,
+    pickupOverdue: false,
+    staleReceived: false,
   },
   id: `work-order-${paperOrderNo}`,
   lastUpdatedAt: '2026-04-30T08:00:00.000Z',

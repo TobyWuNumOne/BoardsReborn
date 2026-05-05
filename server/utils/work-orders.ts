@@ -33,11 +33,23 @@ type WorkOrderWithCustomer = WorkOrderRow & {
   customers: Pick<CustomerRow, 'id' | 'name' | 'phone'> | null;
 };
 type WorkOrderResolveRow = Pick<
-  WorkOrderRow,
-  'board_size_label' | 'board_type' | 'current_status' | 'id' | 'paper_order_no' | 'updated_at'
-> & {
-  customers: Pick<CustomerRow, 'id' | 'name'> | null;
-};
+  AdminWorkOrderListRow,
+  | 'board_color'
+  | 'board_length_class'
+  | 'board_size_label'
+  | 'board_type'
+  | 'current_status'
+  | 'customer_id'
+  | 'customer_name'
+  | 'customer_phone'
+  | 'estimated_completion_date'
+  | 'id'
+  | 'is_overdue_estimated_completion'
+  | 'is_pickup_overdue'
+  | 'latest_received_at'
+  | 'paper_order_no'
+  | 'updated_at'
+>;
 type PublicLookupWorkOrderRow = Pick<
   WorkOrderRow,
   | 'board_type'
@@ -269,6 +281,7 @@ const isStaleReceived = (
 
 export const mapWorkOrderListRow = (row: AdminWorkOrderListRow, now = new Date()) => ({
   board: {
+    color: row.board_color,
     boardLengthClass: row.board_length_class,
     boardType: row.board_type,
     sizeLabel: row.board_size_label,
@@ -295,20 +308,29 @@ export const mapWorkOrderListRow = (row: AdminWorkOrderListRow, now = new Date()
   readyForPickupAt: row.ready_for_pickup_at,
 });
 
-export const mapWorkOrderResolveRow = (row: WorkOrderResolveRow) => {
-  if (!row.customers) {
+export const mapWorkOrderResolveRow = (row: WorkOrderResolveRow, now = new Date()) => {
+  if (!row.id || !row.paper_order_no || !row.current_status || !row.customer_id) {
     throw new InternalServerError();
   }
 
   return {
     board: {
+      color: row.board_color,
+      boardLengthClass: row.board_length_class,
       boardType: row.board_type,
       sizeLabel: row.board_size_label,
     },
     currentStatus: row.current_status,
     customer: {
-      id: row.customers.id,
-      name: row.customers.name,
+      id: row.customer_id,
+      name: row.customer_name,
+      phone: row.customer_phone,
+    },
+    estimatedCompletionDate: row.estimated_completion_date,
+    flags: {
+      overdueEstimatedCompletion: row.is_overdue_estimated_completion ?? false,
+      pickupOverdue: row.is_pickup_overdue ?? false,
+      staleReceived: isStaleReceived(row.latest_received_at, row.current_status, now),
     },
     id: row.id,
     lastUpdatedAt: row.updated_at,
@@ -610,19 +632,8 @@ export const resolveAdminWorkOrderByPaperOrderNo = async (
   paperOrderNo: string,
 ) => {
   const { data, error } = await supabase
-    .from('work_orders')
-    .select(
-      [
-        'id',
-        'paper_order_no',
-        'current_status',
-        'board_type',
-        'board_length_class',
-        'board_size_label',
-        'updated_at',
-        'customers:customer_id(id, name)',
-      ].join(', '),
-    )
+    .from('admin_work_order_list')
+    .select('*')
     .eq('paper_order_no', paperOrderNo)
     .maybeSingle();
 

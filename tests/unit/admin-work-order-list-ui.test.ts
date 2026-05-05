@@ -5,6 +5,7 @@ import {
   formatAdminDateTime,
   getActiveWorkOrderFlags,
   getAdjustedPageForPageInfo,
+  getBoardColorSwatchMeta,
   getBoardLengthClassLabel,
   getBoardTypeLabel,
   getVisiblePageNumbers,
@@ -97,6 +98,15 @@ describe('admin work-order list UI helpers', () => {
     expect(getBoardTypeLabel('SURFBOARD')).toBe('衝浪板');
     expect(getBoardLengthClassLabel('MID_LENGTH')).toBe('中尺寸');
     expect(getBoardLengthClassLabel(null)).toBe('—');
+    expect(getBoardColorSwatchMeta('BLUE')).toEqual({
+      label: '藍色',
+      swatchClass: 'border-blue-500 bg-blue-500',
+    });
+    expect(getBoardColorSwatchMeta('粉紫漸層')).toEqual({
+      label: '粉紫漸層',
+      swatchClass: 'border-slate-300 bg-background',
+    });
+    expect(getBoardColorSwatchMeta(null)).toBeNull();
     expect(getWorkOrderStatusLabel('READY_FOR_PICKUP')).toBe('已完工待取件');
     expect(
       getActiveWorkOrderFlags({

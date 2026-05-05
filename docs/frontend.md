@@ -172,7 +172,7 @@ Desktop / tablet table 欄位：
 - 最近更新
 - 操作
 
-板型欄位顯示 `板型 / 長度分類 / 尺寸標記`。legacy `boardLengthClass = null` 顯示 `—`。
+板型欄位顯示 `板型 / 長度分類 / 尺寸標記 / 顏色`。顏色用小方框加文字 label 呈現；標準值 `WHITE / BLACK / BLUE / RED / YELLOW / GREEN / GRAY` 顯示固定 swatch，自訂值顯示中性描邊方框與原始文字。legacy `boardLengthClass = null` 或無顏色時顯示 `—`。
 
 Mobile card 欄位：
 
@@ -184,7 +184,7 @@ Mobile card 欄位：
 - 提醒 badges
 - 最近更新
 
-Mobile card 也需顯示衝浪板長度分類；若為非 `SURFBOARD` 或 legacy null，顯示 `—`。
+Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFBOARD` 或 legacy null，長度分類顯示 `—`。
 
 ## Work Order Detail
 
@@ -264,6 +264,15 @@ Mobile card 也需顯示衝浪板長度分類；若為非 `SURFBOARD` 或 legacy
 - 單筆 resolve `404` 與其他非 auth 失敗都視為 `notFound`，不中斷整批搜尋。
 - textarea 內容改動後，既有 preview 立刻標記為 stale；只有下一次完整搜尋成功完成後才恢復 active。
 - `found` 工單預設全選，但可逐筆排除。
+- preview item 資訊密度需接近工單列表，至少顯示：
+  - 工單號
+  - 狀態 badge
+  - 顧客姓名 / 電話
+  - 板型 / 長度分類 / 尺寸 / 顏色
+  - 預估完成日
+  - 提醒 badges
+  - 最近更新
+- preview item 不以 UUID 作為主要展示內容；UUID 可保留在內部 state，但不放在預設卡片資訊層級。
 - `found` 固定依下列狀態順序分組：
   - `RECEIVED`
   - `DRYING`

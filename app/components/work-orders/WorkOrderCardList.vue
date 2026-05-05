@@ -7,6 +7,7 @@ import {
   getBoardLengthClassLabel,
   getBoardTypeLabel,
 } from '~/utils/admin-work-orders';
+import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
 import WorkOrderFlagBadges from '~/components/work-orders/WorkOrderFlagBadges.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 
@@ -65,6 +66,10 @@ const emitView = (id: string | null) => {
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground">尺寸</span>
             <span>{{ workOrder.board.sizeLabel ?? '—' }}</span>
+          </div>
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground">顏色</span>
+            <WorkOrderBoardColorSwatch :color="workOrder.board.color" />
           </div>
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground">預估完成日</span>

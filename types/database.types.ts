@@ -400,6 +400,7 @@ export type Database = {
     Views: {
       admin_work_order_list: {
         Row: {
+          board_color: string | null;
           board_length_class: Database['public']['Enums']['board_length_class'] | null;
           board_size_label: string | null;
           board_type: Database['public']['Enums']['board_type'] | null;
