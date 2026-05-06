@@ -84,6 +84,10 @@ http://localhost:3000
 
 `@nuxtjs/supabase` module 固定啟用，讓 server API helper 與 Supabase Database types alias 在建置時可用；未設定 `SUPABASE_URL` / `SUPABASE_KEY` 時會出現 module warning，但實際連線仍需在 `.env` 或部署環境填入。完整實作現況請見 [docs/progress.md](docs/progress.md)；執行 Supabase 指令前請先確認 Supabase CLI 與 Docker daemon 可用。
 
+## Staging 部署
+
+Staging 採 90% 半自動流程：先手動建立 Supabase staging project 並保管 secrets，再用 CLI 連結 Supabase、推 migrations、設定 Vercel env 並部署 staging URL。完整流程、env 名稱與 smoke test checklist 請見 [docs/deployment.md](docs/deployment.md)。
+
 ### Supabase 本地設定
 
 本 repo 已包含 Supabase local config、baseline migration 與 seed placeholder。請先在本機安裝 Supabase CLI 並確認 Docker 可用，再執行：
@@ -164,6 +168,8 @@ supabase db push
   條碼掃描、非同步列印與 Print Agent 架構文件。
 - [專案進度](docs/progress.md)
   repo 現況、高層里程碑與下一步。
+- [Staging 部署](docs/deployment.md)
+  Vercel + Supabase staging 部署 runbook。
 - [AI 開發規則](docs/ai-dev-rules.md)
   AI 開發規則文件。
 - [AI 任務模板](docs/task-template.md)

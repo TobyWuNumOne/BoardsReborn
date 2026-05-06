@@ -18,6 +18,10 @@ const boardLengthClassMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260504110000_work_order_board_length_class.sql'),
   'utf8',
 );
+const authenticatedTableGrantsMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260505160000_authenticated_table_grants.sql'),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -92,5 +96,18 @@ describe('initial Supabase migration', () => {
     );
     expect(boardLengthClassMigration).toContain('work_orders.board_length_class');
     expect(boardLengthClassMigration).toContain("p_board ->> 'boardLengthClass'");
+  });
+
+  it('grants authenticated table privileges for user-scoped admin APIs', () => {
+    expect(authenticatedTableGrantsMigration).toContain(
+      'grant usage on schema public to authenticated',
+    );
+    expect(authenticatedTableGrantsMigration).toContain('public.admin_profiles');
+    expect(authenticatedTableGrantsMigration).toContain('public.work_orders');
+    expect(authenticatedTableGrantsMigration).toContain('public.status_history');
+    expect(authenticatedTableGrantsMigration).toContain(
+      'grant select on table public.admin_work_order_list to authenticated',
+    );
+    expect(authenticatedTableGrantsMigration).not.toContain('to anon');
   });
 });
