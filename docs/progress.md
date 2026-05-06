@@ -33,7 +33,7 @@
   - Supabase staging project `xnxbbjigercsfqdswdhb` 已 link，5 個 migrations 已推到 remote 並與 local migration list 對齊。
   - Vercel staging project `board-reborn-staging` 已建立並連結 GitHub repo，staging URL 為 `https://board-reborn-staging.vercel.app`，必要 Vercel env 已設定為 encrypted production env for staging project。
   - Staging admin session 首次驗證發現 `authenticated` role 缺少核心 table / view privileges，導致 `/api/admin/session` 查詢 `admin_profiles` 時 Supabase REST 回 `403`; authenticated table grants migration 已推送到 staging，cookie-based admin session API 已重測通過。
-  - Staging 第一輪 API smoke test 已建立測試工單 `STG-20260506005302`，並確認 admin session、dashboard、create、resolve、list search、detail、detail edit、status update 與 bulk status 可用；public lookup 的 repo-side service-role helper 已改為 direct `createClient`，不再依賴 `@nuxtjs/supabase` 的 `serverSupabaseServiceRole(event)` 讀取 runtime key，待重新部署到 staging 後重測 `POST /api/public/work-orders/lookup`。
+  - Staging 第一輪 API smoke test 已建立測試工單 `STG-20260506005302`，並確認 admin session、dashboard、create、resolve、list search、detail、detail edit、status update 與 bulk status 可用；public lookup 的 repo-side service-role helper 已改為 direct `createClient`，且已補 migration 授予 `service_role` 對 `work_orders` / `customers` / `quote_items` 的最小 `select` 權限，待推送到 staging 後重測 `POST /api/public/work-orders/lookup`。
   - Repo env 解析已直接相容 Vercel Supabase integration 匯入的 `SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`；既有 `SUPABASE_KEY` / `SUPABASE_SECRET_KEY` alias 仍保留相容。
   - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print-agent implementation 與 production workflow 仍未建立。
 - 本機 HTTP 開發環境已明確關閉 Supabase secure auth cookie，避免 SSR session bootstrap 在 `localhost` / `127.0.0.1` 上反覆 `401`。
@@ -101,7 +101,7 @@
 
 - 在 Supabase Dashboard 完成 staging Auth Site URL / Additional Redirect URLs 設定，並建立第一個 Auth user + `admin_profiles` row。
 - 修正 staging login UI 在 Safari autofill / accessibility-set value 下送出 stale form state 的問題，並重新用瀏覽器手動登入驗證 admin gate。
-- 重新部署 staging，驗證 public lookup 的 direct service-role client 已生效，避免 `POST /api/public/work-orders/lookup` 查 `work_orders` 時因誤用 anon client 而回 `500`。
+- 將 `service_role` lookup grants migration 推送到 staging，並重測 public lookup，確認 `POST /api/public/work-orders/lookup` 不再因 `work_orders` 權限不足回 `500`。
 - 依 [deployment.md](deployment.md) 補完剩餘 staging smoke test：瀏覽器 login、admin gate、建單、列表、detail edit、status update、bulk status 與 public lookup。
 - 在 `docs/frontend.md` 的規範下延續 admin 前端主流程。
 - 盤點第一版 admin 前端雛形的欄位、文案與互動細節，準備與甲方確認後整理第二版調整清單。
@@ -112,7 +112,7 @@
 ## 下一步
 
 - 在 Supabase Dashboard 設定 Auth Site URL 為 `https://board-reborn-staging.vercel.app`，Additional Redirect URLs 包含 local 與 staging URL。
-- 第一個 staging Auth user 與對應 `admin_profiles` row 已建立；先重新部署並驗證 public lookup，再處理 login UI Safari autofill 問題與完整瀏覽器 smoke test。
+- 第一個 staging Auth user 與對應 `admin_profiles` row 已建立；先將新 migration 推到 staging 並驗證 public lookup，再處理 login UI Safari autofill 問題與完整瀏覽器 smoke test。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
 - 實作列印任務 API 與 Python Print Agent 起始骨架。
 - 盤點 detail / create / bulk status / public lookup 與後續列印流程之間的 UI / 操作銜接。
@@ -150,7 +150,7 @@
 - Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
 - Public customer lookup 已落地，但目前 rate limit 採 in-memory store，只適用 local / single-instance MVP，未達 production-grade distributed limiter。
 - Staging Supabase / Vercel 基礎部署已完成；`authenticated` table grants 已推送至 staging，cookie-based `/api/admin/session` 已驗證 `200`。Safari 登入頁在 autofill / accessibility-set value 情境下仍可能送出 stale `v-model` form state 而顯示登入失敗；需改以 submit-time `FormData` 或確保 autofill 觸發 input state。
-- Staging public lookup 的 repo-side service-role helper 已改為 direct `createClient`，但仍需重新部署後驗證 Vercel 上的 service-role env 實值是否正確；若 env 本身填錯 publishable / anon key，重新部署後仍會維持 `500`，需在 Vercel 更正後再驗證正確手機 `200` 與錯誤手機 `404`。
+- Staging public lookup 已確認使用 `sb_secret_*` key 打到 Supabase，但資料庫目前仍回 `42501 / 403`；這表示 blocker 已縮小為 `service_role` 缺少資料表 privileges，需先將 lookup grants migration 推到 staging，再驗證正確手機 `200` 與錯誤手機 `404`。
 - 工單建立目前不建立 `print_jobs`；列印任務會在後續獨立流程補上。
 - 既有 legacy `SURFBOARD` 工單可能尚未有 `board_length_class`；目前 list / detail 會顯示 `—`，這次沒有補 edit flow 或 backfill。
 - Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁與 bulk status 第一版；列印相關 UI 仍待實作。

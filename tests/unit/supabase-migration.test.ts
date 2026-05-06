@@ -22,6 +22,13 @@ const authenticatedTableGrantsMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260505160000_authenticated_table_grants.sql'),
   'utf8',
 );
+const publicLookupServiceRoleGrantsMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260506143000_public_lookup_service_role_grants.sql',
+  ),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -109,5 +116,18 @@ describe('initial Supabase migration', () => {
       'grant select on table public.admin_work_order_list to authenticated',
     );
     expect(authenticatedTableGrantsMigration).not.toContain('to anon');
+  });
+
+  it('grants minimal service_role read access for public lookup queries', () => {
+    expect(publicLookupServiceRoleGrantsMigration).toContain(
+      'grant usage on schema public to service_role',
+    );
+    expect(publicLookupServiceRoleGrantsMigration).toContain('public.customers');
+    expect(publicLookupServiceRoleGrantsMigration).toContain('public.work_orders');
+    expect(publicLookupServiceRoleGrantsMigration).toContain('public.quote_items');
+    expect(publicLookupServiceRoleGrantsMigration).toContain('to service_role');
+    expect(publicLookupServiceRoleGrantsMigration).not.toContain('insert');
+    expect(publicLookupServiceRoleGrantsMigration).not.toContain('update');
+    expect(publicLookupServiceRoleGrantsMigration).not.toContain('delete');
   });
 });
