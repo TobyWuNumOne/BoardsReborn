@@ -34,6 +34,21 @@ describe('resolveServiceRoleSupabaseCredentials', () => {
     });
   });
 
+  it('supports Vercel Supabase integration env names directly', () => {
+    expect(
+      resolveServiceRoleSupabaseCredentials({
+        env: {
+          NEXT_PUBLIC_SUPABASE_URL: 'https://integration-project.supabase.co',
+          SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_integration_value',
+        },
+        publicSupabaseKey: 'sb_publishable_public_value',
+      }),
+    ).toEqual({
+      secretKey: 'sb_secret_integration_value',
+      url: 'https://integration-project.supabase.co',
+    });
+  });
+
   it('rejects a public key being used as the server-side key', () => {
     expect(() =>
       resolveServiceRoleSupabaseCredentials({

@@ -82,7 +82,7 @@ pnpm dev
 http://localhost:3000
 ```
 
-`@nuxtjs/supabase` module 固定啟用，讓 server API helper 與 Supabase Database types alias 在建置時可用；未設定 `SUPABASE_URL` / `SUPABASE_KEY` 時會出現 module warning，但實際連線仍需在 `.env` 或部署環境填入。完整實作現況請見 [docs/progress.md](docs/progress.md)；執行 Supabase 指令前請先確認 Supabase CLI 與 Docker daemon 可用。
+`@nuxtjs/supabase` module 固定啟用，讓 server API helper 與 Supabase Database types alias 在建置時可用；未設定 Supabase URL / client key 時會出現 module warning，但實際連線仍需在 `.env` 或部署環境填入。完整實作現況請見 [docs/progress.md](docs/progress.md)；執行 Supabase 指令前請先確認 Supabase CLI 與 Docker daemon 可用。
 
 ## Staging 部署
 
@@ -99,7 +99,7 @@ supabase db reset
 
 `supabase db reset` 會套用 `supabase/migrations/*.sql` 並執行 `supabase/seed.sql`。第一版 seed 不包含真實 admin 帳密；請用 Supabase Auth dashboard、CLI 或 SQL 在本地/正式環境手動建立第一個內部使用者，再建立對應 `admin_profiles` row。
 
-本地 Supabase 啟動後，可用 `supabase status` 查看 API URL 與 anon key，填入 `.env` 的 `SUPABASE_URL` 與 `SUPABASE_KEY`。`SUPABASE_SECRET_KEY` 應使用 service role key，只能給 Nitro server API 使用，不可放進 public runtime config 或 client code。
+本地 Supabase 啟動後，可用 `supabase status` 查看 API URL 與 anon key，填入 `.env` 的 `SUPABASE_URL` 與 `SUPABASE_ANON_KEY`。`SUPABASE_SERVICE_ROLE_KEY` 應使用 service role key，只能給 Nitro server API 使用，不可放進 public runtime config 或 client code。
 
 Schema 變更後重新產生 TypeScript Database types：
 
@@ -109,19 +109,26 @@ pnpm dlx supabase@2.93.0 gen types typescript --local > types/database.types.ts
 
 ## 環境變數
 
-請在 `.env` 或部署平台環境變數中設定：
+請在 `.env` 或部署平台環境變數中設定。repo 目前直接相容 Supabase / Vercel integration 的命名，也保留舊 alias fallback：
 
-| 變數                  | 用途                                                                              | 是否可暴露到瀏覽器 |
-| --------------------- | --------------------------------------------------------------------------------- | ------------------ |
-| `SUPABASE_URL`        | Supabase project URL                                                              | 是                 |
-| `SUPABASE_KEY`        | Supabase publishable key 或 anon key，供 client 與一般 authenticated request 使用 | 是                 |
-| `SUPABASE_SECRET_KEY` | Server-only elevated key，只能在 Nitro server API 使用                            | 否                 |
-| `NUXT_PUBLIC_APP_URL` | App 對外網址，例如 `http://localhost:3000`                                        | 是                 |
-| `ADMIN_EMAIL`         | 第一版管理者帳號 seed 或手動建立時使用                                            | 否                 |
-| `ADMIN_PASSWORD`      | 第一版管理者密碼 seed 或手動建立時使用                                            | 否                 |
-| `PRINT_AGENT_TOKEN`   | Print Agent 呼叫 Nuxt API 的 Bearer token                                         | 否                 |
+| 變數                            | 用途                                                                         | 是否可暴露到瀏覽器 |
+| ------------------------------- | ---------------------------------------------------------------------------- | ------------------ |
+| `SUPABASE_URL`                  | Supabase project URL                                                         | 是                 |
+| `SUPABASE_ANON_KEY`             | Supabase publishable / anon key，供 client 與一般 authenticated request 使用 | 是                 |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Server-only elevated key，只能在 Nitro server API 使用                       | 否                 |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Vercel / Next-style public URL alias；可取代 `SUPABASE_URL`                  | 是                 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel / Next-style public client key alias；可取代 `SUPABASE_ANON_KEY`      | 是                 |
+| `NUXT_PUBLIC_APP_URL`           | App 對外網址；未設定時會優先 fallback 到 Vercel deployment URL               | 是                 |
+| `ADMIN_EMAIL`                   | 第一版管理者帳號 seed 或手動建立時使用                                       | 否                 |
+| `ADMIN_PASSWORD`                | 第一版管理者密碼 seed 或手動建立時使用                                       | 否                 |
+| `PRINT_AGENT_TOKEN`             | Print Agent 呼叫 Nuxt API 的 Bearer token                                    | 否                 |
 
-`SUPABASE_SECRET_KEY` 不可傳到 client、不可以出現在 public runtime config、不可以寫入 log。
+另外仍相容舊 alias：
+
+- `SUPABASE_KEY`
+- `SUPABASE_SECRET_KEY`
+
+`SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` 不可傳到 client、不可以出現在 public runtime config、不可以寫入 log。
 `PRINT_AGENT_TOKEN` 只能存在 server-side 與 Print Agent 環境，不可傳到瀏覽器。
 
 ## 專案指令

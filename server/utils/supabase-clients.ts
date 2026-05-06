@@ -92,7 +92,21 @@ export const resolveServiceRoleSupabaseCredentials = ({
   runtimeSupabaseSecretKey,
   runtimeSupabaseUrl,
 }: ServiceRoleCredentialsInput) => {
-  const url = readFirstNonEmpty(env.NUXT_PUBLIC_SUPABASE_URL, env.SUPABASE_URL, runtimeSupabaseUrl);
+  const url = readFirstNonEmpty(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NUXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_URL,
+    runtimeSupabaseUrl,
+  );
+  const resolvedPublicSupabaseKey = readFirstNonEmpty(
+    publicSupabaseKey,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NUXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NUXT_PUBLIC_SUPABASE_KEY,
+    env.SUPABASE_ANON_KEY,
+    env.SUPABASE_KEY,
+    env.SUPABASE_PUBLISHABLE_KEY,
+  );
   const secretKey = readFirstNonEmpty(
     env.NUXT_SUPABASE_SECRET_KEY,
     env.SUPABASE_SECRET_KEY,
@@ -104,7 +118,7 @@ export const resolveServiceRoleSupabaseCredentials = ({
     throw new InternalServerError();
   }
 
-  if (isMisconfiguredPublicSupabaseKey(secretKey, publicSupabaseKey)) {
+  if (isMisconfiguredPublicSupabaseKey(secretKey, resolvedPublicSupabaseKey)) {
     throw new InternalServerError();
   }
 

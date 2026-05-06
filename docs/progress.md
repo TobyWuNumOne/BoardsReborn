@@ -34,6 +34,7 @@
   - Vercel staging project `board-reborn-staging` 已建立並連結 GitHub repo，staging URL 為 `https://board-reborn-staging.vercel.app`，必要 Vercel env 已設定為 encrypted production env for staging project。
   - Staging admin session 首次驗證發現 `authenticated` role 缺少核心 table / view privileges，導致 `/api/admin/session` 查詢 `admin_profiles` 時 Supabase REST 回 `403`; authenticated table grants migration 已推送到 staging，cookie-based admin session API 已重測通過。
   - Staging 第一輪 API smoke test 已建立測試工單 `STG-20260506005302`，並確認 admin session、dashboard、create、resolve、list search、detail、detail edit、status update 與 bulk status 可用；public lookup 的 repo-side service-role credential resolution 已改為 request-time env + runtimeConfig fallback，並會拒絕誤用 publishable / anon key，待重新部署到 staging 後重測 `POST /api/public/work-orders/lookup`。
+  - Repo env 解析已直接相容 Vercel Supabase integration 匯入的 `SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`；既有 `SUPABASE_KEY` / `SUPABASE_SECRET_KEY` alias 仍保留相容。
   - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print-agent implementation 與 production workflow 仍未建立。
 - 本機 HTTP 開發環境已明確關閉 Supabase secure auth cookie，避免 SSR session bootstrap 在 `localhost` / `127.0.0.1` 上反覆 `401`。
 - 目前已停用 Nuxt `experimental.appManifest`，避免本機開發環境出現 `/_nuxt/builds/meta/dev.json` 404 並直接觸發整頁 Nuxt error page。
