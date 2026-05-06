@@ -12,7 +12,7 @@
 ## 目前快照
 
 - 最後更新：2026-05-06
-- 目前階段：admin 主流程與 public customer lookup 第一版已建立，工單板子資訊已補 surfboard 長度分類與顏色 projection，staging Supabase / Vercel deployment 已完成基礎部署與第一輪 API smoke test，public lookup service-role helper 已改為 direct `createClient`，下一步往 staging 重新部署驗證、登入 UI autofill 修正、列印流程與前端第二版細節調整推進
+- 目前階段：admin 主流程與 public customer lookup 第一版已建立，工單板子資訊已補 surfboard 長度分類與顏色 projection，staging Supabase / Vercel deployment 已完成基礎部署與第一輪 API smoke test，public lookup service-role helper 已改為 direct `createClient`，下一步往 admin session client key priority 修正後重新部署驗證、登入 UI autofill 修正、列印流程與前端第二版細節調整推進
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -34,7 +34,7 @@
   - Vercel staging project `board-reborn-staging` 已建立並連結 GitHub repo，staging URL 為 `https://board-reborn-staging.vercel.app`，必要 Vercel env 已設定為 encrypted production env for staging project。
   - Staging admin session 首次驗證發現 `authenticated` role 缺少核心 table / view privileges，導致 `/api/admin/session` 查詢 `admin_profiles` 時 Supabase REST 回 `403`; authenticated table grants migration 已推送到 staging，cookie-based admin session API 已重測通過。
   - Staging 第一輪 API smoke test 已建立測試工單 `STG-20260506005302`，並確認 admin session、dashboard、create、resolve、list search、detail、detail edit、status update 與 bulk status 可用；public lookup 的 repo-side service-role helper 已改為 direct `createClient`，且已補 migration 授予 `service_role` 對 `work_orders` / `customers` / `quote_items` 的最小 `select` 權限，待推送到 staging 後重測 `POST /api/public/work-orders/lookup`。
-  - Repo env 解析已直接相容 Vercel Supabase integration 匯入的 `SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`；既有 `SUPABASE_KEY` / `SUPABASE_SECRET_KEY` alias 仍保留相容。
+  - Repo env 解析已直接相容 Vercel Supabase integration 匯入的 `SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`；既有 `SUPABASE_KEY` / `SUPABASE_SECRET_KEY` alias 仍保留相容。admin session/client SSR 另外已將 anon key 優先順序調整為先吃 `SUPABASE_ANON_KEY` / `NUXT_PUBLIC_SUPABASE_ANON_KEY`，避免錯吃 `SUPABASE_PUBLISHABLE_KEY` 的 local/demo 值。
   - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print-agent implementation 與 production workflow 仍未建立。
 - 本機 HTTP 開發環境已明確關閉 Supabase secure auth cookie，避免 SSR session bootstrap 在 `localhost` / `127.0.0.1` 上反覆 `401`。
 - 目前已停用 Nuxt `experimental.appManifest`，避免本機開發環境出現 `/_nuxt/builds/meta/dev.json` 404 並直接觸發整頁 Nuxt error page。
@@ -112,7 +112,7 @@
 ## 下一步
 
 - 在 Supabase Dashboard 設定 Auth Site URL 為 `https://board-reborn-staging.vercel.app`，Additional Redirect URLs 包含 local 與 staging URL。
-- 第一個 staging Auth user 與對應 `admin_profiles` row 已建立；先將新 migration 推到 staging 並驗證 public lookup，再處理 login UI Safari autofill 問題與完整瀏覽器 smoke test。
+- 第一個 staging Auth user 與對應 `admin_profiles` row 已建立；先重新部署 admin session client key priority 修正，確認 `/api/admin/session` 不再 500，再處理 login UI Safari autofill 問題與完整瀏覽器 smoke test。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
 - 實作列印任務 API 與 Python Print Agent 起始骨架。
 - 盤點 detail / create / bulk status / public lookup 與後續列印流程之間的 UI / 操作銜接。

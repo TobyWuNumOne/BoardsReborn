@@ -25,11 +25,12 @@ const supabaseUrl = readFirstNonEmpty(
 );
 const supabaseKey = readFirstNonEmpty(
   process.env.SUPABASE_KEY,
-  process.env.SUPABASE_PUBLISHABLE_KEY,
   process.env.SUPABASE_ANON_KEY,
+  process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   process.env.NUXT_PUBLIC_SUPABASE_KEY,
-  process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY,
+  process.env.NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  process.env.SUPABASE_PUBLISHABLE_KEY,
 );
 const supabaseSecretKey = readFirstNonEmpty(
   process.env.NUXT_SUPABASE_SECRET_KEY,
