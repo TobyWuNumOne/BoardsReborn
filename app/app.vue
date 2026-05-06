@@ -3,5 +3,7 @@
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
-  <Toaster position="top-right" rich-colors />
+  <ClientOnly>
+    <Toaster position="top-right" rich-colors />
+  </ClientOnly>
 </template>

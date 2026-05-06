@@ -326,4 +326,5 @@ TypeScript 名稱：`LabelLanguage`
 - 管理端操作由 Supabase Auth authenticated admin 執行。
 - 顧客查詢不得直接開放 Supabase table read，必須經由 Nuxt server API 驗證工單號，並以 `customers.phone` 的完整正規化手機號碼比對使用者輸入後，才回傳有限欄位。
 - Server-only elevated key 只能在 Nitro server API 使用。
+- 管理端 user-scoped Supabase client 需要 `authenticated` role 具備對應 table / view privileges，並由 RLS policies 與 Nuxt admin gate 共同限制實際操作。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。
