@@ -49,6 +49,23 @@ describe('resolveServiceRoleSupabaseCredentials', () => {
     });
   });
 
+  it('prefers Nuxt-first URL resolution over Next-style aliases', () => {
+    expect(
+      resolveServiceRoleSupabaseCredentials({
+        env: {
+          NEXT_PUBLIC_SUPABASE_URL: 'https://next-project.supabase.co',
+          NUXT_PUBLIC_SUPABASE_URL: 'https://nuxt-project.supabase.co',
+          SUPABASE_URL: 'https://legacy-project.supabase.co',
+          SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_integration_value',
+        },
+        publicSupabaseKey: 'sb_publishable_public_value',
+      }),
+    ).toEqual({
+      secretKey: 'sb_secret_integration_value',
+      url: 'https://nuxt-project.supabase.co',
+    });
+  });
+
   it('rejects a public key being used as the server-side key', () => {
     expect(() =>
       resolveServiceRoleSupabaseCredentials({

@@ -1,15 +1,11 @@
 import type { H3Event } from 'h3';
-import type {
-  serverSupabaseClient,
-  serverSupabaseServiceRole,
-  serverSupabaseUser,
-} from '#supabase/server';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { serverSupabaseClient, serverSupabaseUser } from '#supabase/server';
 import type { Database } from '../../types/database.types';
 import { InternalServerError } from './api-errors';
 
 type ServerSupabaseServices = {
   serverSupabaseClient: typeof serverSupabaseClient;
-  serverSupabaseServiceRole: typeof serverSupabaseServiceRole;
   serverSupabaseUser: typeof serverSupabaseUser;
 };
 
@@ -31,6 +27,7 @@ type RuntimeImports = {
 
 let supabaseServerServicesPromise: Promise<ServerSupabaseServices> | undefined;
 let runtimeImportsPromise: Promise<RuntimeImports> | undefined;
+const serviceRoleClients = new WeakMap<H3Event, SupabaseClient<Database>>();
 
 type ServiceRoleCredentialsInput = {
   env?: NodeJS.ProcessEnv;
@@ -93,10 +90,10 @@ export const resolveServiceRoleSupabaseCredentials = ({
   runtimeSupabaseUrl,
 }: ServiceRoleCredentialsInput) => {
   const url = readFirstNonEmpty(
-    env.NEXT_PUBLIC_SUPABASE_URL,
     env.NUXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_URL,
     runtimeSupabaseUrl,
+    env.NEXT_PUBLIC_SUPABASE_URL,
   );
   const resolvedPublicSupabaseKey = readFirstNonEmpty(
     publicSupabaseKey,
@@ -148,6 +145,12 @@ export const getSupabaseUserClaims = async (event: H3Event) => {
 };
 
 export const getServiceRoleSupabaseClient = async (event: H3Event) => {
+  const existingClient = serviceRoleClients.get(event);
+
+  if (existingClient) {
+    return existingClient;
+  }
+
   const { useRuntimeConfig } = await loadRuntimeImports();
   const config = useRuntimeConfig(event);
   const { secretKey, url } = resolveServiceRoleSupabaseCredentials({
@@ -156,15 +159,17 @@ export const getServiceRoleSupabaseClient = async (event: H3Event) => {
       config.supabaseSecretKey || config.supabase?.secretKey || config.supabase?.serviceKey,
     runtimeSupabaseUrl: config.public.supabase.url,
   });
-  const { serverSupabaseServiceRole } = await loadSupabaseServerServices();
+  const client = createClient<Database>(url, secretKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
+  });
 
-  config.public.supabase.url = url;
-  config.supabase = {
-    ...config.supabase,
-    secretKey,
-  };
+  serviceRoleClients.set(event, client);
 
-  return serverSupabaseServiceRole<Database>(event);
+  return client;
 };
 
 export type UserScopedSupabaseClient = Awaited<ReturnType<typeof getUserScopedSupabaseClient>>;
