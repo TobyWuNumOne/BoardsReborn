@@ -15,6 +15,21 @@ const form = reactive({
 const isSubmitting = ref(false);
 const errorMessage = ref('');
 
+const getSubmittedCredential = (
+  formElement: HTMLFormElement | null,
+  fieldName: 'email' | 'password',
+  fallbackValue: string,
+) => {
+  if (!formElement) {
+    return fallbackValue.trim();
+  }
+
+  const submittedValue = new FormData(formElement).get(fieldName);
+  return typeof submittedValue === 'string' && submittedValue.trim() !== ''
+    ? submittedValue.trim()
+    : fallbackValue.trim();
+};
+
 const sessionSnapshot = await adminSession.refreshAdminSession();
 
 if (sessionSnapshot.status === 'admin') {
@@ -25,11 +40,17 @@ if (sessionSnapshot.status === 'forbidden') {
   await navigateTo('/forbidden');
 }
 
-const handleSubmit = async () => {
+const handleSubmit = async (event: SubmitEvent) => {
   errorMessage.value = '';
   isSubmitting.value = true;
+  const formElement = event.currentTarget instanceof HTMLFormElement ? event.currentTarget : null;
+  const submittedEmail = getSubmittedCredential(formElement, 'email', form.email);
+  const submittedPassword = getSubmittedCredential(formElement, 'password', form.password);
 
-  const error = await adminSession.signInWithPassword(form.email.trim(), form.password);
+  form.email = submittedEmail;
+  form.password = submittedPassword;
+
+  const error = await adminSession.signInWithPassword(submittedEmail, submittedPassword);
 
   if (error) {
     errorMessage.value = '登入失敗，請檢查帳號密碼。';
