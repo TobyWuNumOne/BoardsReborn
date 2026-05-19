@@ -11,8 +11,8 @@
 
 ## 目前快照
 
-- 最後更新：2026-05-06
-- 目前階段：admin 主流程與 public customer lookup 第一版已建立，工單板子資訊已補 surfboard 長度分類與顏色 projection，staging Supabase / Vercel deployment 與第二輪 session / lookup 修正已完成，下一步往 Safari 登入流程驗證、admin 瀏覽器 smoke test、列印流程與前端第二版細節調整推進
+- 最後更新：2026-05-11
+- 目前階段：admin 主流程與 public customer lookup 第一版已建立，工單板子資訊已補 surfboard 長度分類與顏色 projection，staging Supabase / Vercel deployment 與第二輪 session / lookup 修正已完成，新增工單頁已完成 tablet-first F8A/F8B 優化，下一步往 Safari 登入流程驗證、admin 瀏覽器 smoke test、列印流程與前端第二版細節調整推進
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -20,12 +20,12 @@
   - `server/api/` 已有 admin session、customer lookup、public lookup 與 work-order create/list/detail/update/status/resolve/bulk-status handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - 前端已導入 Tailwind CSS v4、shadcn-vue primitives、`shadcn-nuxt` 與 SSR width baseline。
-  - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序與分頁，`/admin/work-orders/[id]` 已提供 `mode=view|edit|work` detail route，且 `mode=edit` 已接上 PATCH；`/admin/work-orders/new` 已接上 lookup-first 現場建單流程；`/admin/work-orders/bulk-status` 已接上 preview 搜尋與批量狀態更新。
+  - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序與分頁，`/admin/work-orders/[id]` 已提供 `mode=view|edit|work` detail route，且 `mode=edit` 已接上 PATCH；`/admin/work-orders/new` 已接上 lookup-first 現場建單流程與 tablet-first F8A/F8B 快捷操作；`/admin/work-orders/bulk-status` 已接上 preview 搜尋與批量狀態更新。
   - `board_length_class` 已加入 schema 與 admin create/list/detail；衝浪板建單需選短板 / 中尺寸 / 長板，既有 legacy null 在 UI 顯示為 `—`。
   - `board_color` 已加入 `admin_work_order_list` projection 與 admin resolve preview；工單列表與 bulk status preview 會顯示顏色 swatch + label。
   - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、公開備註與最近更新時間。
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
-  - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
+  - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作與 sticky 必填摘要，但顧客自動查詢、送出錯誤 scroll 與成功後 next actions 尚待下一輪。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
   - Supabase Database types 已產生於 `types/database.types.ts`。
   - Supabase local config、initial migration 與 seed placeholder 已建立。
@@ -54,7 +54,7 @@
 | Frontend strategy / UI foundation      | done    | Tailwind CSS v4、shadcn-vue primitives、admin shell、dashboard summary 與 frontend rules 已建立。                                                     |
 | Admin work-order list UI               | done    | `/admin/work-orders` 已接上 list API、URL query state、table/card list 與 detail 導頁。                                                               |
 | Admin work-order detail UI             | partial | `/admin/work-orders/[id]` 已接上 detail API 與 `view/edit/work` mode；`view`、`edit` 與 `work` 皆已有第一版可用雛形，細節仍待與甲方討論後進二版調整。 |
-| Admin work-order create UI             | done    | `/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價與成功導向 detail。                                                          |
+| Admin work-order create UI             | done    | `/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價、tablet-first F8A/F8B 快捷操作與成功導向 detail。                           |
 | Admin bulk status UI                   | done    | `/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作與批量結果摘要。                                                      |
 | Barcode / print job API 與 Print Agent | pending | `print_jobs` 相關 API 與 Python Print Agent 仍停留在規格層。                                                                                          |
 | Customer lookup flow                   | done    | `POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。                                |
@@ -83,7 +83,8 @@
 - Admin work-order list UI：URL query canonicalization middleware、read-only 工單列表、提醒 badges、桌機 table / 手機 card list 與 detail placeholder route。
 - Admin work-order list rendering fix：改為顯式 import `work-orders` 目錄下的列表與 badge 元件，排除 Nuxt auto-import 前綴不符造成「總數正確但列表不顯示」的回歸。
 - Admin work-order detail UI：單一路由 detail page、`mode=view|edit|work` query canonicalization、detail data keyed only by id、view mode 只讀區塊、edit mode PATCH 表單、work mode 狀態更新卡與 404/422 分流已建立。
-- Admin work-order create UI：單頁現場收件建單頁、lookup-first 顧客流程、`intakeDate -> estimatedCompletionDate` 預設規則、初始報價映射與成功導向 detail 已建立。
+- Admin work-order create UI：單頁現場收件建單頁、lookup-first 顧客流程、`intakeDate -> estimatedCompletionDate` 預設規則、初始報價映射、tablet-first F8A/F8B 快捷操作與成功導向 detail 已建立。
+- Admin work-order create tablet-first F8A/F8B：已加大本頁觸控目標，補工單號 / 顧客手機 / 初始報價 numeric input attributes，新增衝浪板尺寸 quick selector 與 +/- 英寸、預估完成日 quick actions、初始報價 quick amount / 微調、損傷描述與維修處數量 quick chips、公開 / 內部備註 quick chips，以及 sticky 必填欄位摘要；未改 API payload、schema 或建單狀態流程。
 - Surfboard 長度分類：`board_length_class` schema、create validation、create/list/detail API mapping 與 admin create/list/detail UI 顯示已建立。
 - Admin bulk status UI：獨立 `/admin/work-orders/bulk-status` 頁面、resolve fan-out preview、共享狀態 select、依狀態分組的快捷操作與最近一次批量結果摘要已建立。
 - Bulk preview / 工單列表資訊密度升級：`resolve` preview 已補顧客電話、長度分類、顏色、預估完成日與提醒 flags；bulk status 與工單列表都會顯示顏色 swatch。
@@ -114,6 +115,7 @@
 - 在 Supabase Dashboard 設定 Auth Site URL 為 `https://board-reborn-staging.vercel.app`，Additional Redirect URLs 包含 local 與 staging URL。
 - 第一個 staging Auth user 與對應 `admin_profiles` row 已建立；接著完成 Safari login flow 驗證與完整瀏覽器 smoke test，確認 admin UI 實際可操作。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
+- 延續新增工單頁 F8C：顧客手機 10 碼 debounce 自動查詢、送出時 scroll 到第一個錯誤欄位、建立成功後 next actions 區塊。
 - 實作列印任務 API 與 Python Print Agent 起始骨架。
 - 盤點 detail / create / bulk status / public lookup 與後續列印流程之間的 UI / 操作銜接。
 
@@ -153,7 +155,8 @@
 - Safari 登入頁原本在 autofill / accessibility-set value 情境下可能送出 stale `v-model` form state；目前已改成 submit-time `FormData` 讀值，仍需以實際瀏覽器再跑一次完整登入流程確認。
 - 工單建立目前不建立 `print_jobs`；列印任務會在後續獨立流程補上。
 - 既有 legacy `SURFBOARD` 工單可能尚未有 `board_length_class`；目前 list / detail 會顯示 `—`，這次沒有補 edit flow 或 backfill。
-- Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁與 bulk status 第一版；列印相關 UI 仍待實作。
+- Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁 tablet-first F8A/F8B 與 bulk status 第一版；列印相關 UI 仍待實作。
+- 新增工單頁 F8C 仍待實作：顧客手機 10 碼 debounce 自動查詢、送出錯誤 scroll、建立成功後 next actions 尚未在本輪加入。
 - Admin 前端目前仍屬第一版雛形；雖然大方向與主流程已可展示，但欄位配置、文案、資訊密度、互動回饋與模式切換細節尚未定案，預期需在與甲方討論後進行第二版調整。
 - Nuxt 4 在此專案目前的本機開發組合下，`experimental.appManifest` 會導致 `/_nuxt/builds/meta/dev.json` 404；目前已先關閉這個實驗功能，以穩定開發中的 admin 頁面導航與刷新行為。
 - shadcn-vue latest 的 `reka-vega` style registry base style 在初始化時回 404；本次以 `--no-base-style` 初始化並依官方 neutral theme scaffold 手動補齊 global CSS tokens。

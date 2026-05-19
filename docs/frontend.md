@@ -11,7 +11,7 @@
 - `/admin` 已接上 dashboard live data，第一版顯示處理中工單 breakdown、管理 summary 與 quick entries。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
 - `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation。
-- `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API。
+- `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API，並已補 tablet-first F8A/F8B 快捷輸入與 sticky 必填摘要。
 - `/admin/work-orders/bulk-status` 已實作第一版批量狀態頁，採 preview 搜尋、共享狀態與依狀態分組的快捷操作。
 - `/repair-status` 已實作顧客查進度頁，採同頁查詢表單與結果切換。
 - 目前 admin 前端頁面大多屬第一版雛形：已建立主要流程、資訊架構與操作方向，但欄位編排、文案、資訊層級、互動回饋與 mode 細節不視為最終定稿，預期會在與甲方討論後進入第二版調整。
@@ -231,6 +231,11 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 查詢顧客
   - 板型
   - 固定可見的建立按鈕
+- 建單頁以平板現場收件為主要操作情境：
+  - 本頁可局部加大 input、button、option card、checkbox 與 chip 的觸控尺寸，不需全域修改 shadcn primitives。
+  - 紙本工單號、顧客手機與初始報價使用 numeric / tel input attributes 協助平板叫出數字鍵盤，但不改 API payload shape。
+  - 衝浪板尺寸、預估完成日、初始報價、損傷描述、維修處數量、公開備註與內部備註可提供 quick actions；quick actions 只寫回既有 form state。
+  - sticky action bar 顯示必填欄位完成度與未完成欄位，並保留清除 / 建立工單操作。
 - 只有 `boardType = SURFBOARD` 時才顯示 `boardLengthClass` 選項（短板 / 中尺寸 / 長板）；切換到 `SUP` / `SNOWBOARD` 時需清空該欄位。
 - 顧客流程固定為 lookup-first：
   - 先查手機

@@ -3,6 +3,7 @@ import {
   buildAdminWorkOrderCreatePayload,
   createAdminWorkOrderCreateInitialFormState,
   getFixedNextSundayDateString,
+  getAdminWorkOrderCreateBoardColorButtonClassName,
   hasAdminWorkOrderCreateUnsavedChanges,
   normalizeAdminWorkOrderCreateFormState,
   shouldResetCustomerLookupResolution,
@@ -130,6 +131,22 @@ describe('admin work-order create helpers', () => {
     expect(buildAdminWorkOrderCreatePayload(snowboardForm).fieldErrors).toMatchObject({
       boardLengthClass: ['只有衝浪板可以設定長度分類。'],
     });
+  });
+
+  it('adds a high-contrast outline to the selected board color button', () => {
+    const selectedClassName = getAdminWorkOrderCreateBoardColorButtonClassName(
+      'border-sky-300 bg-sky-500 text-white',
+      true,
+    );
+    const unselectedClassName = getAdminWorkOrderCreateBoardColorButtonClassName(
+      'border-sky-300 bg-sky-500 text-white',
+      false,
+    );
+
+    expect(selectedClassName).toContain('ring-slate-950');
+    expect(selectedClassName).toContain('ring-offset-2');
+    expect(selectedClassName).toContain('shadow-[inset_0_0_0_2px_rgba(255,255,255,0.92)]');
+    expect(unselectedClassName).not.toContain('ring-slate-950');
   });
 
   it('detects lookup reset need and unsaved draft changes explicitly', () => {

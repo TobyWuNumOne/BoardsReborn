@@ -198,6 +198,24 @@ export const ADMIN_WORK_ORDER_CREATE_BOARD_COLOR_OPTIONS = [
   value: AdminWorkOrderBoardColorOption;
 }>;
 
+const BOARD_COLOR_BUTTON_BASE_CLASS =
+  'h-12 rounded-lg border px-3 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+
+const BOARD_COLOR_BUTTON_SELECTED_CLASS =
+  'border-slate-950 ring-2 ring-slate-950 ring-offset-2 ring-offset-background shadow-[inset_0_0_0_2px_rgba(255,255,255,0.92)]';
+
+export const getAdminWorkOrderCreateBoardColorButtonClassName = (
+  optionClassName: string,
+  isSelected: boolean,
+) =>
+  [
+    BOARD_COLOR_BUTTON_BASE_CLASS,
+    optionClassName,
+    isSelected ? BOARD_COLOR_BUTTON_SELECTED_CLASS : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
 const createFormSchema = z
   .object({
     boardBrand: z.string().max(80, '品牌不可超過 80 字。'),
