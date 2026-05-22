@@ -37,6 +37,7 @@ Nuxt 負責：
 - 建立工單。
 - 建立與重排列印任務。
 - 建立補印任務。
+- 提供 admin 列印中心與 Print Worker 管理頁。
 - 提供 Worker claim / succeed / fail API。
 - 接收 Worker 的列印結果回報。
 

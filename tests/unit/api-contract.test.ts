@@ -19,6 +19,9 @@ describe('API contract', () => {
     expect(apiContract).toContain('GET /api/admin/print-jobs');
     expect(apiContract).toContain('POST /api/admin/print-jobs');
     expect(apiContract).toContain('POST /api/admin/print-jobs/{id}/retry');
+    expect(apiContract).toContain('GET /api/admin/print-devices');
+    expect(apiContract).toContain('PATCH /api/admin/print-devices/{id}');
+    expect(apiContract).toContain('paperOrderNo');
     expect(apiContract).toContain('POST /api/print-worker/jobs/claim');
     expect(apiContract).toContain('POST /api/print-worker/jobs/{id}/succeed');
     expect(apiContract).toContain('POST /api/print-worker/jobs/{id}/fail');

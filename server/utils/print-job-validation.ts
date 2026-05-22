@@ -11,18 +11,36 @@ const PRINT_JOB_STATUSES = [
   'cancelled',
 ] as const;
 const PRINT_JOB_TYPES = ['work_order_label'] as const;
-const PRINT_JOB_LIST_ALLOWED_FIELDS = ['page', 'pageSize', 'sort', 'status', 'workOrderId'] as const;
+const PRINT_DEVICE_STATUSES = ['active', 'inactive', 'error'] as const;
+const PRINT_JOB_LIST_ALLOWED_FIELDS = [
+  'page',
+  'pageSize',
+  'sort',
+  'status',
+  'workOrderId',
+  'paperOrderNo',
+] as const;
 const ADMIN_PRINT_JOB_CREATE_ALLOWED_FIELDS = ['jobType', 'workOrderId'] as const;
+const PRINT_DEVICE_LIST_ALLOWED_FIELDS = ['page', 'pageSize', 'sort', 'status', 'q'] as const;
+const ADMIN_PRINT_DEVICE_UPDATE_ALLOWED_FIELDS = ['name', 'location', 'status'] as const;
 const WORKER_CLAIM_ALLOWED_FIELDS = ['deviceKey'] as const;
 const WORKER_FAIL_ALLOWED_FIELDS = ['deviceKey', 'error'] as const;
 const WORKER_SUCCEED_ALLOWED_FIELDS = ['deviceKey'] as const;
 
 export type PrintJobStatus = Database['public']['Enums']['print_job_status'];
 export type PrintJobType = Database['public']['Enums']['print_job_type'];
+export type PrintDeviceStatus = Database['public']['Enums']['print_device_status'];
 export type PrintJobListSortField = 'created_at' | 'updated_at';
+export type PrintDeviceListSortField =
+  | 'created_at'
+  | 'updated_at'
+  | 'last_seen_at'
+  | 'name'
+  | 'status';
 
 export interface PrintJobListQuery {
   filters: {
+    paperOrderNo?: string;
     status?: PrintJobStatus;
     workOrderId?: string;
   };
@@ -37,6 +55,25 @@ export interface PrintJobListQuery {
 export interface CreatePrintJobInput {
   jobType: PrintJobType;
   workOrderId: string;
+}
+
+export interface PrintDeviceListQuery {
+  filters: {
+    q?: string;
+    status?: PrintDeviceStatus;
+  };
+  page: number;
+  pageSize: number;
+  sort: {
+    direction: 'asc' | 'desc';
+    field: PrintDeviceListSortField;
+  };
+}
+
+export interface UpdatePrintDeviceInput {
+  location?: string | null;
+  name?: string;
+  status?: PrintDeviceStatus;
 }
 
 export interface ClaimPrintJobInput {
@@ -170,6 +207,34 @@ const parseRequiredString = (
   return trimmedValue;
 };
 
+const parseOptionalNullableString = (
+  value: unknown,
+  field: string,
+  errors: ErrorCollector,
+  options: { maxLength?: number } = {},
+) => {
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    addError(errors, field, 'Must be a string or null.');
+    return undefined;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  if (options.maxLength && trimmedValue.length > options.maxLength) {
+    addError(errors, field, `Must be at most ${options.maxLength} characters.`);
+  }
+
+  return trimmedValue;
+};
+
 export const parsePrintJobListQuery = (query: Record<string, unknown>): PrintJobListQuery => {
   const errors: ErrorCollector = {};
   const unknownFields = Object.keys(query).filter(
@@ -186,6 +251,7 @@ export const parsePrintJobListQuery = (query: Record<string, unknown>): PrintJob
   const sortValue = getSingleQueryValue(query, 'sort', errors);
   const statusValue = getSingleQueryValue(query, 'status', errors);
   const workOrderIdValue = getSingleQueryValue(query, 'workOrderId', errors);
+  const paperOrderNoValue = getSingleQueryValue(query, 'paperOrderNo', errors);
 
   const page = pageValue === undefined ? 1 : parsePositiveInteger(pageValue, 'page', errors);
   const pageSize =
@@ -196,6 +262,13 @@ export const parsePrintJobListQuery = (query: Record<string, unknown>): PrintJob
       : parseEnum(statusValue, 'status', PRINT_JOB_STATUSES, errors);
   const workOrderId =
     workOrderIdValue === undefined ? undefined : parseUuid(workOrderIdValue, 'workOrderId');
+  const paperOrderNo =
+    paperOrderNoValue === undefined
+      ? undefined
+      : parseRequiredString(paperOrderNoValue, 'paperOrderNo', errors, {
+          maxLength: 40,
+          minLength: 1,
+        });
 
   let sort: PrintJobListQuery['sort'] = {
     direction: 'desc',
@@ -229,6 +302,7 @@ export const parsePrintJobListQuery = (query: Record<string, unknown>): PrintJob
 
   return {
     filters: {
+      paperOrderNo,
       status,
       workOrderId,
     },
@@ -275,6 +349,151 @@ export const parseCreatePrintJobBody = (body: unknown): CreatePrintJobInput => {
     jobType: jobType as PrintJobType,
     workOrderId,
   };
+};
+
+export const parsePrintDeviceListQuery = (query: Record<string, unknown>): PrintDeviceListQuery => {
+  const errors: ErrorCollector = {};
+  const unknownFields = Object.keys(query).filter(
+    (field) =>
+      !PRINT_DEVICE_LIST_ALLOWED_FIELDS.includes(
+        field as (typeof PRINT_DEVICE_LIST_ALLOWED_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const pageValue = getSingleQueryValue(query, 'page', errors);
+  const pageSizeValue = getSingleQueryValue(query, 'pageSize', errors);
+  const sortValue = getSingleQueryValue(query, 'sort', errors);
+  const statusValue = getSingleQueryValue(query, 'status', errors);
+  const qValue = getSingleQueryValue(query, 'q', errors);
+
+  const page = pageValue === undefined ? 1 : parsePositiveInteger(pageValue, 'page', errors);
+  const pageSize =
+    pageSizeValue === undefined ? 20 : parsePositiveInteger(pageSizeValue, 'pageSize', errors);
+  const status =
+    statusValue === undefined
+      ? undefined
+      : parseEnum(statusValue, 'status', PRINT_DEVICE_STATUSES, errors);
+  const q =
+    qValue === undefined
+      ? undefined
+      : parseRequiredString(qValue, 'q', errors, {
+          maxLength: 120,
+          minLength: 1,
+        });
+
+  let sort: PrintDeviceListQuery['sort'] = {
+    direction: 'desc',
+    field: 'updated_at',
+  };
+
+  if (sortValue) {
+    const [field, direction, extra] = sortValue.split(':');
+    const normalizedField =
+      field === 'createdAt'
+        ? 'created_at'
+        : field === 'updatedAt'
+          ? 'updated_at'
+          : field === 'lastSeenAt'
+            ? 'last_seen_at'
+            : field === 'name' || field === 'status'
+              ? (field as PrintDeviceListSortField)
+              : undefined;
+
+    if (!normalizedField || extra || (direction !== 'asc' && direction !== 'desc')) {
+      addError(
+        errors,
+        'sort',
+        'Must be updatedAt:asc, updatedAt:desc, createdAt:asc, createdAt:desc, lastSeenAt:asc, lastSeenAt:desc, name:asc, name:desc, status:asc, or status:desc.',
+      );
+    } else {
+      sort = {
+        direction,
+        field: normalizedField,
+      };
+    }
+  }
+
+  if (pageSize !== undefined && pageSize > 100) {
+    addError(errors, 'pageSize', 'Must be between 1 and 100.');
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    filters: {
+      q,
+      status,
+    },
+    page: page as number,
+    pageSize: pageSize as number,
+    sort,
+  };
+};
+
+export const parseUpdatePrintDeviceBody = (body: unknown): UpdatePrintDeviceInput => {
+  const errors: ErrorCollector = {};
+
+  if (!isRecord(body)) {
+    throw new ValidationError({ body: ['Must be a JSON object.'] });
+  }
+
+  const unknownFields = Object.keys(body).filter(
+    (field) =>
+      !ADMIN_PRINT_DEVICE_UPDATE_ALLOWED_FIELDS.includes(
+        field as (typeof ADMIN_PRINT_DEVICE_UPDATE_ALLOWED_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const input: UpdatePrintDeviceInput = {};
+
+  if (hasOwn(body, 'name')) {
+    const name = parseRequiredString(body.name, 'name', errors, {
+      maxLength: 80,
+      minLength: 1,
+    });
+
+    if (name !== undefined) {
+      input.name = name;
+    }
+  }
+
+  if (hasOwn(body, 'location')) {
+    const location = parseOptionalNullableString(body.location, 'location', errors, {
+      maxLength: 120,
+    });
+
+    if (location !== undefined) {
+      input.location = location;
+    }
+  }
+
+  if (hasOwn(body, 'status')) {
+    const status = parseEnum(body.status, 'status', PRINT_DEVICE_STATUSES, errors);
+
+    if (status !== undefined) {
+      input.status = status;
+    }
+  }
+
+  if (
+    !hasOwn(body, 'name') &&
+    !hasOwn(body, 'location') &&
+    !hasOwn(body, 'status')
+  ) {
+    addError(errors, 'body', 'At least one updatable field is required.');
+  }
+
+  assertNoErrors(errors);
+
+  return input;
 };
 
 export const parseClaimPrintJobBody = (body: unknown): ClaimPrintJobInput => {

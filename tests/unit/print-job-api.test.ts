@@ -8,11 +8,17 @@ import {
   retryAdminPrintJob,
 } from '../../server/utils/print-jobs';
 import {
+  listAdminPrintDevices,
+  updateAdminPrintDevice,
+} from '../../server/utils/print-devices';
+import {
   parseClaimPrintJobBody,
   parseCreatePrintJobBody,
   parseFailPrintJobBody,
+  parsePrintDeviceListQuery,
   parsePrintJobListQuery,
   parseSucceedPrintJobBody,
+  parseUpdatePrintDeviceBody,
 } from '../../server/utils/print-job-validation';
 import { createAdminWorkOrder } from '../../server/utils/work-orders';
 import { ValidationError } from '../../server/utils/api-errors';
@@ -35,12 +41,14 @@ describe('print job validation', () => {
       parsePrintJobListQuery({
         page: '2',
         pageSize: '10',
+        paperOrderNo: 'BR-2026-0001',
         sort: 'updatedAt:asc',
         status: 'failed',
         workOrderId: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
       }),
     ).toEqual({
       filters: {
+        paperOrderNo: 'BR-2026-0001',
         status: 'failed',
         workOrderId: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
       },
@@ -57,6 +65,44 @@ describe('print job validation', () => {
       'unknown',
     );
     expectValidationField(() => parsePrintJobListQuery({ sort: 'status:desc' }), 'sort');
+  });
+
+  it('parses strict print device list and update payloads', () => {
+    expect(
+      parsePrintDeviceListQuery({
+        page: '2',
+        pageSize: '50',
+        q: 'front desk',
+        sort: 'lastSeenAt:desc',
+        status: 'active',
+      }),
+    ).toEqual({
+      filters: {
+        q: 'front desk',
+        status: 'active',
+      },
+      page: 2,
+      pageSize: 50,
+      sort: {
+        direction: 'desc',
+        field: 'last_seen_at',
+      },
+    });
+
+    expect(
+      parseUpdatePrintDeviceBody({
+        location: '',
+        name: 'Front Desk Pi',
+        status: 'inactive',
+      }),
+    ).toEqual({
+      location: null,
+      name: 'Front Desk Pi',
+      status: 'inactive',
+    });
+
+    expectValidationField(() => parsePrintDeviceListQuery({ unknown: 'nope' }), 'unknown');
+    expectValidationField(() => parseUpdatePrintDeviceBody({ deviceKey: 'nope' }), 'deviceKey');
   });
 
   it('parses strict admin create and worker bodies', () => {
@@ -326,6 +372,189 @@ describe('print job services', () => {
         name: 'retry_admin_print_job',
       },
     ]);
+  });
+
+  it('lists and updates admin print devices with nested state', async () => {
+    const calls: Array<{ payload?: Record<string, unknown>; type: string }> = [];
+    const client = {
+      from(table: string) {
+        if (table === 'admin_print_device_list') {
+          return {
+            eq() {
+              return this;
+            },
+            ilike() {
+              return this;
+            },
+            maybeSingle() {
+              calls.push({ type: 'get-device' });
+              return Promise.resolve({
+                data: {
+                  created_at: '2026-05-21T08:00:00.000Z',
+                  current_job_id: 'job-1',
+                  current_job_locked_at: '2026-05-22T09:28:00.000Z',
+                  current_job_paper_order_no: 'BR-2026-0001',
+                  current_job_status: 'locked',
+                  current_job_work_order_id: 'work-order-1',
+                  device_key: 'raspi-print-worker-01',
+                  id: 'device-1',
+                  last_seen_at: '2026-05-22T09:30:00.000Z',
+                  location: 'Front Desk',
+                  name: 'Front Desk Pi',
+                  recent_error_job_id: 'job-error-1',
+                  recent_error_message: 'Printer offline',
+                  recent_error_updated_at: '2026-05-22T08:12:00.000Z',
+                  status: 'inactive',
+                  updated_at: '2026-05-22T09:35:00.000Z',
+                },
+                error: null,
+              });
+            },
+            order() {
+              return this;
+            },
+            range() {
+              calls.push({ type: 'list-devices' });
+              return Promise.resolve({
+                count: 1,
+                data: [
+                  {
+                    created_at: '2026-05-21T08:00:00.000Z',
+                    current_job_id: null,
+                    current_job_locked_at: null,
+                    current_job_paper_order_no: null,
+                    current_job_status: null,
+                    current_job_work_order_id: null,
+                    device_key: 'raspi-print-worker-01',
+                    id: 'device-1',
+                    last_seen_at: '2026-05-22T09:30:00.000Z',
+                    location: 'Front Desk',
+                    name: 'Front Desk Pi',
+                    recent_error_job_id: 'job-error-1',
+                    recent_error_message: 'Printer offline',
+                    recent_error_updated_at: '2026-05-22T08:12:00.000Z',
+                    status: 'active',
+                    updated_at: '2026-05-22T09:35:00.000Z',
+                  },
+                ],
+                error: null,
+              });
+            },
+            select() {
+              return this;
+            },
+          };
+        }
+
+        if (table === 'print_devices') {
+          return {
+            eq() {
+              return this;
+            },
+            maybeSingle() {
+              calls.push({ type: 'update-select' });
+              return Promise.resolve({
+                data: {
+                  id: 'device-1',
+                },
+                error: null,
+              });
+            },
+            select() {
+              return this;
+            },
+            update(payload: Record<string, unknown>) {
+              calls.push({ payload, type: 'update-device' });
+              return this;
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      },
+    };
+
+    await expect(
+      listAdminPrintDevices(client as never, {
+        filters: {
+          q: 'front desk',
+          status: 'active',
+        },
+        page: 1,
+        pageSize: 20,
+        sort: {
+          direction: 'desc',
+          field: 'updated_at',
+        },
+      }),
+    ).resolves.toEqual({
+      data: [
+        {
+          createdAt: '2026-05-21T08:00:00.000Z',
+          currentJob: null,
+          deviceKey: 'raspi-print-worker-01',
+          id: 'device-1',
+          lastSeenAt: '2026-05-22T09:30:00.000Z',
+          location: 'Front Desk',
+          name: 'Front Desk Pi',
+          recentError: {
+            jobId: 'job-error-1',
+            message: 'Printer offline',
+            updatedAt: '2026-05-22T08:12:00.000Z',
+          },
+          status: 'active',
+          updatedAt: '2026-05-22T09:35:00.000Z',
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+      },
+    });
+
+    await expect(
+      updateAdminPrintDevice(client as never, 'device-1', {
+        location: null,
+        name: 'Front Desk Pi',
+        status: 'inactive',
+      }),
+    ).resolves.toEqual({
+      data: {
+        createdAt: '2026-05-21T08:00:00.000Z',
+        currentJob: {
+          id: 'job-1',
+          lockedAt: '2026-05-22T09:28:00.000Z',
+          paperOrderNo: 'BR-2026-0001',
+          status: 'locked',
+          workOrderId: 'work-order-1',
+        },
+        deviceKey: 'raspi-print-worker-01',
+        id: 'device-1',
+        lastSeenAt: '2026-05-22T09:30:00.000Z',
+        location: 'Front Desk',
+        name: 'Front Desk Pi',
+        recentError: {
+          jobId: 'job-error-1',
+          message: 'Printer offline',
+          updatedAt: '2026-05-22T08:12:00.000Z',
+        },
+        status: 'inactive',
+        updatedAt: '2026-05-22T09:35:00.000Z',
+      },
+    });
+
+    expect(calls).toContainEqual({
+      payload: {
+        location: null,
+        name: 'Front Desk Pi',
+        status: 'inactive',
+      },
+      type: 'update-device',
+    });
   });
 });
 

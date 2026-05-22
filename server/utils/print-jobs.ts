@@ -194,6 +194,10 @@ export const listAdminPrintJobs = async (
     request = request.eq('work_order_id', query.filters.workOrderId);
   }
 
+  if (query.filters.paperOrderNo) {
+    request = request.ilike('paper_order_no', `%${query.filters.paperOrderNo}%`);
+  }
+
   const { data, count, error } = await request
     .order(query.sort.field, { ascending: query.sort.direction === 'asc' })
     .range(from, to);

@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { ClipboardListIcon, HomeIcon, Layers3Icon, LogOutIcon } from 'lucide-vue-next';
+import {
+  ClipboardListIcon,
+  HomeIcon,
+  Layers3Icon,
+  LogOutIcon,
+  PrinterIcon,
+} from 'lucide-vue-next';
 
 const adminSession = useAdminSession();
 const route = useRoute();
@@ -25,6 +31,12 @@ const navItems = [
     label: '批量狀態',
     to: '/admin/work-orders/bulk-status',
     icon: Layers3Icon,
+    enabled: true,
+  },
+  {
+    label: '列印',
+    to: '/admin/printing',
+    icon: PrinterIcon,
     enabled: true,
   },
 ];
@@ -81,7 +93,7 @@ const handleLogout = async () => {
                 <SidebarMenuButton
                   v-if="item.enabled"
                   as-child
-                  :is-active="route.path === item.to"
+                  :is-active="route.path === item.to || route.path.startsWith(`${item.to}/`)"
                   :tooltip="item.label"
                 >
                   <NuxtLink :to="item.to">

@@ -196,6 +196,12 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 - unique `print_devices(device_key)`
 - `print_devices(status)`
 
+管理端 worker 列表使用 `admin_print_device_list` read model，額外投影：
+
+- 目前鎖住的 job（若有）
+- 最近錯誤訊息（若有）
+- `search_text`（由 `name` / `device_key` / `location` 組成，供 admin list search）
+
 ### `print_jobs`
 
 非同步標籤列印任務。工單主資料建立不依賴列印成功；server 會在建單成功後 best-effort 建立第一筆 `print_jobs`。補印時新增另一筆任務，不覆蓋舊任務。

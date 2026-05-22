@@ -29,6 +29,8 @@
 - `implemented` `GET /api/admin/print-jobs`：查詢列印任務列表。
 - `implemented` `POST /api/admin/print-jobs`：建立列印任務或補印任務。
 - `implemented` `POST /api/admin/print-jobs/{id}/retry`：將失敗任務重新排入佇列。
+- `implemented` `GET /api/admin/print-devices`：查詢 Print Worker / 裝置列表。
+- `implemented` `PATCH /api/admin/print-devices/{id}`：更新 Worker 名稱、位置或狀態。
 - `planned` `POST /api/admin/work-orders/{id}/photos`：上傳工單照片。
 - `planned` `GET /api/admin/work-orders/{id}/photos`：查詢工單照片。
 - `planned` `POST /api/admin/work-orders/{id}/quote-items`：新增報價項目。
@@ -657,6 +659,7 @@ Query：
 | ------------- | -------- | ------------------------------ |
 | `status`      | no       | `failed`                       |
 | `workOrderId` | no       | `4d4ff81c-2b1d-41aa-9fd2...`   |
+| `paperOrderNo`| no       | `BR-2026-0001`                 |
 | `page`        | no       | `1`                            |
 | `pageSize`    | no       | `20`                           |
 | `sort`        | no       | `createdAt:desc`               |
@@ -767,6 +770,106 @@ Response：
 - `lastError` 清空
 - `lockedAt` / `lockedBy` 清空
 - `attemptCount` 保留
+
+### `GET /api/admin/print-devices`
+
+查詢 Print Worker / 裝置列表。此 endpoint 使用管理端 Supabase Auth session。
+
+Query：
+
+| Field      | Required | Example          |
+| ---------- | -------- | ---------------- |
+| `status`   | no       | `active`         |
+| `q`        | no       | `front desk`     |
+| `page`     | no       | `1`              |
+| `pageSize` | no       | `20`             |
+| `sort`     | no       | `updatedAt:desc` |
+
+`q` 會比對 `name`、`deviceKey` 與 `location`。
+
+Response：
+
+```json
+{
+  "data": [
+    {
+      "id": "a0c7a5e9-6984-4f61-a983-2bc859e85834",
+      "name": "Front Desk Pi",
+      "deviceKey": "raspi-print-worker-01",
+      "location": "Front Desk",
+      "status": "active",
+      "lastSeenAt": "2026-05-22T09:30:00.000Z",
+      "createdAt": "2026-05-21T08:00:00.000Z",
+      "updatedAt": "2026-05-22T09:30:00.000Z",
+      "currentJob": {
+        "id": "f126a8fd-13f6-4797-a874-22a397ad25c7",
+        "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+        "paperOrderNo": "BR-2026-0001",
+        "status": "locked",
+        "lockedAt": "2026-05-22T09:28:00.000Z"
+      },
+      "recentError": {
+        "jobId": "0e5d2f4c-f9cc-4614-a54a-1824383dfe15",
+        "message": "Printer offline",
+        "updatedAt": "2026-05-22T08:12:00.000Z"
+      }
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+### `PATCH /api/admin/print-devices/{id}`
+
+更新 Print Worker 的名稱、位置或狀態。此 endpoint 使用管理端 Supabase Auth session。
+
+Request：
+
+```json
+{
+  "name": "Front Desk Pi",
+  "location": "Front Desk",
+  "status": "inactive"
+}
+```
+
+規則：
+
+- 至少需帶一個可更新欄位
+- 只允許更新 `name`、`location`、`status`
+- `location` 可送 `null` 清空
+- `status` 只允許 `active`、`inactive`、`error`
+- 不提供 `deviceKey`、token、secret 的管理能力
+
+Response：
+
+```json
+{
+  "data": {
+    "id": "a0c7a5e9-6984-4f61-a983-2bc859e85834",
+    "name": "Front Desk Pi",
+    "deviceKey": "raspi-print-worker-01",
+    "location": "Front Desk",
+    "status": "inactive",
+    "lastSeenAt": "2026-05-22T09:30:00.000Z",
+    "createdAt": "2026-05-21T08:00:00.000Z",
+    "updatedAt": "2026-05-22T09:35:00.000Z",
+    "currentJob": null,
+    "recentError": {
+      "jobId": "0e5d2f4c-f9cc-4614-a54a-1824383dfe15",
+      "message": "Printer offline",
+      "updatedAt": "2026-05-22T08:12:00.000Z"
+    }
+  }
+}
+```
 
 ## Print Worker Jobs
 

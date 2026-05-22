@@ -68,6 +68,31 @@ Admin UI / Work-order create
 - 補印與重印都必須新增新任務，不覆蓋舊任務。
 - `attempt_count` 在 worker fail 時累加；manual retry 只重排任務，不重置計數。
 
+## Admin UI v1
+
+第一版管理端已拆出兩個頁面：
+
+- `/admin/printing`：列印中心，先看列印任務列表、狀態與 retry
+- `/admin/printing/workers`：Worker 管理，查看裝置狀態、最後心跳、最近錯誤，並可做名稱 / 位置編輯與啟停
+
+這兩頁都只透過 Nitro `/api/admin/*` 存取資料，不直接從瀏覽器讀寫 Supabase table。
+
+### Worker 管理邊界
+
+v1 UI 允許：
+
+- 查看 `print_devices`
+- 更新 `name`
+- 更新 `location`
+- 將 `status` 設成 `active` / `inactive` / `error`
+
+v1 UI 不允許：
+
+- 建立 / 刪除 device
+- 重設 `device_key`
+- 重發 `PRINT_WORKER_TOKEN`
+- 從前端直接發送實體列印命令
+
 ## Worker API 規則
 
 Worker API 使用：
@@ -141,6 +166,6 @@ Server 端會同時驗證：
 - Python worker 實作
 - CUPS 設定
 - 實體標籤機整合
-- device CRUD UI
+- device create / delete / key rotation UI
 - 多店 routing policy
 - 依印表機 transport 細節擴充主系統狀態機
