@@ -176,23 +176,44 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 - Public customer lookup 走 server-side service-role client，不依賴 end-user session；資料庫需額外授予 `service_role` 對 `public.work_orders`、`public.customers`、`public.quote_items` 的 `select` 權限。
 - `service_role` 在本 repo 只用於 server-side lookup / backend job 類場景，不可暴露到 client runtime。
 
+### `print_devices`
+
+店內可用的本地列印 Worker / 裝置。
+
+| 欄位           | 型別                  | 規則                                  |
+| -------------- | --------------------- | ------------------------------------- |
+| `id`           | `uuid`                | Primary key                           |
+| `name`         | `varchar(80)`         | required                              |
+| `device_key`   | `varchar(120)`        | required，unique，Worker identity     |
+| `location`     | `varchar(120)`        | nullable                              |
+| `status`       | `print_device_status` | required，default `active`            |
+| `last_seen_at` | `timestamptz`         | nullable                              |
+| `created_at`   | `timestamptz`         | required，default `now()`             |
+| `updated_at`   | `timestamptz`         | required，default `now()`             |
+
+建議 index：
+
+- unique `print_devices(device_key)`
+- `print_devices(status)`
+
 ### `print_jobs`
 
-非同步標籤列印任務。工單主資料建立不依賴列印任務；列印由後續獨立流程建立 `print_jobs`，補印時新增另一筆任務，不覆蓋舊任務。
+非同步標籤列印任務。工單主資料建立不依賴列印成功；server 會在建單成功後 best-effort 建立第一筆 `print_jobs`。補印時新增另一筆任務，不覆蓋舊任務。
 
 | 欄位                 | 型別               | 規則                                                       |
 | -------------------- | ------------------ | ---------------------------------------------------------- |
 | `id`                 | `uuid`             | Primary key                                                |
 | `work_order_id`      | `uuid`             | required，references `work_orders.id`                      |
-| `paper_order_no`     | `varchar(50)`      | required，列印 payload 來源，應等於工單的 `paper_order_no` |
+| `print_device_id`    | `uuid`             | nullable，references `print_devices.id`                    |
+| `job_type`           | `print_job_type`   | required，第一版固定 `work_order_label`                    |
 | `status`             | `print_job_status` | required，見 `PrintJobStatus`                              |
-| `label_language`     | `label_language`   | required，見 `LabelLanguage`                               |
-| `label_payload`      | `jsonb`            | required，標籤內容，例如工單號、板種、顧客姓名             |
+| `payload`            | `jsonb`            | required，標籤內容，例如工單號、板種、顧客姓名             |
 | `attempt_count`      | `smallint`         | required，default `0`                                      |
+| `max_attempts`       | `smallint`         | required，default `3`                                      |
 | `last_error`         | `text`             | nullable，最後一次錯誤原因                                 |
-| `claimed_by`         | `varchar(80)`      | nullable，處理中的 agent 名稱                              |
-| `claimed_at`         | `timestamptz`      | nullable，agent 取走任務時間                               |
-| `printed_at`         | `timestamptz`      | nullable，agent 回報列印完成或印表機 ready 時間            |
+| `locked_by`          | `varchar(120)`     | nullable，最後一次 claim 該任務的 `device_key`             |
+| `locked_at`          | `timestamptz`      | nullable，Worker 取走任務時間                              |
+| `printed_at`         | `timestamptz`      | nullable，Worker 回報列印成功時間                          |
 | `created_by_user_id` | `uuid`             | nullable，references `auth.users.id`                       |
 | `created_at`         | `timestamptz`      | required，default `now()`                                  |
 | `updated_at`         | `timestamptz`      | required，default `now()`                                  |
@@ -201,8 +222,8 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 
 - `print_jobs(status, created_at asc)`
 - `print_jobs(work_order_id, created_at desc)`
-- `print_jobs(paper_order_no)`
-- `print_jobs(claimed_by, claimed_at)`
+- `print_jobs(print_device_id, created_at desc)`
+- partial index `print_jobs(locked_at)` where `status = 'locked'`
 
 ## Enum 定義
 
@@ -263,23 +284,26 @@ TypeScript 名稱：`QuoteItemType`
 
 TypeScript 名稱：`PrintJobStatus`
 
-- `QUEUED`
-- `PROCESSING`
-- `SENT_TO_PRINTER`
-- `PRINTER_READY_AFTER_SEND`
-- `FAILED_TRANSPORT`
-- `FAILED_PRINTER_STATUS`
-- `UNKNOWN`
-- `REPRINT_REQUESTED`
+- `pending`
+- `locked`
+- `printing`
+- `printed`
+- `failed`
+- `cancelled`
 
-### SQL enum：`label_language`
+### SQL enum：`print_device_status`
 
-TypeScript 名稱：`LabelLanguage`
+TypeScript 名稱：`PrintDeviceStatus`
 
-- `TSPL`
-- `ZPL`
-- `EPL`
-- `DPL`
+- `active`
+- `inactive`
+- `error`
+
+### SQL enum：`print_job_type`
+
+TypeScript 名稱：`PrintJobType`
+
+- `work_order_label`
 
 ## 關聯
 
@@ -287,6 +311,7 @@ TypeScript 名稱：`LabelLanguage`
 - `work_orders` 1:N `status_history`
 - `work_orders` 1:N `photos`
 - `work_orders` 1:N `quote_items`
+- `print_devices` 1:N `print_jobs`
 - `work_orders` 1:N `print_jobs`
 
 ## 狀態流轉規則
@@ -306,14 +331,15 @@ TypeScript 名稱：`LabelLanguage`
 
 ## 列印任務規則
 
-- 建立工單主資料時不要求同步建立 `print_jobs`；列印任務由後續獨立流程建立。
+- 建立工單主資料時不要求同步列印成功；server 應在建單成功後 best-effort 建立第一筆 `print_jobs`。
 - 補印時，應新增一筆 `print_jobs`，不可重用舊任務。
-- Print Agent 取走任務後，狀態更新為 `PROCESSING`，並設定 `claimed_by` 與 `claimed_at`。
-- 寫入 USB 成功只能表示 `SENT_TO_PRINTER`，不可直接等同貼紙已成功吐出。
-- 若印表機狀態回讀顯示 ready，可回報 `PRINTER_READY_AFTER_SEND`。
-- 若傳輸失敗，回報 `FAILED_TRANSPORT`。
-- 若傳輸成功但印表機狀態異常，回報 `FAILED_PRINTER_STATUS`。
-- 若無法確認實際列印狀態，回報 `UNKNOWN`。
+- Print Worker claim 任務時，狀態更新為 `locked`，並設定 `locked_by`、`locked_at`、`print_device_id`。
+- 若 `locked_at` 超過 reclaim timeout，其他 active Worker 可重新 claim 該任務。
+- Worker 回報成功時，狀態更新為 `printed`，並設定 `printed_at`。
+- Worker 回報失敗時，必須增加 `attempt_count` 與寫入 `last_error`。
+- 若 `attempt_count < max_attempts`，任務回到 `pending`。
+- 若 `attempt_count >= max_attempts`，任務改為 `failed`。
+- manual retry 只清空 lock / error 並回到 `pending`，不重置 `attempt_count`。
 
 ## 衍生營運標記
 

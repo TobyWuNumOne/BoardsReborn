@@ -95,14 +95,15 @@ Set these in `.env` or in the deployment platform environment. The repo is compa
 | `NUXT_PUBLIC_APP_URL`           | Public app URL; falls back to Vercel deployment URL if unset               | Yes          |
 | `ADMIN_EMAIL`                   | Used when seeding or manually creating the first admin account             | No           |
 | `ADMIN_PASSWORD`                | Used when seeding or manually creating the first admin account             | No           |
-| `PRINT_AGENT_TOKEN`             | Bearer token for Print Agent → Nuxt API calls                              | No           |
+| `PRINT_WORKER_TOKEN`            | Bearer token for Print Worker → Nuxt API calls                             | No           |
 
 Legacy aliases still supported:
 
 - `SUPABASE_KEY`
 - `SUPABASE_SECRET_KEY`
+- `PRINT_AGENT_TOKEN`
 
-`SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` must never be passed to the client, appear in public runtime config, or be written to logs. `PRINT_AGENT_TOKEN` must remain server-side and within the Print Agent environment only.
+`SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` must never be passed to the client, appear in public runtime config, or be written to logs. `PRINT_WORKER_TOKEN` must remain server-side and within the Print Worker environment only. `PRINT_AGENT_TOKEN` is kept only as a temporary legacy alias.
 
 ---
 
@@ -136,7 +137,7 @@ supabase db push
 - Seed source of truth: `supabase/seed.sql`
 - All new or modified tables, enums, RLS policies, and indexes require a migration.
 - Rebuild the local database with `supabase db reset` — this applies migrations and runs the seed.
-- Tests must cover: domain rules, API contract, status history append behavior, customer lookup restrictions, barcode bulk-update behavior, and print job status reporting.
+- Tests must cover: domain rules, API contract, status history append behavior, customer lookup restrictions, barcode bulk-update behavior, and print job create / claim / retry / success / fail behavior.
 
 ---
 

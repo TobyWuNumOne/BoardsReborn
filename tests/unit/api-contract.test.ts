@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const apiContract = readFileSync(resolve(process.cwd(), 'docs/api-contract.md'), 'utf8');
 
 describe('API contract', () => {
-  it('documents the admin session flow and keeps UUID work-order endpoints explicit', () => {
+  it('documents the admin session flow, print queue APIs, and keeps UUID work-order endpoints explicit', () => {
     expect(apiContract).toContain('GET /api/admin/dashboard');
     expect(apiContract).toContain('activeWorkOrdersByStatus');
     expect(apiContract).toContain('activeWorkOrdersByStatus.RECEIVED + DRYING + REPAIRING');
@@ -16,7 +16,16 @@ describe('API contract', () => {
     expect(apiContract).toContain('GET /api/admin/work-orders/{id}');
     expect(apiContract).toContain('PATCH /api/admin/work-orders/{id}');
     expect(apiContract).toContain('POST /api/admin/work-orders/{id}/status');
+    expect(apiContract).toContain('GET /api/admin/print-jobs');
+    expect(apiContract).toContain('POST /api/admin/print-jobs');
+    expect(apiContract).toContain('POST /api/admin/print-jobs/{id}/retry');
+    expect(apiContract).toContain('POST /api/print-worker/jobs/claim');
+    expect(apiContract).toContain('POST /api/print-worker/jobs/{id}/succeed');
+    expect(apiContract).toContain('POST /api/print-worker/jobs/{id}/fail');
     expect(apiContract).toContain('POST /api/public/work-orders/lookup');
     expect(apiContract).not.toContain('GET /api/public/work-orders/{paperOrderNo}?phoneLast4=1234');
+    expect(apiContract).not.toContain('GET /api/print-jobs/next');
+    expect(apiContract).not.toContain('POST /api/print-jobs/{id}/start');
+    expect(apiContract).not.toContain('POST /api/print-jobs/{id}/result');
   });
 });

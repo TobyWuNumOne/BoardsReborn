@@ -12,6 +12,7 @@ import {
 } from './work-order-validation';
 import type { ServiceRoleSupabaseClient, UserScopedSupabaseClient } from './supabase-clients';
 import type { Database, Json } from '../../types/database.types';
+import { enqueueInitialPrintJobForWorkOrder } from './print-jobs';
 
 type AdminWorkOrderListRow = Database['public']['Views']['admin_work_order_list']['Row'];
 type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
@@ -733,8 +734,11 @@ export const createAdminWorkOrder = async (
     throwMappedSupabaseError(error);
   }
 
+  const result = assertCreateResult(data);
+  await enqueueInitialPrintJobForWorkOrder(supabase, result.id, userId);
+
   return {
-    data: assertCreateResult(data),
+    data: result,
   };
 };
 

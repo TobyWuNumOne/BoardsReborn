@@ -142,18 +142,52 @@ export type Database = {
           },
         ];
       };
+      print_devices: {
+        Row: {
+          created_at: string;
+          device_key: string;
+          id: string;
+          last_seen_at: string | null;
+          location: string | null;
+          name: string;
+          status: Database['public']['Enums']['print_device_status'];
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          device_key: string;
+          id?: string;
+          last_seen_at?: string | null;
+          location?: string | null;
+          name: string;
+          status?: Database['public']['Enums']['print_device_status'];
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          device_key?: string;
+          id?: string;
+          last_seen_at?: string | null;
+          location?: string | null;
+          name?: string;
+          status?: Database['public']['Enums']['print_device_status'];
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       print_jobs: {
         Row: {
           attempt_count: number;
-          claimed_at: string | null;
-          claimed_by: string | null;
           created_at: string;
           created_by_user_id: string | null;
           id: string;
-          label_language: Database['public']['Enums']['label_language'];
-          label_payload: Json;
+          job_type: Database['public']['Enums']['print_job_type'];
           last_error: string | null;
-          paper_order_no: string;
+          locked_at: string | null;
+          locked_by: string | null;
+          max_attempts: number;
+          payload: Json;
+          print_device_id: string | null;
           printed_at: string | null;
           status: Database['public']['Enums']['print_job_status'];
           updated_at: string;
@@ -161,15 +195,16 @@ export type Database = {
         };
         Insert: {
           attempt_count?: number;
-          claimed_at?: string | null;
-          claimed_by?: string | null;
           created_at?: string;
           created_by_user_id?: string | null;
           id?: string;
-          label_language?: Database['public']['Enums']['label_language'];
-          label_payload: Json;
+          job_type?: Database['public']['Enums']['print_job_type'];
           last_error?: string | null;
-          paper_order_no: string;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          max_attempts?: number;
+          payload: Json;
+          print_device_id?: string | null;
           printed_at?: string | null;
           status?: Database['public']['Enums']['print_job_status'];
           updated_at?: string;
@@ -177,15 +212,16 @@ export type Database = {
         };
         Update: {
           attempt_count?: number;
-          claimed_at?: string | null;
-          claimed_by?: string | null;
           created_at?: string;
           created_by_user_id?: string | null;
           id?: string;
-          label_language?: Database['public']['Enums']['label_language'];
-          label_payload?: Json;
+          job_type?: Database['public']['Enums']['print_job_type'];
           last_error?: string | null;
-          paper_order_no?: string;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          max_attempts?: number;
+          payload?: Json;
+          print_device_id?: string | null;
           printed_at?: string | null;
           status?: Database['public']['Enums']['print_job_status'];
           updated_at?: string;
@@ -193,18 +229,18 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'print_jobs_work_order_paper_order_fk';
-            columns: ['work_order_id', 'paper_order_no'];
+            foreignKeyName: 'print_jobs_print_device_id_fkey';
+            columns: ['print_device_id'];
             isOneToOne: false;
-            referencedRelation: 'admin_work_order_list';
-            referencedColumns: ['id', 'paper_order_no'];
+            referencedRelation: 'print_devices';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'print_jobs_work_order_paper_order_fk';
-            columns: ['work_order_id', 'paper_order_no'];
+            foreignKeyName: 'print_jobs_work_order_id_fkey';
+            columns: ['work_order_id'];
             isOneToOne: false;
             referencedRelation: 'work_orders';
-            referencedColumns: ['id', 'paper_order_no'];
+            referencedColumns: ['id'];
           },
         ];
       };
@@ -398,6 +434,44 @@ export type Database = {
       };
     };
     Views: {
+      admin_print_job_list: {
+        Row: {
+          attempt_count: number | null;
+          board_length_class: Database['public']['Enums']['board_length_class'] | null;
+          board_type: Database['public']['Enums']['board_type'] | null;
+          created_at: string | null;
+          customer_name: string | null;
+          id: string | null;
+          job_type: Database['public']['Enums']['print_job_type'] | null;
+          last_error: string | null;
+          locked_at: string | null;
+          locked_by: string | null;
+          max_attempts: number | null;
+          paper_order_no: string | null;
+          print_device_id: string | null;
+          print_device_name: string | null;
+          printed_at: string | null;
+          status: Database['public']['Enums']['print_job_status'] | null;
+          updated_at: string | null;
+          work_order_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'print_jobs_print_device_id_fkey';
+            columns: ['print_device_id'];
+            isOneToOne: false;
+            referencedRelation: 'print_devices';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'print_jobs_work_order_id_fkey';
+            columns: ['work_order_id'];
+            isOneToOne: false;
+            referencedRelation: 'work_orders';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       admin_work_order_list: {
         Row: {
           board_color: string | null;
@@ -450,9 +524,46 @@ export type Database = {
         };
         Returns: Json;
       };
+      create_admin_print_job: {
+        Args: {
+          p_created_by_user_id?: string;
+          p_job_type?: Database['public']['Enums']['print_job_type'];
+          p_work_order_id: string;
+        };
+        Returns: Json;
+      };
+      claim_next_print_job: {
+        Args: {
+          p_device_key: string;
+          p_stale_lock_seconds?: number;
+        };
+        Returns: Json;
+      };
+      mark_print_job_failed: {
+        Args: {
+          p_device_key: string;
+          p_error: string;
+          p_print_job_id: string;
+        };
+        Returns: Json;
+      };
+      mark_print_job_succeeded: {
+        Args: {
+          p_device_key: string;
+          p_print_job_id: string;
+        };
+        Returns: Json;
+      };
       normalize_tw_mobile_phone: {
         Args: { raw_phone: string };
         Returns: string;
+      };
+      retry_admin_print_job: {
+        Args: {
+          p_print_job_id: string;
+          p_requested_by_user_id?: string;
+        };
+        Returns: Json;
       };
       transition_admin_work_order_status: {
         Args: {
@@ -469,18 +580,17 @@ export type Database = {
     Enums: {
       board_length_class: 'SHORTBOARD' | 'MID_LENGTH' | 'LONGBOARD';
       board_type: 'SURFBOARD' | 'SUP' | 'SNOWBOARD';
-      label_language: 'TSPL' | 'ZPL' | 'EPL' | 'DPL';
       photo_type: 'INTAKE' | 'IN_PROGRESS' | 'SPECIAL_CONDITION' | 'COMPLETION';
       photo_visibility: 'INTERNAL' | 'PUBLIC';
+      print_device_status: 'active' | 'inactive' | 'error';
+      print_job_type: 'work_order_label';
       print_job_status:
-        | 'QUEUED'
-        | 'PROCESSING'
-        | 'SENT_TO_PRINTER'
-        | 'PRINTER_READY_AFTER_SEND'
-        | 'FAILED_TRANSPORT'
-        | 'FAILED_PRINTER_STATUS'
-        | 'UNKNOWN'
-        | 'REPRINT_REQUESTED';
+        | 'pending'
+        | 'locked'
+        | 'printing'
+        | 'printed'
+        | 'failed'
+        | 'cancelled';
       quote_item_type: 'INITIAL' | 'ADDITIONAL' | 'ADJUSTMENT';
       work_order_status:
         | 'RECEIVED'
@@ -1164,19 +1274,11 @@ export const Constants = {
     Enums: {
       board_length_class: ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'],
       board_type: ['SURFBOARD', 'SUP', 'SNOWBOARD'],
-      label_language: ['TSPL', 'ZPL', 'EPL', 'DPL'],
       photo_type: ['INTAKE', 'IN_PROGRESS', 'SPECIAL_CONDITION', 'COMPLETION'],
       photo_visibility: ['INTERNAL', 'PUBLIC'],
-      print_job_status: [
-        'QUEUED',
-        'PROCESSING',
-        'SENT_TO_PRINTER',
-        'PRINTER_READY_AFTER_SEND',
-        'FAILED_TRANSPORT',
-        'FAILED_PRINTER_STATUS',
-        'UNKNOWN',
-        'REPRINT_REQUESTED',
-      ],
+      print_device_status: ['active', 'inactive', 'error'],
+      print_job_type: ['work_order_label'],
+      print_job_status: ['pending', 'locked', 'printing', 'printed', 'failed', 'cancelled'],
       quote_item_type: ['INITIAL', 'ADDITIONAL', 'ADJUSTMENT'],
       work_order_status: [
         'RECEIVED',

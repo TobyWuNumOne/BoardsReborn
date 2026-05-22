@@ -8,7 +8,7 @@
 - 照片上傳使用 `multipart/form-data`。
 - 時間格式使用 ISO 8601。
 - 日期格式使用 `YYYY-MM-DD`。
-- enum value 使用大寫字串，需與 [domain model](domain-model.md) 一致。
+- enum value 需與 [domain model](domain-model.md) 一致；`work_order_status` 為大寫，print queue enums 為小寫。
 
 ## API Index
 
@@ -26,7 +26,9 @@
 - `implemented` `PATCH /api/admin/work-orders/{id}`：更新非狀態欄位。
 - `implemented` `POST /api/admin/work-orders/{id}/status`：單筆狀態更新。
 - `implemented` `POST /api/admin/work-orders/bulk-status`：批量狀態更新。
-- `planned` `POST /api/admin/work-orders/{id}/print-jobs`：建立補印任務。
+- `implemented` `GET /api/admin/print-jobs`：查詢列印任務列表。
+- `implemented` `POST /api/admin/print-jobs`：建立列印任務或補印任務。
+- `implemented` `POST /api/admin/print-jobs/{id}/retry`：將失敗任務重新排入佇列。
 - `planned` `POST /api/admin/work-orders/{id}/photos`：上傳工單照片。
 - `planned` `GET /api/admin/work-orders/{id}/photos`：查詢工單照片。
 - `planned` `POST /api/admin/work-orders/{id}/quote-items`：新增報價項目。
@@ -36,12 +38,11 @@
 
 - `implemented` `POST /api/public/work-orders/lookup`：顧客查詢工單進度。
 
-### Print Agent API
+### Print Worker API
 
-- `planned` `GET /api/print-jobs/next`：取得下一筆待印任務。
-- `planned` `POST /api/print-jobs/{id}/start`：Print Agent 開始處理任務。
-- `planned` `POST /api/print-jobs/{id}/result`：Print Agent 回報列印結果。
-- `planned` `POST /api/print-jobs/{id}/retry`：重試列印任務。
+- `implemented` `POST /api/print-worker/jobs/claim`：claim 下一筆待印任務。
+- `implemented` `POST /api/print-worker/jobs/{id}/succeed`：Worker 回報列印成功。
+- `implemented` `POST /api/print-worker/jobs/{id}/fail`：Worker 回報列印失敗。
 
 ## Authentication
 
@@ -53,17 +54,17 @@
 已登入但沒有對應 `admin_profiles` row 時回傳 `403`。
 管理端 gate 只支援 Supabase cookie session；第一版不支援 Bearer admin auth。
 
-### Print Agent API
+### Print Worker API
 
-Print Agent API 使用 shared token，不使用 Supabase browser session。
+Print Worker API 使用 shared token，不使用 Supabase browser session。
 
-所有 `/api/print-jobs/*` endpoint 都必須帶：
+所有 `/api/print-worker/*` endpoint 都必須帶：
 
 ```text
-Authorization: Bearer <PRINT_AGENT_TOKEN>
+Authorization: Bearer <PRINT_WORKER_TOKEN>
 ```
 
-token 無效時回傳 `401`。Print Agent token 只能存在 server-side 與 agent 環境，不可傳到瀏覽器。
+request body 另外必須帶 `deviceKey`。token 無效時回傳 `401`。device 不存在時回傳 `401`；device 存在但 `status != active` 時回傳 `403`。Print Worker token 只能存在 server-side 與 Worker 環境，不可傳到瀏覽器。
 
 ### 顧客查詢 API
 
@@ -413,7 +414,7 @@ Response：`201`
 }
 ```
 
-建立工單不建立 `print_jobs`。列印任務由後續獨立流程建立；列印流程失敗不可影響工單主資料建立成功。
+建立工單成功後，server 會 best-effort 建立第一筆 `print_jobs`。若 enqueue 失敗，工單仍然建立成功；列印流程失敗不可影響工單主資料建立成功。
 
 ### `GET /api/admin/work-orders/{id}`
 
@@ -646,16 +647,75 @@ Response：`200`
 - 若途中發生未知系統錯誤，立即停止後續項目處理，整體回 `500 INTERNAL_SERVER_ERROR`。
 - 在未知錯誤發生前已成功完成的 individual updates 可能已經 committed，不保證整批 rollback。
 
-### `POST /api/admin/work-orders/{id}/print-jobs`
+### `GET /api/admin/print-jobs`
 
-建立補印任務。此 endpoint 使用管理端 Supabase Auth session。
+查詢列印任務列表。此 endpoint 使用管理端 Supabase Auth session。
+
+Query：
+
+| Field         | Required | Example                        |
+| ------------- | -------- | ------------------------------ |
+| `status`      | no       | `failed`                       |
+| `workOrderId` | no       | `4d4ff81c-2b1d-41aa-9fd2...`   |
+| `page`        | no       | `1`                            |
+| `pageSize`    | no       | `20`                           |
+| `sort`        | no       | `createdAt:desc`               |
+
+Response：
+
+```json
+{
+  "data": [
+    {
+      "id": "f126a8fd-13f6-4797-a874-22a397ad25c7",
+      "jobType": "work_order_label",
+      "status": "failed",
+      "attemptCount": 3,
+      "maxAttempts": 3,
+      "lastError": "Printer offline",
+      "lockedAt": null,
+      "lockedBy": null,
+      "printedAt": null,
+      "createdAt": "2026-05-21T10:00:00.000Z",
+      "updatedAt": "2026-05-21T10:04:00.000Z",
+      "workOrder": {
+        "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+        "paperOrderNo": "BR-2026-0001"
+      },
+      "customer": {
+        "name": "王小明"
+      },
+      "board": {
+        "boardType": "SURFBOARD",
+        "boardLengthClass": "SHORTBOARD"
+      },
+      "device": {
+        "id": "a0c7a5e9-6984-4f61-a983-2bc859e85834",
+        "name": "Front Desk Pi"
+      }
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+### `POST /api/admin/print-jobs`
+
+手動建立列印任務或補印任務。此 endpoint 使用管理端 Supabase Auth session。
 
 Request：
 
 ```json
 {
-  "labelLanguage": "TSPL",
-  "reason": "標籤破損，重新列印"
+  "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+  "jobType": "work_order_label"
 }
 ```
 
@@ -666,29 +726,62 @@ Response：`201`
   "data": {
     "id": "f126a8fd-13f6-4797-a874-22a397ad25c7",
     "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-    "paperOrderNo": "BR-2026-0001",
-    "status": "QUEUED",
-    "labelLanguage": "TSPL",
+    "jobType": "work_order_label",
+    "status": "pending",
     "attemptCount": 0,
-    "createdAt": "2026-04-20T10:00:00.000Z"
+    "maxAttempts": 3,
+    "createdAt": "2026-05-21T10:00:00.000Z",
+    "updatedAt": "2026-05-21T10:00:00.000Z"
   }
 }
 ```
 
-補印必須新增 `print_jobs` 記錄，不可覆蓋舊列印任務。
+補印必須新增新的 `print_jobs` 記錄，不可覆蓋舊任務。
 
-## Print Agent Jobs
+### `POST /api/admin/print-jobs/{id}/retry`
 
-以下 endpoint 供固定桌機或樹莓派上的 Python Print Agent 使用，皆需要 `Authorization: Bearer <PRINT_AGENT_TOKEN>`。
+將失敗任務重新排入佇列。此 endpoint 使用管理端 Supabase Auth session。
 
-### `GET /api/print-jobs/next`
+Request：空 body
 
-取得下一筆待印任務。Server 應優先回傳 `QUEUED` 或 `REPRINT_REQUESTED` 狀態中最早建立的任務。
+Response：
 
-Query examples：
+```json
+{
+  "data": {
+    "id": "f126a8fd-13f6-4797-a874-22a397ad25c7",
+    "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+    "jobType": "work_order_label",
+    "status": "pending",
+    "attemptCount": 3,
+    "maxAttempts": 3,
+    "updatedAt": "2026-05-21T10:05:00.000Z"
+  }
+}
+```
 
-```text
-/api/print-jobs/next?agentId=raspi-frontdesk-01
+規則：
+
+- 只能 retry `failed`
+- retry 後 `status` 回到 `pending`
+- `lastError` 清空
+- `lockedAt` / `lockedBy` 清空
+- `attemptCount` 保留
+
+## Print Worker Jobs
+
+以下 endpoint 供固定桌機或樹莓派上的 Python Print Worker 使用，皆需要 `Authorization: Bearer <PRINT_WORKER_TOKEN>`。
+
+### `POST /api/print-worker/jobs/claim`
+
+Claim 下一筆待印任務。
+
+Request：
+
+```json
+{
+  "deviceKey": "raspi-print-worker-01"
+}
 ```
 
 Response：
@@ -696,19 +789,22 @@ Response：
 ```json
 {
   "data": {
-    "id": "a347e6ea-a025-48ef-9ca1-bec9d63a5676",
-    "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-    "paperOrderNo": "BR-2026-0001",
-    "status": "QUEUED",
-    "labelLanguage": "TSPL",
-    "labelPayload": {
-      "paperOrderNo": "BR-2026-0001",
-      "boardType": "SURFBOARD",
-      "customerName": "王小明",
-      "barcodeValue": "BR-2026-0001"
-    },
-    "attemptCount": 0,
-    "createdAt": "2026-04-20T08:00:00.000Z"
+    "job": {
+      "id": "a347e6ea-a025-48ef-9ca1-bec9d63a5676",
+      "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+      "jobType": "work_order_label",
+      "payload": {
+        "paperOrderNo": "BR-2026-0001",
+        "customerName": "王小明",
+        "boardType": "SURFBOARD",
+        "boardLengthClass": "SHORTBOARD",
+        "createdAt": "2026-05-21T09:50:00.000Z"
+      },
+      "attemptCount": 0,
+      "maxAttempts": 3,
+      "lockedAt": "2026-05-21T10:01:00.000Z",
+      "createdAt": "2026-05-21T10:00:00.000Z"
+    }
   }
 }
 ```
@@ -717,48 +813,29 @@ Response：
 
 ```json
 {
-  "data": null
-}
-```
-
-### `POST /api/print-jobs/{id}/start`
-
-標記任務進入處理中。
-
-Request：
-
-```json
-{
-  "agentId": "raspi-frontdesk-01"
-}
-```
-
-Response：
-
-```json
-{
   "data": {
-    "id": "a347e6ea-a025-48ef-9ca1-bec9d63a5676",
-    "status": "PROCESSING",
-    "claimedBy": "raspi-frontdesk-01",
-    "claimedAt": "2026-04-20T08:01:00.000Z",
-    "attemptCount": 1
+    "job": null
   }
 }
 ```
 
-### `POST /api/print-jobs/{id}/result`
+規則：
 
-回報列印結果。
+- 只允許 `active` device claim
+- server 優先回傳最早建立的 `pending` 任務
+- 若無 `pending`，可 reclaim `locked_at` 超過 5 分鐘的 stale lock
+- claim 必須是原子操作，避免多個 worker 同時取走同一筆
+- claim 成功後寫入 `status = locked`、`lockedAt`、`lockedBy`、`printDeviceId`
+
+### `POST /api/print-worker/jobs/{id}/succeed`
+
+Worker 回報列印成功。
 
 Request：
 
 ```json
 {
-  "agentId": "raspi-frontdesk-01",
-  "status": "SENT_TO_PRINTER",
-  "printerStatusRaw": "USB_WRITE_OK",
-  "message": "TSPL command sent to USB printer."
+  "deviceKey": "raspi-print-worker-01"
 }
 ```
 
@@ -768,26 +845,24 @@ Response：
 {
   "data": {
     "id": "a347e6ea-a025-48ef-9ca1-bec9d63a5676",
-    "status": "SENT_TO_PRINTER",
-    "printedAt": null,
-    "lastError": null,
-    "updatedAt": "2026-04-20T08:02:00.000Z"
+    "status": "printed",
+    "attemptCount": 0,
+    "printedAt": "2026-05-21T10:02:00.000Z",
+    "updatedAt": "2026-05-21T10:02:00.000Z"
   }
 }
 ```
 
-`status` 必須是 `SENT_TO_PRINTER`、`PRINTER_READY_AFTER_SEND`、`FAILED_TRANSPORT`、`FAILED_PRINTER_STATUS` 或 `UNKNOWN`。寫入 USB 成功只能回報 `SENT_TO_PRINTER`，不可直接等同貼紙已成功吐出。
+### `POST /api/print-worker/jobs/{id}/fail`
 
-### `POST /api/print-jobs/{id}/retry`
-
-將失敗或未知狀態的任務重新排入待印。
+Worker 回報列印失敗。
 
 Request：
 
 ```json
 {
-  "agentId": "raspi-frontdesk-01",
-  "reason": "重新排入待印"
+  "deviceKey": "raspi-print-worker-01",
+  "error": "Printer offline"
 }
 ```
 
@@ -797,12 +872,21 @@ Response：
 {
   "data": {
     "id": "a347e6ea-a025-48ef-9ca1-bec9d63a5676",
-    "status": "REPRINT_REQUESTED",
+    "status": "pending",
     "attemptCount": 1,
-    "updatedAt": "2026-04-20T08:05:00.000Z"
+    "maxAttempts": 3,
+    "lastError": "Printer offline",
+    "updatedAt": "2026-05-21T10:03:00.000Z"
   }
 }
 ```
+
+規則：
+
+- `succeed` / `fail` 都只允許目前持有 lock 的同一台 device 回報
+- `fail` 時 `attemptCount += 1`
+- 若 `attemptCount < maxAttempts`，job 回到 `pending`
+- 若 `attemptCount >= maxAttempts`，job 改成 `failed`
 
 ## Admin Photos
 
