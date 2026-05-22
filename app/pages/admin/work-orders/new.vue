@@ -26,6 +26,8 @@ import {
   getTaipeiTodayDateString,
   hasAdminWorkOrderCreateUnsavedChanges,
   normalizeAdminWorkOrderCreateFormState,
+  resolveAdminCustomerLookupCandidates,
+  shouldAutoLookupCustomerPhone,
   shouldResetCustomerLookupResolution,
 } from '~/utils/admin-work-order-create';
 import {
@@ -72,6 +74,10 @@ const getRequestFetch = (): RequestFetch => {
 
   return $fetch as unknown as RequestFetch;
 };
+
+const AUTO_LOOKUP_DELAY_MS = 250;
+let autoLookupTimer: number | null = null;
+let lookupRequestToken = 0;
 
 const form = reactive(createAdminWorkOrderCreateInitialFormState());
 const baselineSnapshot = shallowRef(normalizeAdminWorkOrderCreateFormState(form));
@@ -180,10 +186,21 @@ const clearFieldError = (field: string) => {
   );
 };
 
+const clearAutoLookupTimer = () => {
+  if (autoLookupTimer === null) {
+    return;
+  }
+
+  clearTimeout(autoLookupTimer);
+  autoLookupTimer = null;
+};
+
 const clearLookupState = (options: { preserveCustomerName?: boolean } = {}) => {
   const preserveCustomerName = options.preserveCustomerName ?? true;
   const draftName = preserveCustomerName ? form.customerName : '';
 
+  lookupRequestToken += 1;
+  clearAutoLookupTimer();
   form.customerModeDecision = 'unresolved';
   form.selectedCustomerId = '';
   form.customerName = draftName;
@@ -196,6 +213,8 @@ const clearLookupState = (options: { preserveCustomerName?: boolean } = {}) => {
 const resetForm = () => {
   const nextState = createAdminWorkOrderCreateInitialFormState(getTaipeiTodayDateString());
 
+  lookupRequestToken += 1;
+  clearAutoLookupTimer();
   Object.assign(form, nextState);
   clientFieldErrors.value = {};
   lookupApiError.value = null;
@@ -261,7 +280,22 @@ const selectExistingCustomer = (candidate: AdminCustomerLookupCandidate) => {
   clearFieldError('customerPhone');
 };
 
-const lookupCustomers = async () => {
+const scheduleAutoLookup = () => {
+  if (!import.meta.client) {
+    return;
+  }
+
+  clearAutoLookupTimer();
+  autoLookupTimer = window.setTimeout(() => {
+    autoLookupTimer = null;
+    void lookupCustomers({ trigger: 'auto' });
+  }, AUTO_LOOKUP_DELAY_MS);
+};
+
+const lookupCustomers = async (options: { trigger?: 'auto' | 'manual' } = {}) => {
+  const trigger = options.trigger ?? 'manual';
+
+  clearAutoLookupTimer();
   clearFieldError('customerPhone');
   clearFieldError('selectedCustomerId');
   lookupApiError.value = null;
@@ -276,6 +310,14 @@ const lookupCustomers = async () => {
     return;
   }
 
+  if (
+    trigger === 'auto' &&
+    (lookupStatus.value === 'loading' || normalizedPhone === lastLookupPhone.value)
+  ) {
+    return;
+  }
+
+  const requestToken = ++lookupRequestToken;
   lookupStatus.value = 'loading';
 
   try {
@@ -283,26 +325,31 @@ const lookupCustomers = async () => {
       '/api/admin/customers/lookup',
       {
         query: {
-          phone: form.customerPhone,
+          phone: normalizedPhone,
         },
       },
     );
 
-    lookupResults.value = response.data;
-    lastLookupPhone.value = normalizedPhone;
-    lookupApiError.value = null;
-
-    if (response.data.length === 0) {
-      lookupStatus.value = 'empty';
-      form.customerModeDecision = 'create';
-      form.selectedCustomerId = '';
+    if (requestToken !== lookupRequestToken) {
       return;
     }
 
-    lookupStatus.value = 'success';
-    form.customerModeDecision = 'unresolved';
-    form.selectedCustomerId = '';
+    lookupResults.value = response.data;
+    lastLookupPhone.value = normalizedPhone;
+    lookupApiError.value = null;
+    clearFieldError('customerName');
+    clearFieldError('selectedCustomerId');
+
+    const resolution = resolveAdminCustomerLookupCandidates(response.data);
+
+    lookupStatus.value = response.data.length === 0 ? 'empty' : 'success';
+    form.customerModeDecision = resolution.customerModeDecision;
+    form.selectedCustomerId = resolution.selectedCustomerId;
   } catch (error) {
+    if (requestToken !== lookupRequestToken) {
+      return;
+    }
+
     if (await maybeHandleAdminAuthRedirect(error)) {
       return;
     }
@@ -496,16 +543,23 @@ watch(
     }
 
     clearFieldError('customerPhone');
+    clearAutoLookupTimer();
 
     if (lastLookupPhone.value === null) {
+      if (shouldAutoLookupCustomerPhone(lastLookupPhone.value, nextValue)) {
+        scheduleAutoLookup();
+      }
+
       return;
     }
 
-    if (!shouldResetCustomerLookupResolution(lastLookupPhone.value, nextValue)) {
-      return;
+    if (shouldResetCustomerLookupResolution(lastLookupPhone.value, nextValue)) {
+      clearLookupState({ preserveCustomerName: true });
     }
 
-    clearLookupState({ preserveCustomerName: true });
+    if (shouldAutoLookupCustomerPhone(lastLookupPhone.value, nextValue)) {
+      scheduleAutoLookup();
+    }
   },
 );
 
@@ -544,6 +598,11 @@ onBeforeRouteLeave(() => {
   }
 
   return true;
+});
+
+onBeforeUnmount(() => {
+  lookupRequestToken += 1;
+  clearAutoLookupTimer();
 });
 
 if (import.meta.client) {
@@ -647,7 +706,9 @@ if (import.meta.client) {
                 {{ isLookupLoading ? '查詢中' : '查詢顧客' }}
               </Button>
             </div>
-            <FieldDescription>先查既有顧客；查無資料時再建立新顧客。</FieldDescription>
+            <FieldDescription>
+              輸入完整手機後會自動查詢；查無資料時再建立新顧客。
+            </FieldDescription>
             <FieldError :errors="mergedFieldErrors.customerPhone" />
           </Field>
 

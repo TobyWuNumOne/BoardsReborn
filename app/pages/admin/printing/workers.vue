@@ -12,6 +12,8 @@ import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
 import type {
   AdminPrintDeviceListItem,
   AdminPrintDeviceListResponse,
+  AdminPrintDeviceStatusValue,
+  AdminPrintDeviceCreatePayload,
   AdminPrintDeviceUpdatePayload,
 } from '~/utils/admin-printing';
 import {
@@ -47,26 +49,44 @@ const getRequestFetch = (): RequestFetch => {
 const editForm = reactive<{
   location: string;
   name: string;
-  status: (typeof ADMIN_PRINT_DEVICE_STATUS_OPTIONS)[number]['value'];
+  status: AdminPrintDeviceStatusValue;
 }>({
   location: '',
   name: '',
   status: 'active',
 });
+const createDialogOpen = ref(false);
+const createForm = reactive<{
+  deviceKey: string;
+  location: string;
+  name: string;
+  status: AdminPrintDeviceStatusValue;
+}>({
+  deviceKey: '',
+  location: '',
+  name: '',
+  status: 'active',
+});
 const editingDeviceId = ref<string | null>(null);
+const createApiError = ref<ApiErrorEnvelope | null>(null);
+const creatingDevice = ref(false);
+const deletingDeviceIds = ref<string[]>([]);
 const savingDeviceId = ref<string | null>(null);
 const togglingDeviceIds = ref<string[]>([]);
-const deviceStatusValues = new Set<(typeof ADMIN_PRINT_DEVICE_STATUS_OPTIONS)[number]['value']>(
+const deviceStatusValues = new Set<AdminPrintDeviceStatusValue>(
   ADMIN_PRINT_DEVICE_STATUS_OPTIONS.map((option) => option.value),
 );
 const lastSuccessfulResponse = shallowRef<AdminPrintDeviceListResponse | null>(null);
 
 const handleEditStatusChange = (value: unknown) => {
-  if (
-    typeof value === 'string' &&
-    deviceStatusValues.has(value as (typeof ADMIN_PRINT_DEVICE_STATUS_OPTIONS)[number]['value'])
-  ) {
-    editForm.status = value as (typeof ADMIN_PRINT_DEVICE_STATUS_OPTIONS)[number]['value'];
+  if (typeof value === 'string' && deviceStatusValues.has(value as AdminPrintDeviceStatusValue)) {
+    editForm.status = value as AdminPrintDeviceStatusValue;
+  }
+};
+
+const handleCreateStatusChange = (value: unknown) => {
+  if (typeof value === 'string' && deviceStatusValues.has(value as AdminPrintDeviceStatusValue)) {
+    createForm.status = value as AdminPrintDeviceStatusValue;
   }
 };
 
@@ -122,6 +142,9 @@ const response = computed(
 );
 
 const apiError = computed<ApiErrorEnvelope | null>(() => extractApiErrorEnvelope(error.value));
+const createFieldErrors = computed<Record<string, string[]>>(
+  () => createApiError.value?.error.fieldErrors ?? {},
+);
 const isInitialLoading = computed(
   () => fetchStatus.value === 'pending' && !lastSuccessfulResponse.value,
 );
@@ -138,6 +161,7 @@ const isEmpty = computed(
     !hasBlockingError.value,
 );
 const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 台 worker`);
+const canDeleteDevice = (item: AdminPrintDeviceListItem) => !item.currentJob;
 
 const startEditingDevice = (item: AdminPrintDeviceListItem) => {
   editingDeviceId.value = item.id;
@@ -151,6 +175,22 @@ const cancelEditing = () => {
   editForm.name = '';
   editForm.location = '';
   editForm.status = 'active';
+};
+
+const resetCreateForm = () => {
+  createForm.deviceKey = '';
+  createForm.location = '';
+  createForm.name = '';
+  createForm.status = 'active';
+  createApiError.value = null;
+};
+
+const handleCreateDialogOpenChange = (open: boolean) => {
+  createDialogOpen.value = open;
+
+  if (!open && !creatingDevice.value) {
+    resetCreateForm();
+  }
 };
 
 const handleAuthRedirect = async (error: unknown) => {
@@ -177,6 +217,54 @@ const patchPrintDevice = async (id: string, payload: AdminPrintDeviceUpdatePaylo
     body: payload,
     method: 'PATCH',
   });
+};
+
+const createPrintDevice = async (payload: AdminPrintDeviceCreatePayload) => {
+  return await getRequestFetch()<{
+    data: AdminPrintDeviceListItem;
+  }>('/api/admin/print-devices', {
+    body: payload,
+    method: 'POST',
+  });
+};
+
+const deletePrintDevice = async (id: string) => {
+  return await getRequestFetch()<{
+    data: {
+      id: string;
+    };
+  }>(`/api/admin/print-devices/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+const saveNewDevice = async () => {
+  creatingDevice.value = true;
+  createApiError.value = null;
+
+  try {
+    await createPrintDevice({
+      deviceKey: createForm.deviceKey.trim(),
+      location: createForm.location.trim() || null,
+      name: createForm.name.trim(),
+      status: createForm.status,
+    });
+    toast.success('Print Worker 已新增。');
+    createDialogOpen.value = false;
+    resetCreateForm();
+    await refresh();
+  } catch (error) {
+    if (await handleAuthRedirect(error)) {
+      return;
+    }
+
+    createApiError.value = extractApiErrorEnvelope(error);
+    toast.error('新增 Print Worker 失敗。', {
+      description: createApiError.value?.error.message ?? '請稍後再試一次。',
+    });
+  } finally {
+    creatingDevice.value = false;
+  }
 };
 
 const saveEditingDevice = async () => {
@@ -238,7 +326,41 @@ const toggleDeviceStatus = async (item: AdminPrintDeviceListItem) => {
   }
 };
 
+const handleDeleteDevice = async (item: AdminPrintDeviceListItem) => {
+  if (deletingDeviceIds.value.includes(item.id) || !canDeleteDevice(item)) {
+    return;
+  }
+
+  if (!window.confirm(`確定要刪除 Worker「${item.name}」嗎？`)) {
+    return;
+  }
+
+  deletingDeviceIds.value = [...deletingDeviceIds.value, item.id];
+
+  try {
+    await deletePrintDevice(item.id);
+
+    if (editingDeviceId.value === item.id) {
+      cancelEditing();
+    }
+
+    toast.success('Print Worker 已刪除。');
+    await refresh();
+  } catch (error) {
+    if (await handleAuthRedirect(error)) {
+      return;
+    }
+
+    toast.error('刪除 Print Worker 失敗。', {
+      description: extractApiErrorEnvelope(error)?.error.message ?? '請稍後再試一次。',
+    });
+  } finally {
+    deletingDeviceIds.value = deletingDeviceIds.value.filter((deviceId) => deviceId !== item.id);
+  }
+};
+
 const isToggling = (id: string) => togglingDeviceIds.value.includes(id);
+const isDeleting = (id: string) => deletingDeviceIds.value.includes(id);
 const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDeviceStatusTone(status);
 </script>
 
@@ -254,9 +376,84 @@ const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDe
           </p>
         </div>
 
-        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-          <Spinner v-if="isRefreshing" />
-          <span>{{ resultSummary }}</span>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <div class="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner v-if="isRefreshing" />
+            <span>{{ resultSummary }}</span>
+          </div>
+          <Dialog :open="createDialogOpen" @update:open="handleCreateDialogOpenChange">
+            <DialogTrigger as-child>
+              <Button type="button" class="w-full sm:w-auto">新增 Worker</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>新增 Print Worker</DialogTitle>
+                <DialogDescription>
+                  建立後就不需要再去 Supabase Studio 手動新增裝置。
+                </DialogDescription>
+              </DialogHeader>
+
+              <div class="grid gap-4">
+                <Field>
+                  <FieldLabel for="create-worker-name">名稱</FieldLabel>
+                  <Input id="create-worker-name" v-model="createForm.name" autocomplete="off" />
+                  <FieldError :errors="createFieldErrors.name" />
+                </Field>
+
+                <Field>
+                  <FieldLabel for="create-worker-device-key">Device key</FieldLabel>
+                  <Input
+                    id="create-worker-device-key"
+                    v-model="createForm.deviceKey"
+                    autocomplete="off"
+                    placeholder="例如 raspi-print-worker-01"
+                  />
+                  <FieldDescription>Pi 端需使用相同 `deviceKey` 呼叫 worker API。</FieldDescription>
+                  <FieldError :errors="createFieldErrors.deviceKey" />
+                </Field>
+
+                <Field>
+                  <FieldLabel for="create-worker-location">位置</FieldLabel>
+                  <Input
+                    id="create-worker-location"
+                    v-model="createForm.location"
+                    autocomplete="off"
+                    placeholder="例如 Front Desk"
+                  />
+                  <FieldError :errors="createFieldErrors.location" />
+                </Field>
+
+                <Field>
+                  <FieldLabel for="create-worker-status">狀態</FieldLabel>
+                  <Select :model-value="createForm.status" @update:model-value="handleCreateStatusChange">
+                    <SelectTrigger id="create-worker-status" class="w-full">
+                      <SelectValue placeholder="選擇狀態" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem
+                        v-for="option in ADMIN_PRINT_DEVICE_STATUS_OPTIONS"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FieldError :errors="createFieldErrors.status" />
+                </Field>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="ghost" :disabled="creatingDevice" @click="handleCreateDialogOpenChange(false)">
+                  取消
+                </Button>
+                <Button type="button" :disabled="creatingDevice" @click="saveNewDevice">
+                  <Spinner v-if="creatingDevice" class="mr-2" />
+                  建立 Worker
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>
@@ -410,6 +607,16 @@ const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDe
                         <Spinner v-if="isToggling(item.id)" class="mr-2" />
                         {{ item.status === 'active' ? '停用' : '啟用' }}
                       </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        :disabled="!canDeleteDevice(item) || isDeleting(item.id)"
+                        @click="handleDeleteDevice(item)"
+                      >
+                        <Spinner v-if="isDeleting(item.id)" class="mr-2" />
+                        刪除
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -476,6 +683,16 @@ const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDe
                   >
                     <Spinner v-if="isToggling(item.id)" class="mr-2" />
                     {{ item.status === 'active' ? '停用' : '啟用' }}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    :disabled="!canDeleteDevice(item) || isDeleting(item.id)"
+                    @click="handleDeleteDevice(item)"
+                  >
+                    <Spinner v-if="isDeleting(item.id)" class="mr-2" />
+                    刪除
                   </Button>
                 </div>
               </CardContent>

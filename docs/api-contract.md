@@ -30,7 +30,9 @@
 - `implemented` `POST /api/admin/print-jobs`：建立列印任務或補印任務。
 - `implemented` `POST /api/admin/print-jobs/{id}/retry`：將失敗任務重新排入佇列。
 - `implemented` `GET /api/admin/print-devices`：查詢 Print Worker / 裝置列表。
+- `implemented` `POST /api/admin/print-devices`：新增 Print Worker / 裝置。
 - `implemented` `PATCH /api/admin/print-devices/{id}`：更新 Worker 名稱、位置或狀態。
+- `implemented` `DELETE /api/admin/print-devices/{id}`：刪除沒有進行中 job 的 Worker / 裝置。
 - `planned` `POST /api/admin/work-orders/{id}/photos`：上傳工單照片。
 - `planned` `GET /api/admin/work-orders/{id}/photos`：查詢工單照片。
 - `planned` `POST /api/admin/work-orders/{id}/quote-items`：新增報價項目。
@@ -826,6 +828,47 @@ Response：
 }
 ```
 
+### `POST /api/admin/print-devices`
+
+新增 Print Worker / 裝置。此 endpoint 使用管理端 Supabase Auth session。
+
+Request：
+
+```json
+{
+  "name": "Front Desk Pi",
+  "deviceKey": "raspi-print-worker-01",
+  "location": "Front Desk",
+  "status": "active"
+}
+```
+
+規則：
+
+- `name` 與 `deviceKey` 必填
+- `deviceKey` 必須 unique
+- `status` 可省略，省略時預設 `active`
+- 只接受 `name`、`deviceKey`、`location`、`status` 四個欄位
+
+Response：`201`
+
+```json
+{
+  "data": {
+    "id": "a0c7a5e9-6984-4f61-a983-2bc859e85834",
+    "name": "Front Desk Pi",
+    "deviceKey": "raspi-print-worker-01",
+    "location": "Front Desk",
+    "status": "active",
+    "lastSeenAt": null,
+    "createdAt": "2026-05-22T10:00:00.000Z",
+    "updatedAt": "2026-05-22T10:00:00.000Z",
+    "currentJob": null,
+    "recentError": null
+  }
+}
+```
+
 ### `PATCH /api/admin/print-devices/{id}`
 
 更新 Print Worker 的名稱、位置或狀態。此 endpoint 使用管理端 Supabase Auth session。
@@ -867,6 +910,26 @@ Response：
       "message": "Printer offline",
       "updatedAt": "2026-05-22T08:12:00.000Z"
     }
+  }
+}
+```
+
+### `DELETE /api/admin/print-devices/{id}`
+
+刪除 Print Worker / 裝置。此 endpoint 使用管理端 Supabase Auth session。
+
+規則：
+
+- 若該裝置仍有 `locked` 或 `printing` 的 job，回 `409 CONFLICT`
+- 刪除後，既有歷史 `print_jobs.print_device_id` 依 schema `on delete set null`
+- 第一版不支援 bulk delete
+
+Response：
+
+```json
+{
+  "data": {
+    "id": "a0c7a5e9-6984-4f61-a983-2bc859e85834"
   }
 }
 ```

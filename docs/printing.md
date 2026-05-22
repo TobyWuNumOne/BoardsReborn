@@ -82,13 +82,14 @@ Admin UI / Work-order create
 v1 UI 允許：
 
 - 查看 `print_devices`
+- 新增 `print_devices`
 - 更新 `name`
 - 更新 `location`
 - 將 `status` 設成 `active` / `inactive` / `error`
+- 刪除沒有進行中 job 的 `print_devices`
 
 v1 UI 不允許：
 
-- 建立 / 刪除 device
 - 重設 `device_key`
 - 重發 `PRINT_WORKER_TOKEN`
 - 從前端直接發送實體列印命令
@@ -166,6 +167,6 @@ Server 端會同時驗證：
 - Python worker 實作
 - CUPS 設定
 - 實體標籤機整合
-- device create / delete / key rotation UI
+- device key rotation UI
 - 多店 routing policy
 - 依印表機 transport 細節擴充主系統狀態機

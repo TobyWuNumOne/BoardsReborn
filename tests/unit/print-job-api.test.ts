@@ -8,11 +8,14 @@ import {
   retryAdminPrintJob,
 } from '../../server/utils/print-jobs';
 import {
+  createAdminPrintDevice,
+  deleteAdminPrintDevice,
   listAdminPrintDevices,
   updateAdminPrintDevice,
 } from '../../server/utils/print-devices';
 import {
   parseClaimPrintJobBody,
+  parseCreatePrintDeviceBody,
   parseCreatePrintJobBody,
   parseFailPrintJobBody,
   parsePrintDeviceListQuery,
@@ -90,6 +93,20 @@ describe('print job validation', () => {
     });
 
     expect(
+      parseCreatePrintDeviceBody({
+        deviceKey: 'raspi-print-worker-01',
+        location: 'Front Desk',
+        name: 'Front Desk Pi',
+        status: 'active',
+      }),
+    ).toEqual({
+      deviceKey: 'raspi-print-worker-01',
+      location: 'Front Desk',
+      name: 'Front Desk Pi',
+      status: 'active',
+    });
+
+    expect(
       parseUpdatePrintDeviceBody({
         location: '',
         name: 'Front Desk Pi',
@@ -102,6 +119,7 @@ describe('print job validation', () => {
     });
 
     expectValidationField(() => parsePrintDeviceListQuery({ unknown: 'nope' }), 'unknown');
+    expectValidationField(() => parseCreatePrintDeviceBody({ location: 'Front Desk' }), 'name');
     expectValidationField(() => parseUpdatePrintDeviceBody({ deviceKey: 'nope' }), 'deviceKey');
   });
 
@@ -374,7 +392,7 @@ describe('print job services', () => {
     ]);
   });
 
-  it('lists and updates admin print devices with nested state', async () => {
+  it('creates, lists, updates, and deletes admin print devices with nested state', async () => {
     const calls: Array<{ payload?: Record<string, unknown>; type: string }> = [];
     const client = {
       from(table: string) {
@@ -448,10 +466,25 @@ describe('print job services', () => {
 
         if (table === 'print_devices') {
           return {
+            delete() {
+              calls.push({ type: 'delete-device' });
+              return this;
+            },
             eq() {
               return this;
             },
             maybeSingle() {
+              const latestAction = calls.at(-1)?.type;
+
+              if (latestAction === 'delete-device') {
+                return Promise.resolve({
+                  data: {
+                    id: 'device-1',
+                  },
+                  error: null,
+                });
+              }
+
               calls.push({ type: 'update-select' });
               return Promise.resolve({
                 data: {
@@ -463,8 +496,31 @@ describe('print job services', () => {
             select() {
               return this;
             },
+            insert(payload: Record<string, unknown>) {
+              calls.push({ payload, type: 'create-device' });
+              return this;
+            },
             update(payload: Record<string, unknown>) {
               calls.push({ payload, type: 'update-device' });
+              return this;
+            },
+          };
+        }
+
+        if (table === 'print_jobs') {
+          return {
+            eq() {
+              return this;
+            },
+            in() {
+              calls.push({ type: 'active-job-check' });
+              return Promise.resolve({
+                count: 0,
+                data: null,
+                error: null,
+              });
+            },
+            select() {
               return this;
             },
           };
@@ -473,6 +529,38 @@ describe('print job services', () => {
         throw new Error(`Unexpected table ${table}`);
       },
     };
+
+    await expect(
+      createAdminPrintDevice(client as never, {
+        deviceKey: 'raspi-print-worker-01',
+        location: 'Front Desk',
+        name: 'Front Desk Pi',
+        status: 'active',
+      }),
+    ).resolves.toEqual({
+      data: {
+        createdAt: '2026-05-21T08:00:00.000Z',
+        currentJob: {
+          id: 'job-1',
+          lockedAt: '2026-05-22T09:28:00.000Z',
+          paperOrderNo: 'BR-2026-0001',
+          status: 'locked',
+          workOrderId: 'work-order-1',
+        },
+        deviceKey: 'raspi-print-worker-01',
+        id: 'device-1',
+        lastSeenAt: '2026-05-22T09:30:00.000Z',
+        location: 'Front Desk',
+        name: 'Front Desk Pi',
+        recentError: {
+          jobId: 'job-error-1',
+          message: 'Printer offline',
+          updatedAt: '2026-05-22T08:12:00.000Z',
+        },
+        status: 'inactive',
+        updatedAt: '2026-05-22T09:35:00.000Z',
+      },
+    });
 
     await expect(
       listAdminPrintDevices(client as never, {
@@ -555,6 +643,24 @@ describe('print job services', () => {
       },
       type: 'update-device',
     });
+
+    await expect(deleteAdminPrintDevice(client as never, 'device-1')).resolves.toEqual({
+      data: {
+        id: 'device-1',
+      },
+    });
+
+    expect(calls).toContainEqual({
+      payload: {
+        device_key: 'raspi-print-worker-01',
+        location: 'Front Desk',
+        name: 'Front Desk Pi',
+        status: 'active',
+      },
+      type: 'create-device',
+    });
+    expect(calls.some((call) => call.type === 'active-job-check')).toBe(true);
+    expect(calls.some((call) => call.type === 'delete-device')).toBe(true);
   });
 });
 

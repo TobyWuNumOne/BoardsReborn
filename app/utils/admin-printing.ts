@@ -100,6 +100,13 @@ export type AdminPrintDeviceUpdatePayload = Partial<{
   status: PrintDeviceStatus;
 }>;
 
+export interface AdminPrintDeviceCreatePayload {
+  deviceKey: string;
+  location?: string | null;
+  name: string;
+  status: PrintDeviceStatus;
+}
+
 export const DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE = 1;
 export const DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE_SIZE = 20;
 export const DEFAULT_ADMIN_PRINT_JOB_LIST_SORT = 'createdAt:desc';
@@ -122,6 +129,9 @@ export const ADMIN_PRINT_DEVICE_STATUS_OPTIONS = [
   { label: '已停用', value: 'inactive' },
   { label: '異常', value: 'error' },
 ] as const satisfies ReadonlyArray<{ label: string; value: PrintDeviceStatus }>;
+
+export type AdminPrintDeviceStatusValue =
+  (typeof ADMIN_PRINT_DEVICE_STATUS_OPTIONS)[number]['value'];
 
 export const ADMIN_PRINT_JOB_SORT_OPTIONS = [
   { label: '最新建立', value: 'createdAt:desc' },

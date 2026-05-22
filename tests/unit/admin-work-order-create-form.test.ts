@@ -6,6 +6,8 @@ import {
   getAdminWorkOrderCreateBoardColorButtonClassName,
   hasAdminWorkOrderCreateUnsavedChanges,
   normalizeAdminWorkOrderCreateFormState,
+  resolveAdminCustomerLookupCandidates,
+  shouldAutoLookupCustomerPhone,
   shouldResetCustomerLookupResolution,
 } from '../../app/utils/admin-work-order-create';
 
@@ -153,6 +155,47 @@ describe('admin work-order create helpers', () => {
     expect(shouldResetCustomerLookupResolution('0912345678', '0912-345-678')).toBe(false);
     expect(shouldResetCustomerLookupResolution('0912345678', '0912345679')).toBe(true);
     expect(shouldResetCustomerLookupResolution('0912345678', '0912')).toBe(true);
+    expect(shouldAutoLookupCustomerPhone(null, '0912345678')).toBe(true);
+    expect(shouldAutoLookupCustomerPhone('0912345678', '0912345678')).toBe(false);
+    expect(shouldAutoLookupCustomerPhone('0912345678', '0912345679')).toBe(true);
+    expect(shouldAutoLookupCustomerPhone(null, '0912')).toBe(false);
+
+    expect(resolveAdminCustomerLookupCandidates([])).toEqual({
+      customerModeDecision: 'create',
+      selectedCustomerId: '',
+    });
+    expect(
+      resolveAdminCustomerLookupCandidates([
+        {
+          createdAt: '2026-05-22T09:30:00.000Z',
+          id: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
+          name: '王小明',
+          phone: '0912345678',
+        },
+      ]),
+    ).toEqual({
+      customerModeDecision: 'reuse',
+      selectedCustomerId: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
+    });
+    expect(
+      resolveAdminCustomerLookupCandidates([
+        {
+          createdAt: '2026-05-22T09:30:00.000Z',
+          id: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
+          name: '王小明',
+          phone: '0912345678',
+        },
+        {
+          createdAt: '2026-05-22T09:31:00.000Z',
+          id: '0cfaf6b0-02a6-47cf-a9a6-42f460ef8465',
+          name: '王小美',
+          phone: '0912345678',
+        },
+      ]),
+    ).toEqual({
+      customerModeDecision: 'unresolved',
+      selectedCustomerId: '',
+    });
 
     const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
     const baseline = normalizeAdminWorkOrderCreateFormState(formState);

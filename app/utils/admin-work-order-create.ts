@@ -43,6 +43,11 @@ export interface AdminCustomerLookupResponse {
   data: Array<AdminCustomerLookupCandidate>;
 }
 
+export interface AdminCustomerLookupResolution {
+  customerModeDecision: AdminWorkOrderCreateCustomerModeDecision;
+  selectedCustomerId: string;
+}
+
 export interface AdminWorkOrderCreateResponse {
   data: {
     createdAt: string;
@@ -439,6 +444,38 @@ export const shouldResetCustomerLookupResolution = (
   }
 
   return normalizeTaiwanMobilePhoneInput(nextPhone) !== lastLookupPhone;
+};
+
+export const shouldAutoLookupCustomerPhone = (
+  lastLookupPhone: string | null,
+  nextPhone: string,
+) => {
+  const normalizedPhone = normalizeTaiwanMobilePhoneInput(nextPhone);
+
+  return normalizedPhone !== null && normalizedPhone !== lastLookupPhone;
+};
+
+export const resolveAdminCustomerLookupCandidates = (
+  candidates: readonly AdminCustomerLookupCandidate[],
+): AdminCustomerLookupResolution => {
+  if (candidates.length === 0) {
+    return {
+      customerModeDecision: 'create',
+      selectedCustomerId: '',
+    };
+  }
+
+  if (candidates.length === 1) {
+    return {
+      customerModeDecision: 'reuse',
+      selectedCustomerId: candidates[0]?.id ?? '',
+    };
+  }
+
+  return {
+    customerModeDecision: 'unresolved',
+    selectedCustomerId: '',
+  };
 };
 
 export const getTaipeiTodayDateString = (now = new Date()) => {

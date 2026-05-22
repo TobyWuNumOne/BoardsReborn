@@ -313,6 +313,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 看目前鎖住哪筆 job
   - 看最近錯誤
   - 做啟用 / 停用與名稱 / 位置編輯
+  - 直接在 UI 新增 / 刪除 worker，不需要再去 Supabase Studio 手動維護
 - 由於第一版預期只有 1~2 台裝置，這頁**不做查詢、篩選或分頁控制**，直接顯示全部 worker。
 - 第一版欄位：
   - 燈號
@@ -325,12 +326,13 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 最近錯誤
   - 操作
 - 第一版允許動作：
+  - 新增 worker（shadcn `Dialog`）
   - 編輯名稱
   - 編輯位置
   - 將 `status` 設成 `active` / `inactive` / `error`
   - 快速啟用 / 停用
+  - 刪除沒有進行中 job 的 worker
 - 第一版不做：
-  - 新增 / 刪除 device
   - 重設 `deviceKey`
   - 重發 worker bearer token
   - 遠端重啟 Raspberry Pi

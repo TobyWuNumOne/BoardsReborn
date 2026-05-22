@@ -1,6 +1,7 @@
-import { InternalServerError, NotFoundError } from './api-errors';
+import { ConflictError, InternalServerError, NotFoundError } from './api-errors';
 import { throwMappedSupabaseError } from './supabase-errors';
 import type {
+  CreatePrintDeviceInput,
   PrintDeviceListQuery,
   UpdatePrintDeviceInput,
 } from './print-job-validation';
@@ -146,5 +147,73 @@ export const updateAdminPrintDevice = async (
 
   return {
     data: await getPrintDeviceById(supabase, id),
+  };
+};
+
+export const createAdminPrintDevice = async (
+  supabase: UserScopedSupabaseClient,
+  input: CreatePrintDeviceInput,
+) => {
+  const { data, error } = await supabase
+    .from('print_devices')
+    .insert({
+      device_key: input.deviceKey,
+      location: input.location ?? null,
+      name: input.name,
+      status: input.status,
+    })
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  if (!data?.id) {
+    throw new InternalServerError('Unable to create print device.');
+  }
+
+  return {
+    data: await getPrintDeviceById(supabase, data.id),
+  };
+};
+
+export const deleteAdminPrintDevice = async (
+  supabase: UserScopedSupabaseClient,
+  id: string,
+) => {
+  const { count, error: activeJobCheckError } = await supabase
+    .from('print_jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('print_device_id', id)
+    .in('status', ['locked', 'printing']);
+
+  if (activeJobCheckError) {
+    throwMappedSupabaseError(activeJobCheckError);
+  }
+
+  if ((count ?? 0) > 0) {
+    throw new ConflictError('Cannot delete a print device with active print jobs.');
+  }
+
+  const { data, error } = await supabase
+    .from('print_devices')
+    .delete()
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  if (!data?.id) {
+    throw new NotFoundError('Print device not found.');
+  }
+
+  return {
+    data: {
+      id: data.id,
+    },
   };
 };

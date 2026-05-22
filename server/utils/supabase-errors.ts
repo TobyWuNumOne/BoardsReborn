@@ -24,6 +24,10 @@ export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
     throw new ConflictError('Paper order number already exists.');
   }
 
+  if (error.code === '23505' && includesConstraint(error, 'print_devices_device_key_key')) {
+    throw new ConflictError('Print device key already exists.');
+  }
+
   if (error.code === '23505') {
     throw new ConflictError();
   }

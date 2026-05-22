@@ -27,8 +27,8 @@
   - `board_color` 已加入 `admin_work_order_list` projection 與 admin resolve preview；工單列表與 bulk status preview 會顯示顏色 swatch + label。
   - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、公開備註與最近更新時間。
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
-  - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作與 sticky 必填摘要，但顧客自動查詢、送出錯誤 scroll 與成功後 next actions 尚待下一輪。
-  - `/admin/printing` 已接上列印中心列表、狀態燈、篩選與 failed retry；`/admin/printing/workers` 已接上 Worker 列表、最後心跳、最近錯誤、名稱 / 位置編輯與啟停。
+  - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作、sticky 必填摘要，以及顧客手機 10 碼自動查詢與單一候選顧客自動選取；送出錯誤 scroll 與成功後 next actions 尚待下一輪。
+  - `/admin/printing` 已接上列印中心列表、狀態燈、篩選與 failed retry；`/admin/printing/workers` 已接上 Worker 列表、最後心跳、最近錯誤、名稱 / 位置編輯、啟停，以及新增 / 刪除。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
   - Supabase Database types 已產生於 `types/database.types.ts`。
@@ -61,7 +61,7 @@
 | Admin work-order create UI             | done    | `/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價、tablet-first F8A/F8B 快捷操作與成功導向 detail。                                                           |
 | Admin bulk status UI                   | done    | `/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作與批量結果摘要。                                                                                      |
 | Barcode / print job API 與 Print Agent | partial | `print_devices` / `print_jobs` schema、admin print-jobs / print-devices API、print-worker claim/succeed/fail API 與 admin 列印 UI 已建立；Python Worker / CUPS / 實體列印仍 pending。 |
-| Admin printing UI                      | done    | `/admin/printing` 與 `/admin/printing/workers` 第一版已建立，包含列印紀錄、retry、Worker 列表與輕量管理。                                                                             |
+| Admin printing UI                      | done    | `/admin/printing` 與 `/admin/printing/workers` 第一版已建立，包含列印紀錄、retry、Worker 列表、dialog 建立與輕量管理。                                                                |
 | Customer lookup flow                   | done    | `POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。                                                                |
 | Production workflow 與部署硬化         | pending | Staging Supabase / Vercel 基礎部署已完成；正式 production cutover、production Auth 設定與部署硬化尚未完成。                                                                           |
 
@@ -105,9 +105,9 @@
 - Authenticated table grants：已新增 migration，讓 user-scoped admin APIs 可在 RLS policies 之上讀寫核心資料表與 `admin_work_order_list` view。
 - Print queue model：已新增 `print_devices`、重整 `print_jobs` schema 與 `admin_print_job_list` view，並用 migration 將 legacy print status 映射到 queue status。
 - Print job APIs：已新增 `GET /api/admin/print-jobs`、`POST /api/admin/print-jobs`、`POST /api/admin/print-jobs/{id}/retry`、`POST /api/print-worker/jobs/claim`、`POST /api/print-worker/jobs/{id}/succeed`、`POST /api/print-worker/jobs/{id}/fail`。
-- Print device admin APIs：已新增 `GET /api/admin/print-devices` 與 `PATCH /api/admin/print-devices/{id}`，支援 Worker 列表、名稱 / 位置編輯與啟停。
+- Print device admin APIs：已新增 `GET /api/admin/print-devices`、`POST /api/admin/print-devices`、`PATCH /api/admin/print-devices/{id}` 與 `DELETE /api/admin/print-devices/{id}`，支援 Worker 列表、建立、名稱 / 位置編輯、啟停與刪除。
 - Work-order create print enqueue：建工單成功後會 best-effort 自動建立第一筆 `work_order_label` print job；enqueue 失敗不回滾工單。
-- Admin printing UI：已新增 `/admin/printing` 與 `/admin/printing/workers`，提供列印紀錄列表、狀態燈、failed retry、Worker 狀態查看與輕量管理。
+- Admin printing UI：已新增 `/admin/printing` 與 `/admin/printing/workers`，提供列印紀錄列表、狀態燈、failed retry、Worker 狀態查看、shadcn dialog 建立與輕量管理。
 
 ## 目前焦點
 
@@ -122,7 +122,7 @@
 - 實作 Python Print Worker 起始骨架，接上 `claim -> succeed/fail` flow。
 - 補工單 detail / create 成功後的列印狀態呈現與列印中心導流。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
-- 延續新增工單頁 F8C：顧客手機 10 碼 debounce 自動查詢、送出時 scroll 到第一個錯誤欄位、建立成功後 next actions 區塊。
+- 延續新增工單頁 F8C：送出時 scroll 到第一個錯誤欄位、建立成功後 next actions 區塊。
 - 實作列印任務 API 與 Python Print Agent 起始骨架。
 - 盤點 detail / create / bulk status / public lookup 與後續列印流程之間的 UI / 操作銜接。
 
@@ -165,8 +165,8 @@
 - 建工單後會 best-effort enqueue 第一筆 `print_job`；若 enqueue 失敗，需靠 server log 與 admin print-jobs 補建流程補救。
 - 既有 legacy `SURFBOARD` 工單可能尚未有 `board_length_class`；目前 list / detail 會顯示 `—`，這次沒有補 edit flow 或 backfill。
 - Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁 tablet-first F8A/F8B 與 bulk status 第一版；列印相關 UI 仍待實作。
-- 新增工單頁 F8C 仍待實作：顧客手機 10 碼 debounce 自動查詢、送出錯誤 scroll、建立成功後 next actions 尚未在本輪加入。
-- Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁、bulk status 與列印中心 / Worker 管理第一版；工單 detail / create 成功後的列印狀態銜接仍待補強。
+- 新增工單頁 F8C 尚未完整收尾：送出錯誤 scroll、建立成功後 next actions 尚未在本輪加入。
+- Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁、bulk status 與列印中心 / Worker 管理第一版；Worker 已可直接在 UI 建立 / 刪除，工單 detail / create 成功後的列印狀態銜接仍待補強。
 - Admin 前端目前仍屬第一版雛形；雖然大方向與主流程已可展示，但欄位配置、文案、資訊密度、互動回饋與模式切換細節尚未定案，預期需在與甲方討論後進行第二版調整。
 - Nuxt 4 在此專案目前的本機開發組合下，`experimental.appManifest` 會導致 `/_nuxt/builds/meta/dev.json` 404；目前已先關閉這個實驗功能，以穩定開發中的 admin 頁面導航與刷新行為。
 - shadcn-vue latest 的 `reka-vega` style registry base style 在初始化時回 404；本次以 `--no-base-style` 初始化並依官方 neutral theme scaffold 手動補齊 global CSS tokens。

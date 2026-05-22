@@ -22,6 +22,7 @@ const PRINT_JOB_LIST_ALLOWED_FIELDS = [
 ] as const;
 const ADMIN_PRINT_JOB_CREATE_ALLOWED_FIELDS = ['jobType', 'workOrderId'] as const;
 const PRINT_DEVICE_LIST_ALLOWED_FIELDS = ['page', 'pageSize', 'sort', 'status', 'q'] as const;
+const ADMIN_PRINT_DEVICE_CREATE_ALLOWED_FIELDS = ['deviceKey', 'location', 'name', 'status'] as const;
 const ADMIN_PRINT_DEVICE_UPDATE_ALLOWED_FIELDS = ['name', 'location', 'status'] as const;
 const WORKER_CLAIM_ALLOWED_FIELDS = ['deviceKey'] as const;
 const WORKER_FAIL_ALLOWED_FIELDS = ['deviceKey', 'error'] as const;
@@ -74,6 +75,13 @@ export interface UpdatePrintDeviceInput {
   location?: string | null;
   name?: string;
   status?: PrintDeviceStatus;
+}
+
+export interface CreatePrintDeviceInput {
+  deviceKey: string;
+  location?: string | null;
+  name: string;
+  status: PrintDeviceStatus;
 }
 
 export interface ClaimPrintJobInput {
@@ -431,6 +439,63 @@ export const parsePrintDeviceListQuery = (query: Record<string, unknown>): Print
     page: page as number,
     pageSize: pageSize as number,
     sort,
+  };
+};
+
+export const parseCreatePrintDeviceBody = (body: unknown): CreatePrintDeviceInput => {
+  const errors: ErrorCollector = {};
+
+  if (!isRecord(body)) {
+    throw new ValidationError({ body: ['Must be a JSON object.'] });
+  }
+
+  const unknownFields = Object.keys(body).filter(
+    (field) =>
+      !ADMIN_PRINT_DEVICE_CREATE_ALLOWED_FIELDS.includes(
+        field as (typeof ADMIN_PRINT_DEVICE_CREATE_ALLOWED_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const name = hasOwn(body, 'name')
+    ? parseRequiredString(body.name, 'name', errors, {
+        maxLength: 80,
+        minLength: 1,
+      })
+    : undefined;
+  const deviceKey = hasOwn(body, 'deviceKey')
+    ? parseRequiredString(body.deviceKey, 'deviceKey', errors, {
+        maxLength: 120,
+        minLength: 3,
+      })
+    : undefined;
+  const location = hasOwn(body, 'location')
+    ? parseOptionalNullableString(body.location, 'location', errors, {
+        maxLength: 120,
+      })
+    : undefined;
+  const status = hasOwn(body, 'status')
+    ? parseEnum(body.status, 'status', PRINT_DEVICE_STATUSES, errors)
+    : 'active';
+
+  if (!hasOwn(body, 'name')) {
+    addError(errors, 'name', 'Is required.');
+  }
+
+  if (!hasOwn(body, 'deviceKey')) {
+    addError(errors, 'deviceKey', 'Is required.');
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    deviceKey: deviceKey as string,
+    ...(location !== undefined ? { location } : {}),
+    name: name as string,
+    status: status as PrintDeviceStatus,
   };
 };
 
