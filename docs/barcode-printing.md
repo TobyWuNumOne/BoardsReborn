@@ -22,7 +22,7 @@
 
 ## 列印架構
 
-第一版列印採非同步 print job：
+第一版列印採非同步 print queue：
 
 ```text
 平板 / 桌機 Nuxt Web App
@@ -35,10 +35,11 @@
 Nuxt 負責：
 
 - 建立工單。
-- 在列印流程中建立列印任務。
+- 建立與重排列印任務。
 - 建立補印任務。
-- 提供 Print Agent 拉取任務的 API。
-- 接收 Print Agent 的列印結果回報。
+- 提供 admin 列印中心與 Print Worker 管理頁。
+- 提供 Worker claim / succeed / fail API。
+- 接收 Worker 的列印結果回報。
 
 Nuxt 不負責：
 
@@ -47,20 +48,18 @@ Nuxt 不負責：
 - 在前端頁面寫死列印語言或品牌 SDK。
 - 從平板瀏覽器直接控制 USB 標籤機。
 
-## Print Agent v1
+## Print Worker v1
 
-Print Agent 第一版使用 Python 腳本 + systemd。
+Print Worker 第一版使用 Python 腳本 + systemd，但本 repo 目前只先定義主系統 queue model 與 API contract。
 
-Agent 工作：
+Worker 工作：
 
-1. 定期呼叫 `GET /api/print-jobs/next` 取得待印任務。
-2. 呼叫 `POST /api/print-jobs/{id}/start` 標記 processing。
-3. 把 `label_payload` 轉成 TSPL/ZPL/EPL/DPL 指令。
-4. 將指令寫入 USB 標籤機。
-5. 可行時嘗試讀取印表機狀態。
-6. 呼叫 `POST /api/print-jobs/{id}/result` 回報結果。
+1. 定期呼叫 `POST /api/print-worker/jobs/claim` 取得待印任務。
+2. 把 `payload` 轉成實際標籤格式。
+3. 寫入 CUPS / USB 標籤機。
+4. 呼叫 `POST /api/print-worker/jobs/{id}/succeed` 或 `POST /api/print-worker/jobs/{id}/fail` 回報結果。
 
-Agent 使用 `Authorization: Bearer <PRINT_AGENT_TOKEN>` 呼叫 Nuxt API。
+Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並在 body 帶 `deviceKey`。
 
 ## 標籤語言與品牌策略
 
@@ -75,32 +74,31 @@ Agent 使用 `Authorization: Bearer <PRINT_AGENT_TOKEN>` 呼叫 Nuxt API。
 
 ## 列印狀態
 
-列印成功不可簡化成單一 boolean，因為「寫入 USB 成功」不等於「貼紙一定吐出來」。
+第一版主系統狀態聚焦在 queue，而不是硬體 transport 細節。
 
 `print_job_status` 使用：
 
-- `QUEUED`
-- `PROCESSING`
-- `SENT_TO_PRINTER`
-- `PRINTER_READY_AFTER_SEND`
-- `FAILED_TRANSPORT`
-- `FAILED_PRINTER_STATUS`
-- `UNKNOWN`
-- `REPRINT_REQUESTED`
+- `pending`
+- `locked`
+- `printing`
+- `printed`
+- `failed`
+- `cancelled`
 
-保守判定：
+其中：
 
-- USB 寫入成功：`SENT_TO_PRINTER`
-- USB 寫入失敗：`FAILED_TRANSPORT`
-- 印表機狀態回讀異常：`FAILED_PRINTER_STATUS`
-- 印表機狀態回讀 ready：`PRINTER_READY_AFTER_SEND`
-- 無法確認：`UNKNOWN`
+- `pending`：等待 Worker claim
+- `locked`：已被某台 Worker claim
+- `printed`：Worker 已回報成功
+- `failed`：已達 retry 上限或需要人工介入
+
+實際的 CUPS / 印表機 transport 細節留到 Worker 實作階段處理，不在主系統 schema 裡展開成另一套狀態機。
 
 ## 補印流程
 
 補印是標準流程，不是異常 workaround。
 
-- 建立工單主資料時不要求同步建立 `print_jobs`。
+- 建立工單主資料後，server 會 best-effort 建立第一筆 `print_jobs`。
 - 需要列印時，系統建立新的 `print_jobs`。
 - 如果列印失敗或標籤破損，使用者可建立補印任務。
 - 補印必須新增 `print_jobs` 記錄，不覆蓋舊任務。
@@ -116,6 +114,8 @@ Agent 使用 `Authorization: Bearer <PRINT_AGENT_TOKEN>` 呼叫 Nuxt API。
 - 可降低平板瀏覽器直控硬體的不確定性。
 
 具體印表機是否能穩定回讀狀態，需要實機測試。文件不承諾特定型號一定支援完整雙向狀態回讀。
+
+詳細 queue model、API 與 Raspberry Pi 下一階段整合方式，見 [printing.md](printing.md)。
 
 ## 不做項目
 

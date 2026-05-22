@@ -29,6 +29,14 @@ const publicLookupServiceRoleGrantsMigration = readFileSync(
   ),
   'utf8',
 );
+const printQueueModelMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260521110000_print_queue_model.sql'),
+  'utf8',
+);
+const adminPrintDeviceListMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260522103000_admin_print_device_list.sql'),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -129,5 +137,41 @@ describe('initial Supabase migration', () => {
     expect(publicLookupServiceRoleGrantsMigration).not.toContain('insert');
     expect(publicLookupServiceRoleGrantsMigration).not.toContain('update');
     expect(publicLookupServiceRoleGrantsMigration).not.toContain('delete');
+  });
+
+  it('adds the print queue model, admin list view, and worker RPCs', () => {
+    expect(printQueueModelMigration).toContain('create type public.print_device_status as enum');
+    expect(printQueueModelMigration).toContain("create type public.print_job_type as enum");
+    expect(printQueueModelMigration).toContain("rename to print_job_status");
+    expect(printQueueModelMigration).toContain('create table public.print_devices');
+    expect(printQueueModelMigration).toContain('create or replace view public.admin_print_job_list');
+    expect(printQueueModelMigration).toContain('create or replace function public.create_admin_print_job');
+    expect(printQueueModelMigration).toContain('create or replace function public.retry_admin_print_job');
+    expect(printQueueModelMigration).toContain('create or replace function public.claim_next_print_job');
+    expect(printQueueModelMigration).toContain(
+      'create or replace function public.mark_print_job_succeeded',
+    );
+    expect(printQueueModelMigration).toContain(
+      'create or replace function public.mark_print_job_failed',
+    );
+    expect(printQueueModelMigration).toContain("when 'QUEUED' then 'pending'");
+    expect(printQueueModelMigration).toContain("when 'FAILED_TRANSPORT' then 'failed'");
+    expect(printQueueModelMigration).toContain("grant execute on function public.claim_next_print_job");
+    expect(printQueueModelMigration).toContain('grant select on table public.print_devices to authenticated');
+    expect(printQueueModelMigration).toContain('grant select on table public.print_devices to service_role');
+  });
+
+  it('adds the admin print device list projection for worker management UI', () => {
+    expect(adminPrintDeviceListMigration).toContain(
+      'create or replace view public.admin_print_device_list',
+    );
+    expect(adminPrintDeviceListMigration).toContain("current_job.job_id as current_job_id");
+    expect(adminPrintDeviceListMigration).toContain(
+      "recent_error.last_error as recent_error_message",
+    );
+    expect(adminPrintDeviceListMigration).toContain("concat_ws(");
+    expect(adminPrintDeviceListMigration).toContain(
+      'grant select on table public.admin_print_device_list to authenticated',
+    );
   });
 });

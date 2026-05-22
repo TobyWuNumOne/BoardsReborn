@@ -36,12 +36,17 @@
 - `/admin/work-orders/new`
 - `/admin/work-orders/bulk-status`
 - `/admin/work-orders/[id]`
+- `/admin/printing`
+- `/admin/printing/workers`
 
 第一版 public customer route：
 
 - `/repair-status`
 
-暫不建立獨立的 `/admin/customers`、`/admin/quotes`、`/admin/photos`、`/admin/print-jobs`。顧客、報價、照片與列印資訊先放在工單流程內，等複雜度提高後再拆頁。
+第一版仍暫不建立獨立的 `/admin/customers`、`/admin/quotes`、`/admin/photos`。列印則例外拆成：
+
+- `/admin/printing`：列印中心，從任務視角看列印紀錄、狀態與 retry
+- `/admin/printing/workers`：Print Worker 管理，從設備視角看狀態、最後心跳、最近錯誤與啟停 / 輕量編輯
 
 `/admin` 是真正 dashboard，不是工單列表。第一版 dashboard 放 summary cards 與快速入口，不放完整 table。
 
@@ -123,9 +128,9 @@
   - Dashboard
   - 工單
   - 批量狀態
+  - 列印
 - 後續才加入：
   - 設定
-  - 列印佇列
 
 ## Data Access
 
@@ -133,6 +138,13 @@
 - 前端不得直接讀寫 Supabase table。
 - Supabase client 在前端只用於 auth session / email-password sign-in / sign-out。
 - 工單條碼與現場輸入以 `paper_order_no` 為主；需要 UUID-based detail/update/status endpoint 時，前端先呼叫 resolve endpoint 取得 `work_orders.id`。
+
+列印中心與 Worker 管理使用：
+
+- `GET /api/admin/print-jobs`
+- `POST /api/admin/print-jobs/{id}/retry`
+- `GET /api/admin/print-devices`
+- `PATCH /api/admin/print-devices/{id}`
 
 ## Forms And Validation
 
@@ -263,6 +275,66 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
 - textarea parser 規則：
   - 支援換行、逗號、空白
   - trim
+
+## Printing Center
+
+- `/admin/printing` 是列印中心首頁，先看列印紀錄列表，再進 Worker 管理。
+- 頁面目的：
+  - 快速判斷成功 / 失敗 / 處理中 / 待列印
+  - 依工單號或狀態篩選最近任務
+  - 對 `failed` 任務直接 retry
+- 列表規則：
+  - desktop（`xl` 起）用 table
+  - `xl` 以下用 card list
+  - 每列左側固定顯示狀態燈
+  - 綠色 `printed`
+  - 紅色 `failed`
+  - 黃色 `locked` / `printing`
+  - 灰色 `pending`
+  - 深灰 `cancelled`
+- 第一版欄位：
+  - 燈號
+  - 工單號
+  - 任務狀態
+  - 板型摘要
+  - 裝置 / `lockedBy`
+  - 嘗試次數
+  - 最近錯誤
+  - 建立 / 更新時間
+  - Retry action
+- 第一版不做 print job detail page；工單號直接連到既有 work-order detail。
+
+## Print Worker 管理
+
+- `/admin/printing/workers` 是設備視角頁面，不和列印任務列表混在同一頁。
+- 第一版頁面目的：
+  - 看哪台 worker 在線
+  - 看最後心跳
+  - 看目前鎖住哪筆 job
+  - 看最近錯誤
+  - 做啟用 / 停用與名稱 / 位置編輯
+- 由於第一版預期只有 1~2 台裝置，這頁**不做查詢、篩選或分頁控制**，直接顯示全部 worker。
+- 第一版欄位：
+  - 燈號
+  - Worker 名稱
+  - `deviceKey`
+  - 位置
+  - 狀態
+  - 最後心跳
+  - 目前任務
+  - 最近錯誤
+  - 操作
+- 第一版允許動作：
+  - 編輯名稱
+  - 編輯位置
+  - 將 `status` 設成 `active` / `inactive` / `error`
+  - 快速啟用 / 停用
+- 第一版不做：
+  - 新增 / 刪除 device
+  - 重設 `deviceKey`
+  - 重發 worker bearer token
+  - 遠端重啟 Raspberry Pi
+  - 從 UI 直接送出實體列印命令
   - dedupe
   - 保留首次出現順序
 - preview resolve 由 client fan-out 執行，固定限制為 `6` 個並行 request。

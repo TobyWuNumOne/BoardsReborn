@@ -29,8 +29,8 @@
 - 顧客查詢不得直接開放 Supabase table read。
 - 顧客查詢必須走 Nuxt server API，並驗證工單號與完整手機號碼。
 - 條碼 payload 一律使用 `paper_order_no`，不可再引入第二套主要識別碼。
-- `PRINT_AGENT_TOKEN` 只能存在 server-side 與 Print Agent 環境，不可傳到 client。
-- Print Agent API 必須驗證 `Authorization: Bearer <PRINT_AGENT_TOKEN>`。
+- `PRINT_WORKER_TOKEN` 只能存在 server-side 與 Print Worker 環境，不可傳到 client。
+- Print Worker API 必須驗證 `Authorization: Bearer <PRINT_WORKER_TOKEN>`，且 request body 需帶合法 `deviceKey`。
 - `SUPABASE_SECRET_KEY` 只能在 server-side 使用。
 - Service-role Supabase client 只能由明確 server-only helper 匯出；一般 admin route helper 不可自動 fallback 到 service-role client。
 - 不可把 server-only key 放進 public runtime config。
@@ -86,8 +86,8 @@
 - 列印走非同步 `print_jobs`，不可要求建立工單必須同步列印成功。
 - 平板瀏覽器不可直接控制 USB 標籤機。
 - 不可綁死單一品牌 SDK；優先使用 TSPL/ZPL/EPL/DPL 原始列印語言。
-- 不可把列印結果簡化成單一 `success: true/false`。
-- 寫入 USB 成功只能回報 `SENT_TO_PRINTER`，不可直接視為貼紙已成功吐出。
+- 第一版主系統的 `print_job_status` 以 queue 為主：`pending`、`locked`、`printing`、`printed`、`failed`、`cancelled`。
+- Worker claim 必須是原子操作，避免多個 worker 同時取走同一筆 job。
 - 補印必須建立新的 `print_jobs` 記錄，不可覆蓋舊列印任務。
 
 ## Product Scope
@@ -129,7 +129,7 @@ PR 或任務完成時，至少說明：
 - list API pagination/filter/sort。
 - 顧客工單查詢。
 - 照片 metadata 建立與 Storage upload error handling。
-- print job 建立、claim、result 回報與 retry。
+- print job 建立、claim、success/fail 回報與 retry。
 
 ## PR Summary Requirements
 

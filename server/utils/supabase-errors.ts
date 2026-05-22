@@ -1,4 +1,10 @@
-import { ConflictError, InternalServerError, NotFoundError, ValidationError } from './api-errors';
+import {
+  ConflictError,
+  ForbiddenError,
+  InternalServerError,
+  NotFoundError,
+  ValidationError,
+} from './api-errors';
 
 export interface SupabaseLikeError {
   code?: string;
@@ -26,8 +32,20 @@ export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
     throw new NotFoundError('Work order not found.');
   }
 
+  if (error.code === 'P0002' && includesErrorText(error, 'Print job not found')) {
+    throw new NotFoundError('Print job not found.');
+  }
+
+  if (error.code === 'P0002' && includesErrorText(error, 'Print device not found')) {
+    throw new NotFoundError('Print device not found.');
+  }
+
   if (error.code === 'P0002') {
     throw new NotFoundError('Customer not found.');
+  }
+
+  if (error.code === '42501' && includesErrorText(error, 'Print device is inactive')) {
+    throw new ForbiddenError('Print worker device is inactive.');
   }
 
   if (
@@ -37,6 +55,22 @@ export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
     throw new ValidationError({
       status: ['SNOWBOARD work orders cannot enter DRYING.'],
     });
+  }
+
+  if (
+    error.code === '23514' &&
+    includesErrorText(error, 'Only failed print jobs can be retried')
+  ) {
+    throw new ValidationError({
+      status: ['Only failed print jobs can be retried.'],
+    });
+  }
+
+  if (
+    error.code === '23514' &&
+    includesErrorText(error, 'Print job is not locked by this device')
+  ) {
+    throw new ConflictError('Print job is not locked by this device.');
   }
 
   if (error.code === '23514' || error.code === '22P02') {

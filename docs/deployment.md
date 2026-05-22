@@ -60,7 +60,7 @@ export SUPABASE_ACCESS_TOKEN="<paste-token-in-local-shell-only>"
 | `NUXT_PUBLIC_APP_URL`           | Vercel staging / preview URL         | 是           | 可手動指定；未設定時會 fallback 到 Vercel deployment URL                     |
 | `ADMIN_EMAIL`                   | 手動建立 admin 時使用                | 否           | 目前 seed 不會自動建立 admin                                                 |
 | `ADMIN_PASSWORD`                | 手動建立 admin 時使用                | 否           | 不要 commit                                                                  |
-| `PRINT_AGENT_TOKEN`             | 後續 Print Agent 使用                | 否           | 目前 print API / agent 尚未實作，可先留空                                    |
+| `PRINT_WORKER_TOKEN`            | Print Worker bearer token            | 否           | print-worker API 已使用；Pi 端與 server 端需一致                             |
 
 仍相容的舊 alias：
 
@@ -157,10 +157,10 @@ vercel env add ADMIN_EMAIL preview
 vercel env add ADMIN_PASSWORD preview
 ```
 
-`PRINT_AGENT_TOKEN` 目前可先不設定；等 print-agent endpoint 與 agent 實作後再加入：
+若要驗證 print-worker API，需另外設定：
 
 ```bash
-vercel env add PRINT_AGENT_TOKEN preview
+vercel env add PRINT_WORKER_TOKEN preview
 ```
 
 若使用獨立 Vercel project 作為 staging project，也可以把 Vercel 的 production environment 視為 staging environment。這會產生穩定 staging alias，例如 `https://board-reborn-staging.vercel.app`，但不代表產品 production cutover：
@@ -214,8 +214,8 @@ vercel deploy --prod -y
 ## 已知 MVP 風險
 
 - Public customer lookup rate limit 目前是 in-memory，只適合 staging / single-instance MVP 驗證，不是 production-grade distributed limiter。
-- Print API 與 Python Print Agent 仍 pending；現階段 staging 可先用 `paperOrderNo` 手動搜尋與批量更新。
-- `SENT_TO_PRINTER` 未來只代表 transport succeeded，不代表實體標籤已印出。
+- Print queue model 與 API 已完成，但 Python Print Worker / CUPS / 實體印表機整合仍 pending。
+- `printed` 目前只代表 Worker 已回報成功；是否已與實體標籤機穩定整合仍需下一階段實測。
 - Staging project 不應承載真實 production 資料；production 應另開 project 並重新設定 env / Auth URLs。
 
 ## 完成回報格式
