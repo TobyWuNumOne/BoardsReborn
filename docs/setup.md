@@ -105,6 +105,21 @@ Legacy aliases still supported:
 
 `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` must never be passed to the client, appear in public runtime config, or be written to logs. `PRINT_WORKER_TOKEN` must remain server-side and within the Print Worker environment only. `PRINT_AGENT_TOKEN` is kept only as a temporary legacy alias.
 
+### `printer-worker` connectivity worker
+
+Repo 內包含 `/printer-worker` Python 子專案，用來驗證 Raspberry Pi / local machine 是否能成功呼叫既有 print-worker API。
+
+```bash
+cd printer-worker
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python worker.py run-once
+```
+
+詳細設定與 smoke test 流程見 `printer-worker/README.md`。
+
 ---
 
 ## Project Commands

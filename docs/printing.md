@@ -145,11 +145,26 @@ Server 端會同時驗證：
   - 若 `attempt_count < max_attempts`，回到 `pending`
   - 否則改成 `failed`
 
+## Connectivity Worker v1
+
+repo 內已新增 `/printer-worker` 子專案，提供一個 **no-op connectivity worker**：
+
+- 支援 `python worker.py run-once`
+- 支援 `python worker.py poll`
+- 只做 `claim -> succeed/fail`
+- 只印出 job 摘要，不做實體列印
+
+這一版目標是先驗證：
+
+- Raspberry Pi 能連到 Nuxt print-worker API
+- `PRINT_WORKER_TOKEN` + `deviceKey` 認證可用
+- `print_jobs` 狀態可正確從 `pending -> locked -> printed|failed`
+
 ## Raspberry Pi 下一階段
 
-這一階段 **不** 實作 Python Worker / CUPS / 實體印表機整合。下一階段可依這個順序接：
+在 connectivity worker 驗證完成後，再依這個順序往下接：
 
-1. Raspberry Pi 啟動 Python worker
+1. Raspberry Pi 啟動 `printer-worker`
 2. worker 定期呼叫 `POST /api/print-worker/jobs/claim`
 3. 將 `payload` 轉成實際標籤格式
 4. 寫入 CUPS / 印表機
@@ -164,7 +179,6 @@ Server 端會同時驗證：
 
 ## 這一版不做
 
-- Python worker 實作
 - CUPS 設定
 - 實體標籤機整合
 - device key rotation UI

@@ -80,3 +80,4 @@ See [docs/setup.md](docs/setup.md) for toolchain versions, local setup, environm
 | [docs/setup.md](docs/setup.md) | Local setup, toolchain versions, env vars, commands / 本地設定、工具鏈版本、環境變數、指令 |
 | [docs/deployment.md](docs/deployment.md) | Staging deployment runbook / Staging 部署流程 |
 | [docs/ai-dev-rules.md](docs/ai-dev-rules.md) | AI development rules / AI 開發規則 |
+| [printer-worker/README.md](printer-worker/README.md) | Connectivity-first Python Print Worker / Python 列印 worker 子專案 |

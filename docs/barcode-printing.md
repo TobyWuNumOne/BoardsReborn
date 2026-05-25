@@ -50,14 +50,20 @@ Nuxt 不負責：
 
 ## Print Worker v1
 
-Print Worker 第一版使用 Python 腳本 + systemd，但本 repo 目前只先定義主系統 queue model 與 API contract。
+Print Worker 第一版先拆成兩個階段：
+
+1. **connectivity worker**：repo 內的 `/printer-worker` Python 子專案，只驗證 `claim -> succeed/fail`
+2. **printer worker**：後續再接 systemd、CUPS 與實體標籤機
+
+目前 repo 已包含 connectivity worker；systemd / CUPS / 實體列印仍未實作。
 
 Worker 工作：
 
 1. 定期呼叫 `POST /api/print-worker/jobs/claim` 取得待印任務。
-2. 把 `payload` 轉成實際標籤格式。
-3. 寫入 CUPS / USB 標籤機。
-4. 呼叫 `POST /api/print-worker/jobs/{id}/succeed` 或 `POST /api/print-worker/jobs/{id}/fail` 回報結果。
+2. connectivity worker 階段先印出 job 摘要，並回報 `succeed` 或 `fail`。
+3. printer worker 階段再把 `payload` 轉成實際標籤格式。
+4. printer worker 階段再寫入 CUPS / USB 標籤機。
+5. 呼叫 `POST /api/print-worker/jobs/{id}/succeed` 或 `POST /api/print-worker/jobs/{id}/fail` 回報結果。
 
 Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並在 body 帶 `deviceKey`。
 
@@ -113,7 +119,7 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 - 可用 systemd 自動啟動與重啟。
 - 可降低平板瀏覽器直控硬體的不確定性。
 
-具體印表機是否能穩定回讀狀態，需要實機測試。文件不承諾特定型號一定支援完整雙向狀態回讀。
+具體印表機是否能穩定回讀狀態，需要實機測試。文件不承諾特定型號一定支援完整雙向狀態回讀。connectivity worker 只驗證主系統與樹莓派之間的 contract，不驗證硬體能力。
 
 詳細 queue model、API 與 Raspberry Pi 下一階段整合方式，見 [printing.md](printing.md)。
 

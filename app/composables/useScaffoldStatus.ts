@@ -36,7 +36,7 @@ export function useScaffoldStatus(): ScaffoldStatusItem[] {
     {
       label: 'Print Agent',
       state: 'pending',
-      detail: 'Print job API and Python Print Agent are still pending.',
+      detail: 'Print job API and connectivity worker are in place; CUPS and physical printing are still pending.',
     },
   ];
 }

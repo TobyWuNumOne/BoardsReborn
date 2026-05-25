@@ -16,3 +16,6 @@ supabase/.temp
 !.env.example
 docs/proposal/
 .vercel
+.venv
+__pycache__/
+*.py[cod]
