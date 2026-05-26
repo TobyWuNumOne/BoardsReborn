@@ -11,8 +11,8 @@
 
 ## 目前快照
 
-- 最後更新：2026-05-25
-- 目前階段：admin 主流程、public customer lookup、第一版列印中心 UI 與 `printer-worker` connectivity worker 已建立；下一步往樹莓派 smoke test、device provisioning、CUPS 與實機列印驗證推進
+- 最後更新：2026-05-26
+- 目前階段：admin 主流程、public customer lookup、第一版列印中心 UI 與 `printer-worker` connectivity worker 已建立；Raspberry Pi 第一輪 smoke test 已完成，下一步往 `poll` 常駐驗證、device provisioning、CUPS 與實機列印驗證推進
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -26,8 +26,9 @@
   - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、公開備註與最近更新時間。
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作、sticky 必填摘要，以及顧客手機 10 碼自動查詢與單一候選顧客自動選取；送出錯誤 scroll 與成功後 next actions 尚待下一輪。
-  - `/admin/printing` 已接上列印中心列表、狀態燈、篩選與 failed retry；`/admin/printing/workers` 已接上 Worker 列表、最後心跳、最近錯誤、名稱 / 位置編輯、啟停，以及新增 / 刪除。
+  - `/admin/printing` 已接上列印中心列表、狀態燈、篩選與 failed retry；`/admin/printing/workers` 已接上 Worker 列表、最後心跳、最近錯誤、名稱 / 位置編輯、啟停，以及新增 / 刪除，且燈號會依 `status + lastSeenAt` 顯示在線 / 離線 / 心跳過期。
   - `/printer-worker` 已建立 connectivity-first Python Worker 子專案，支援 `run-once` / `poll` 來驗證 `claim -> succeed/fail` flow。
+  - Raspberry Pi `192.168.0.242` 已完成第一輪 connectivity smoke test：Pi 端 `printer-worker run-once` 可透過區網呼叫本機 Nuxt `print-worker` API，並成功驗證 `claim -> printed` 與 `claim -> pending(last_error, attempt_count+1)` 兩條路徑。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
   - Supabase Database types 已產生於 `types/database.types.ts`。
@@ -42,6 +43,7 @@
   - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print queue model、admin print-jobs API、print-worker claim/succeed/fail API 與 connectivity worker 已建立，但 CUPS / 實體印表機整合仍未建立。
 - 本機 HTTP 開發環境已明確關閉 Supabase secure auth cookie，避免 SSR session bootstrap 在 `localhost` / `127.0.0.1` 上反覆 `401`。
 - 目前已停用 Nuxt `experimental.appManifest`，避免本機開發環境出現 `/_nuxt/builds/meta/dev.json` 404 並直接觸發整頁 Nuxt error page。
+- `pnpm build` 現在會在 build 後自動補 `.output/server/chunks/public -> ../../public` symlink（必要時 fallback copy），修正 `pnpm preview` 與 `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`、導致 `/admin` 無法渲染的問題。
 
 ## 里程碑
 
@@ -107,20 +109,22 @@
 - Print device admin APIs：已新增 `GET /api/admin/print-devices`、`POST /api/admin/print-devices`、`PATCH /api/admin/print-devices/{id}` 與 `DELETE /api/admin/print-devices/{id}`，支援 Worker 列表、建立、名稱 / 位置編輯、啟停與刪除。
 - Work-order create print enqueue：建工單成功後會 best-effort 自動建立第一筆 `work_order_label` print job；enqueue 失敗不回滾工單。
 - Admin printing UI：已新增 `/admin/printing` 與 `/admin/printing/workers`，提供列印紀錄列表、狀態燈、failed retry、Worker 狀態查看、shadcn dialog 建立與輕量管理。
+- Worker admin status display：`/admin/printing/workers` 已加入 5 秒自動刷新，並以 `status + lastSeenAt` 衍生 connection-aware 燈號；Pi 目前仍是 connectivity worker，heartbeat 只在 `claim / succeed / fail` 時更新。
 - `printer-worker` connectivity worker：已新增 repo 內 Python 子專案，支援 `run-once` / `poll`，可在 local / Raspberry Pi 上驗證 `claim -> succeed/fail` flow。
+- Raspberry Pi connectivity smoke test：已在 Pi 上驗證 `run-once` 的 success 與 fail 路徑，確認可打通本機 Nuxt API、正確更新 `print_jobs.status`、`attempt_count`、`last_error` 與 `printed_at`。
+- Local preview asset fix：`pnpm build` 現在會自動修正 Nitro build output 的 public asset link，避免 `pnpm preview` / `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
 
 ## 目前焦點
 
-- 驗證 `printer-worker` 在 local / staging / Raspberry Pi 的 token、device provisioning 與 stale lock reclaim 行為。
-- 用 connectivity worker 跑第一輪 `claim -> succeed/fail` smoke test。
+- 驗證 `printer-worker` 在 local / staging / Raspberry Pi 的 token、device provisioning 與 stale lock reclaim 行為；持續確認 Worker 管理頁的 heartbeat 呈現是否與 run-once / poll 行為一致。
+- 在 Raspberry Pi 進一步驗證 `poll` 常駐輪詢與長時間連線穩定性。
 - 盤點列印流程與既有 detail / create / bulk status / public lookup 頁面的列印狀態銜接方式。
 - 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
 
 ## 下一步
 
 - 在 local / staging 建立第一台 `print_devices` seed / 手動 provisioning 流程，驗證 `PRINT_WORKER_TOKEN` + `deviceKey` 認證。
-- 在 Raspberry Pi 執行 `printer-worker`，確認 `run-once` 與 `poll` 皆可連到 Nuxt API。
-- 以 `WORKER_RESULT_MODE=fail` 驗證 retry / failed 狀態流轉。
+- 在 Raspberry Pi 執行 `printer-worker poll`，確認連續輪詢與 stale lock reclaim。
 - 補工單 detail / create 成功後的列印狀態呈現與列印中心導流。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
 - 延續新增工單頁 F8C：送出時 scroll 到第一個錯誤欄位、建立成功後 next actions 區塊。
@@ -167,7 +171,9 @@
 - 既有 legacy `SURFBOARD` 工單可能尚未有 `board_length_class`；目前 list / detail 會顯示 `—`，這次沒有補 edit flow 或 backfill。
 - 新增工單頁 F8C 尚未完整收尾：送出錯誤 scroll、建立成功後 next actions 尚未在本輪加入。
 - Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁、bulk status 與列印中心 / Worker 管理第一版；Worker 已可直接在 UI 建立 / 刪除，工單 detail / create 成功後的列印狀態銜接仍待補強。
+- Worker 管理頁目前的連線狀態是前端依 `last_seen_at` 衍生判斷，不是獨立後端 heartbeat service；Pi 若只跑 `run-once`，顯示為離線或心跳過期是預期行為。
 - Admin 前端目前仍屬第一版雛形；雖然大方向與主流程已可展示，但欄位配置、文案、資訊密度、互動回饋與模式切換細節尚未定案，預期需在與甲方討論後進行第二版調整。
 - Nuxt 4 在此專案目前的本機開發組合下，`experimental.appManifest` 會導致 `/_nuxt/builds/meta/dev.json` 404；目前已先關閉這個實驗功能，以穩定開發中的 admin 頁面導航與刷新行為。
+- Nitro `node-server` build output 目前仍依賴 build 後補的 public asset symlink / fallback copy 來讓本機 `preview` 與直接 `node .output/server/index.mjs` 正常提供 `/_nuxt/*`；此 workaround 已落地，但後續仍可追蹤上游 Nitro 行為是否修正。
 - shadcn-vue latest 的 `reka-vega` style registry base style 在初始化時回 404；本次以 `--no-base-style` 初始化並依官方 neutral theme scaffold 手動補齊 global CSS tokens。
 - 印表機型號、CUPS 設定與 production printing workflow 尚未定案，因此 connectivity worker 之後的實體列印驗證仍有不確定性。

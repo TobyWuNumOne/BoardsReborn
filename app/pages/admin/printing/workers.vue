@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import type { ApiErrorEnvelope } from '~/utils/admin-work-orders';
 import {
@@ -12,20 +12,23 @@ import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
 import type {
   AdminPrintDeviceListItem,
   AdminPrintDeviceListResponse,
-  AdminPrintDeviceStatusValue,
   AdminPrintDeviceCreatePayload,
+  AdminPrintDeviceStatusValue,
   AdminPrintDeviceUpdatePayload,
+  PrintDeviceConnectionState,
 } from '~/utils/admin-printing';
 import {
   ADMIN_PRINT_DEVICE_STATUS_OPTIONS,
   createEmptyAdminPrintDeviceListResponse,
-  getPrintDeviceStatusTone,
+  getPrintDeviceConnectionState,
+  getPrintDeviceConnectionStateTone,
 } from '~/utils/admin-printing';
 import PrintDeviceStatusBadge from '~/components/printing/PrintDeviceStatusBadge.vue';
 import PrintStatusLight from '~/components/printing/PrintStatusLight.vue';
 
 type RequestFetch = <T>(request: string, options?: Record<string, unknown>) => Promise<T>;
 const WORKER_LIST_PAGE_SIZE = 100;
+const WORKER_HEARTBEAT_STALE_AFTER_SECONDS = 30;
 
 definePageMeta({
   layout: 'admin',
@@ -73,6 +76,8 @@ const creatingDevice = ref(false);
 const deletingDeviceIds = ref<string[]>([]);
 const savingDeviceId = ref<string | null>(null);
 const togglingDeviceIds = ref<string[]>([]);
+const heartbeatReferenceTime = ref(new Date());
+let refreshTimer: number | null = null;
 const deviceStatusValues = new Set<AdminPrintDeviceStatusValue>(
   ADMIN_PRINT_DEVICE_STATUS_OPTIONS.map((option) => option.value),
 );
@@ -162,6 +167,15 @@ const isEmpty = computed(
 );
 const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 台 worker`);
 const canDeleteDevice = (item: AdminPrintDeviceListItem) => !item.currentJob;
+const getDeviceConnectionState = (
+  item: AdminPrintDeviceListItem,
+): PrintDeviceConnectionState =>
+  getPrintDeviceConnectionState({
+    lastSeenAt: item.lastSeenAt,
+    now: heartbeatReferenceTime.value,
+    staleAfterSeconds: WORKER_HEARTBEAT_STALE_AFTER_SECONDS,
+    status: item.status,
+  });
 
 const startEditingDevice = (item: AdminPrintDeviceListItem) => {
   editingDeviceId.value = item.id;
@@ -210,6 +224,16 @@ const handleAuthRedirect = async (error: unknown) => {
   return true;
 };
 
+const refreshWorkers = async ({ force = false }: { force?: boolean } = {}) => {
+  heartbeatReferenceTime.value = new Date();
+
+  if (!force && fetchStatus.value === 'pending') {
+    return;
+  }
+
+  await refresh();
+};
+
 const patchPrintDevice = async (id: string, payload: AdminPrintDeviceUpdatePayload) => {
   return await getRequestFetch()<{
     data: AdminPrintDeviceListItem;
@@ -252,7 +276,7 @@ const saveNewDevice = async () => {
     toast.success('Print Worker 已新增。');
     createDialogOpen.value = false;
     resetCreateForm();
-    await refresh();
+    await refreshWorkers({ force: true });
   } catch (error) {
     if (await handleAuthRedirect(error)) {
       return;
@@ -282,7 +306,7 @@ const saveEditingDevice = async () => {
     });
     toast.success('Print Worker 已更新。');
     cancelEditing();
-    await refresh();
+    await refreshWorkers({ force: true });
   } catch (error) {
     if (await handleAuthRedirect(error)) {
       return;
@@ -312,7 +336,7 @@ const toggleDeviceStatus = async (item: AdminPrintDeviceListItem) => {
     if (editingDeviceId.value === item.id) {
       editForm.status = nextStatus;
     }
-    await refresh();
+    await refreshWorkers({ force: true });
   } catch (error) {
     if (await handleAuthRedirect(error)) {
       return;
@@ -345,7 +369,7 @@ const handleDeleteDevice = async (item: AdminPrintDeviceListItem) => {
     }
 
     toast.success('Print Worker 已刪除。');
-    await refresh();
+    await refreshWorkers({ force: true });
   } catch (error) {
     if (await handleAuthRedirect(error)) {
       return;
@@ -361,7 +385,22 @@ const handleDeleteDevice = async (item: AdminPrintDeviceListItem) => {
 
 const isToggling = (id: string) => togglingDeviceIds.value.includes(id);
 const isDeleting = (id: string) => deletingDeviceIds.value.includes(id);
-const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDeviceStatusTone(status);
+const getDeviceTone = (item: AdminPrintDeviceListItem) =>
+  getPrintDeviceConnectionStateTone(getDeviceConnectionState(item));
+
+onMounted(() => {
+  heartbeatReferenceTime.value = new Date();
+  refreshTimer = window.setInterval(() => {
+    void refreshWorkers();
+  }, 5000);
+});
+
+onBeforeUnmount(() => {
+  if (refreshTimer !== null) {
+    window.clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+});
 </script>
 
 <template>
@@ -462,7 +501,7 @@ const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDe
       <AlertTitle>Worker 列表載入失敗</AlertTitle>
       <AlertDescription class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <span>{{ apiError?.error.message ?? '目前無法取得 worker 列表。' }}</span>
-        <Button type="button" variant="outline" @click="refresh()">重試</Button>
+        <Button type="button" variant="outline" @click="refreshWorkers({ force: true })">重試</Button>
       </AlertDescription>
     </Alert>
 
@@ -516,7 +555,8 @@ const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDe
           <div>
             <CardTitle>Worker 列表</CardTitle>
             <CardDescription>
-              第一版直接顯示全部 Worker；左側燈號代表裝置狀態，`active` 才能 claim print job。
+              第一版直接顯示全部 Worker；左側燈號會綜合裝置狀態與最後心跳，只有最近 30 秒內回報的 `active`
+              worker 才顯示為在線。
             </CardDescription>
           </div>
         </div>
@@ -548,13 +588,13 @@ const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDe
               <TableBody>
                 <TableRow v-for="item in response.data" :key="item.id" class="align-top">
                   <TableCell>
-                    <PrintStatusLight :tone="getDeviceTone(item.status)" />
+                    <PrintStatusLight :tone="getDeviceTone(item)" />
                   </TableCell>
                   <TableCell>
                     <div class="space-y-2">
                       <div class="flex items-center gap-2">
                         <p class="font-medium text-foreground">{{ item.name }}</p>
-                        <PrintDeviceStatusBadge :status="item.status" />
+                        <PrintDeviceStatusBadge :state="getDeviceConnectionState(item)" />
                       </div>
                       <div class="space-y-1 text-sm text-muted-foreground">
                         <p>{{ item.deviceKey }}</p>
@@ -629,13 +669,13 @@ const getDeviceTone = (status: AdminPrintDeviceListItem['status']) => getPrintDe
               <CardHeader class="gap-3">
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex items-start gap-3">
-                    <PrintStatusLight :tone="getDeviceTone(item.status)" />
+                    <PrintStatusLight :tone="getDeviceTone(item)" />
                     <div class="space-y-1">
                       <p class="font-medium text-foreground">{{ item.name }}</p>
                       <p class="text-sm text-muted-foreground">{{ item.location ?? '未設定位置' }}</p>
                     </div>
                   </div>
-                  <PrintDeviceStatusBadge :status="item.status" />
+                  <PrintDeviceStatusBadge :state="getDeviceConnectionState(item)" />
                 </div>
               </CardHeader>
               <CardContent class="space-y-3 text-sm">

@@ -4,6 +4,7 @@ import type { Database } from '../../types/database.types';
 type PrintJobStatus = Database['public']['Enums']['print_job_status'];
 type PrintJobType = Database['public']['Enums']['print_job_type'];
 type PrintDeviceStatus = Database['public']['Enums']['print_device_status'];
+export type PrintDeviceConnectionState = 'online' | 'offline' | 'stale' | 'inactive' | 'error';
 type BoardType = Database['public']['Enums']['board_type'];
 type BoardLengthClass = Database['public']['Enums']['board_length_class'];
 
@@ -173,6 +174,14 @@ const PRINT_DEVICE_STATUS_LABELS: Record<PrintDeviceStatus, string> = {
   inactive: '已停用',
 };
 
+const PRINT_DEVICE_CONNECTION_STATE_LABELS: Record<PrintDeviceConnectionState, string> = {
+  error: '錯誤',
+  inactive: '停用',
+  offline: '離線',
+  online: '在線',
+  stale: '心跳過期',
+};
+
 const PRINT_JOB_STATUS_TONES: Record<PrintJobStatus, StatusTone> = {
   cancelled: 'inactive',
   failed: 'danger',
@@ -186,6 +195,14 @@ const PRINT_DEVICE_STATUS_TONES: Record<PrintDeviceStatus, StatusTone> = {
   active: 'success',
   error: 'danger',
   inactive: 'inactive',
+};
+
+const PRINT_DEVICE_CONNECTION_STATE_TONES: Record<PrintDeviceConnectionState, StatusTone> = {
+  error: 'danger',
+  inactive: 'inactive',
+  offline: 'inactive',
+  online: 'success',
+  stale: 'warning',
 };
 
 type RouteQueryValue =
@@ -390,3 +407,60 @@ export const getPrintDeviceStatusTone = (status: PrintDeviceStatus) =>
   PRINT_DEVICE_STATUS_TONES[status];
 export const getPrintJobTypeLabel = (jobType: PrintJobType) =>
   jobType === 'work_order_label' ? '工單標籤' : jobType;
+
+interface GetPrintDeviceConnectionStateInput {
+  lastSeenAt: string | null;
+  now: Date;
+  staleAfterSeconds: number;
+  status: PrintDeviceStatus;
+}
+
+const parseHeartbeatDate = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsedTime = Date.parse(value);
+
+  if (Number.isNaN(parsedTime)) {
+    return null;
+  }
+
+  return new Date(parsedTime);
+};
+
+export const getPrintDeviceConnectionState = ({
+  lastSeenAt,
+  now,
+  staleAfterSeconds,
+  status,
+}: GetPrintDeviceConnectionStateInput): PrintDeviceConnectionState => {
+  if (status === 'error') {
+    return 'error';
+  }
+
+  if (status === 'inactive') {
+    return 'inactive';
+  }
+
+  const heartbeatDate = parseHeartbeatDate(lastSeenAt);
+
+  if (!heartbeatDate) {
+    return 'offline';
+  }
+
+  const staleAfterMilliseconds = staleAfterSeconds * 1000;
+  const heartbeatAgeMilliseconds = now.getTime() - heartbeatDate.getTime();
+
+  if (heartbeatAgeMilliseconds <= staleAfterMilliseconds) {
+    return 'online';
+  }
+
+  return 'stale';
+};
+
+export const getPrintDeviceConnectionStateLabel = (state: PrintDeviceConnectionState) =>
+  PRINT_DEVICE_CONNECTION_STATE_LABELS[state];
+
+export const getPrintDeviceConnectionStateTone = (state: PrintDeviceConnectionState) =>
+  PRINT_DEVICE_CONNECTION_STATE_TONES[state];

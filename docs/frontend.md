@@ -315,6 +315,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 做啟用 / 停用與名稱 / 位置編輯
   - 直接在 UI 新增 / 刪除 worker，不需要再去 Supabase Studio 手動維護
 - 由於第一版預期只有 1~2 台裝置，這頁**不做查詢、篩選或分頁控制**，直接顯示全部 worker。
+- 頁面每 `5` 秒自動 refresh 一次 worker list；只刷新列表資料，不可重置 dialog、create/edit form 或目前操作中的 pending state。
 - 第一版欄位：
   - 燈號
   - Worker 名稱
@@ -332,6 +333,13 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 將 `status` 設成 `active` / `inactive` / `error`
   - 快速啟用 / 停用
   - 刪除沒有進行中 job 的 worker
+- 連線狀態顯示規則：
+  - `status = error` -> `錯誤` / 紅燈
+  - `status = inactive` -> `停用` / 灰燈
+  - `status = active` 且 `lastSeenAt` 在 30 秒內 -> `在線` / 綠燈
+  - `status = active` 且 `lastSeenAt` 為空 -> `離線` / 灰燈
+  - `status = active` 且 `lastSeenAt` 超過 30 秒 -> `心跳過期` / 黃燈
+- `在線 / 離線 / 心跳過期` 都是前端衍生 UI 狀態，不回寫 DB，也不新增 API 欄位。
 - 第一版不做：
   - 重設 `deviceKey`
   - 重發 worker bearer token
