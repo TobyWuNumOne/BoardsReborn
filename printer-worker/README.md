@@ -9,6 +9,7 @@ BoardsReborn 的第一版 Python Print Worker 子專案。
 - 顯示拿到的 job 摘要
 - 依設定回報 `succeed` 或 `fail`
 - 支援單次執行與持續輪詢
+- 在 `poll` 模式下，就算本輪 `No job available`，server 仍會更新該 device 的 `last_seen_at`
 
 ## 這一版不做
 
@@ -88,6 +89,8 @@ Reported success -> status=printed attemptCount=0 printedAt=...
 ```text
 No job available
 ```
+
+`poll` 模式下這個輸出是正常的；它代表目前佇列為空，不代表 worker 離線。只要 Pi 持續輪詢，Worker 管理頁仍應維持更新最後心跳並顯示為 `在線`。
 
 ## Smoke Test 建議流程
 

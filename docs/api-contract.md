@@ -990,6 +990,7 @@ Response：
 - 只允許 `active` device claim
 - server 優先回傳最早建立的 `pending` 任務
 - 若無 `pending`，可 reclaim `locked_at` 超過 5 分鐘的 stale lock
+- 就算本次 response 為 `job: null`，server 仍會更新該 `print_device.lastSeenAt`
 - claim 必須是原子操作，避免多個 worker 同時取走同一筆
 - claim 成功後寫入 `status = locked`、`lockedAt`、`lockedBy`、`printDeviceId`
 

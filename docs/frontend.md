@@ -340,6 +340,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - `status = active` 且 `lastSeenAt` 為空 -> `離線` / 灰燈
   - `status = active` 且 `lastSeenAt` 超過 30 秒 -> `心跳過期` / 黃燈
 - `在線 / 離線 / 心跳過期` 都是前端衍生 UI 狀態，不回寫 DB，也不新增 API 欄位。
+- 只要 Pi 持續跑 `printer-worker poll`，即使暫時沒有待印任務，`claim -> job: null` 也會刷新 `lastSeenAt`；因此空佇列時仍應維持顯示為 `在線`。
 - 第一版不做：
   - 重設 `deviceKey`
   - 重發 worker bearer token

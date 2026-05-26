@@ -34,6 +34,7 @@ Admin UI / Work-order create
   - `inactive`
   - `error`
 - `last_seen_at` 由 Worker claim / succeed / fail API 更新。
+- `claim` 就算回傳 `job: null`，也會更新 `last_seen_at`；因此 Pi 持續跑 `poll` 時，即使目前沒有待印任務，Admin Worker 管理頁仍可維持顯示為在線。
 
 ### `print_jobs`
 
@@ -121,6 +122,7 @@ Server 端會同時驗證：
 - `POST /api/print-worker/jobs/claim`
 - 優先 claim 最早建立的 `pending` 任務
 - 若沒有 `pending`，可 reclaim `locked_at` 已超過 5 分鐘的 stale lock
+- 不論有沒有 claim 到 job，都會更新該 `print_device.last_seen_at`
 - claim 成功時寫入：
   - `status = locked`
   - `locked_at`
@@ -159,6 +161,7 @@ repo 內已新增 `/printer-worker` 子專案，提供一個 **no-op connectivit
 - Raspberry Pi 能連到 Nuxt print-worker API
 - `PRINT_WORKER_TOKEN` + `deviceKey` 認證可用
 - `print_jobs` 狀態可正確從 `pending -> locked -> printed|failed`
+- `python worker.py poll` 在佇列為空時仍會持續更新 `last_seen_at`，讓 Worker 管理頁正確顯示在線 / 心跳過期 / 離線
 
 ## Raspberry Pi 下一階段
 

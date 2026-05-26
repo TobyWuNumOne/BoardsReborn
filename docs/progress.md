@@ -109,9 +109,10 @@
 - Print device admin APIs：已新增 `GET /api/admin/print-devices`、`POST /api/admin/print-devices`、`PATCH /api/admin/print-devices/{id}` 與 `DELETE /api/admin/print-devices/{id}`，支援 Worker 列表、建立、名稱 / 位置編輯、啟停與刪除。
 - Work-order create print enqueue：建工單成功後會 best-effort 自動建立第一筆 `work_order_label` print job；enqueue 失敗不回滾工單。
 - Admin printing UI：已新增 `/admin/printing` 與 `/admin/printing/workers`，提供列印紀錄列表、狀態燈、failed retry、Worker 狀態查看、shadcn dialog 建立與輕量管理。
-- Worker admin status display：`/admin/printing/workers` 已加入 5 秒自動刷新，並以 `status + lastSeenAt` 衍生 connection-aware 燈號；Pi 目前仍是 connectivity worker，heartbeat 只在 `claim / succeed / fail` 時更新。
+- Worker admin status display：`/admin/printing/workers` 已加入 5 秒自動刷新，並以 `status + lastSeenAt` 衍生 connection-aware 燈號；Pi 目前仍是 connectivity worker，`last_seen_at` 會在 `claim / succeed / fail` 時更新，且 `claim -> job: null` 也會刷新心跳。
 - `printer-worker` connectivity worker：已新增 repo 內 Python 子專案，支援 `run-once` / `poll`，可在 local / Raspberry Pi 上驗證 `claim -> succeed/fail` flow。
 - Raspberry Pi connectivity smoke test：已在 Pi 上驗證 `run-once` 的 success 與 fail 路徑，確認可打通本機 Nuxt API、正確更新 `print_jobs.status`、`attempt_count`、`last_error` 與 `printed_at`。
+- Raspberry Pi poll heartbeat behavior：已確認 Pi 在 `printer-worker poll` 模式下，即使本輪 `No job available`，仍會透過 `claim -> job: null` 更新 `print_devices.last_seen_at`，所以 Worker 管理頁可在空佇列時維持顯示為在線。
 - Local preview asset fix：`pnpm build` 現在會自動修正 Nitro build output 的 public asset link，避免 `pnpm preview` / `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
 
 ## 目前焦點
@@ -171,7 +172,7 @@
 - 既有 legacy `SURFBOARD` 工單可能尚未有 `board_length_class`；目前 list / detail 會顯示 `—`，這次沒有補 edit flow 或 backfill。
 - 新增工單頁 F8C 尚未完整收尾：送出錯誤 scroll、建立成功後 next actions 尚未在本輪加入。
 - Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁、bulk status 與列印中心 / Worker 管理第一版；Worker 已可直接在 UI 建立 / 刪除，工單 detail / create 成功後的列印狀態銜接仍待補強。
-- Worker 管理頁目前的連線狀態是前端依 `last_seen_at` 衍生判斷，不是獨立後端 heartbeat service；Pi 若只跑 `run-once`，顯示為離線或心跳過期是預期行為。
+- Worker 管理頁目前的連線狀態是前端依 `last_seen_at` 衍生判斷，不是獨立後端 heartbeat service；Pi 若只跑 `run-once`，顯示為離線或心跳過期是預期行為，但持續跑 `poll` 時即使佇列為空也應維持在線。
 - Admin 前端目前仍屬第一版雛形；雖然大方向與主流程已可展示，但欄位配置、文案、資訊密度、互動回饋與模式切換細節尚未定案，預期需在與甲方討論後進行第二版調整。
 - Nuxt 4 在此專案目前的本機開發組合下，`experimental.appManifest` 會導致 `/_nuxt/builds/meta/dev.json` 404；目前已先關閉這個實驗功能，以穩定開發中的 admin 頁面導航與刷新行為。
 - Nitro `node-server` build output 目前仍依賴 build 後補的 public asset symlink / fallback copy 來讓本機 `preview` 與直接 `node .output/server/index.mjs` 正常提供 `/_nuxt/*`；此 workaround 已落地，但後續仍可追蹤上游 Nitro 行為是否修正。
