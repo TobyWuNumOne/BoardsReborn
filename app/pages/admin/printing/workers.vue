@@ -23,6 +23,7 @@ import {
   getPrintDeviceConnectionState,
   getPrintDeviceConnectionStateTone,
 } from '~/utils/admin-printing';
+import { ADMIN_PRINTING_REALTIME_TOPICS } from '~/utils/admin-printing-realtime';
 import PrintDeviceStatusBadge from '~/components/printing/PrintDeviceStatusBadge.vue';
 import PrintStatusLight from '~/components/printing/PrintStatusLight.vue';
 
@@ -77,7 +78,7 @@ const deletingDeviceIds = ref<string[]>([]);
 const savingDeviceId = ref<string | null>(null);
 const togglingDeviceIds = ref<string[]>([]);
 const heartbeatReferenceTime = ref(new Date());
-let refreshTimer: number | null = null;
+let heartbeatClockTimer: number | null = null;
 const deviceStatusValues = new Set<AdminPrintDeviceStatusValue>(
   ADMIN_PRINT_DEVICE_STATUS_OPTIONS.map((option) => option.value),
 );
@@ -129,11 +130,27 @@ const {
   status: fetchStatus,
 } = await useAsyncData('admin-print-devices', fetchPrintDevices);
 
+const refreshWorkers = async ({ force = false }: { force?: boolean } = {}) => {
+  heartbeatReferenceTime.value = new Date();
+
+  if (!force && fetchStatus.value === 'pending') {
+    return;
+  }
+
+  await refresh();
+};
+
+const realtimeSync = useAdminPrintingRealtime({
+  onRefresh: () => refreshWorkers(),
+  topics: ADMIN_PRINTING_REALTIME_TOPICS,
+});
+
 watch(
   data,
   (response) => {
     if (response) {
       lastSuccessfulResponse.value = response;
+      realtimeSync.markSynchronized();
     }
   },
   { immediate: true },
@@ -222,16 +239,6 @@ const handleAuthRedirect = async (error: unknown) => {
   }
 
   return true;
-};
-
-const refreshWorkers = async ({ force = false }: { force?: boolean } = {}) => {
-  heartbeatReferenceTime.value = new Date();
-
-  if (!force && fetchStatus.value === 'pending') {
-    return;
-  }
-
-  await refresh();
 };
 
 const patchPrintDevice = async (id: string, payload: AdminPrintDeviceUpdatePayload) => {
@@ -390,15 +397,15 @@ const getDeviceTone = (item: AdminPrintDeviceListItem) =>
 
 onMounted(() => {
   heartbeatReferenceTime.value = new Date();
-  refreshTimer = window.setInterval(() => {
-    void refreshWorkers();
-  }, 5000);
+  heartbeatClockTimer = window.setInterval(() => {
+    heartbeatReferenceTime.value = new Date();
+  }, 1000);
 });
 
 onBeforeUnmount(() => {
-  if (refreshTimer !== null) {
-    window.clearInterval(refreshTimer);
-    refreshTimer = null;
+  if (heartbeatClockTimer !== null) {
+    window.clearInterval(heartbeatClockTimer);
+    heartbeatClockTimer = null;
   }
 });
 </script>

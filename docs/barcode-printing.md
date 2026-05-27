@@ -37,9 +37,11 @@ Nuxt 負責：
 - 建立工單。
 - 建立與重排列印任務。
 - 建立補印任務。
+- 提供 work-order detail / create / bulk-status 使用的列印摘要 read model。
 - 提供 admin 列印中心與 Print Worker 管理頁。
 - 提供 Worker claim / succeed / fail API。
 - 接收 Worker 的列印結果回報。
+- 透過 Supabase Realtime broadcast 通知 admin 列印頁面與 Pi worker 有列印變更，再由 client refetch / claim server truth。
 
 Nuxt 不負責：
 
@@ -48,24 +50,29 @@ Nuxt 不負責：
 - 在前端頁面寫死列印語言或品牌 SDK。
 - 從平板瀏覽器直接控制 USB 標籤機。
 
-## Print Worker v1
+## Print Worker Runtime
 
 Print Worker 第一版先拆成兩個階段：
 
-1. **connectivity worker**：repo 內的 `/printer-worker` Python 子專案，只驗證 `claim -> succeed/fail`
-2. **printer worker**：後續再接 systemd、CUPS 與實體標籤機
+1. **connectivity worker**：`run-once` / `poll`，只驗證 `claim -> succeed/fail`
+2. **event wake-up worker**：`serve`，用 Supabase Realtime wake-up + fallback claim 常駐
+3. **printer worker**：後續再接 systemd、CUPS 與實體標籤機
 
-目前 repo 已包含 connectivity worker；systemd / CUPS / 實體列印仍未實作。
+目前 repo 已包含 connectivity worker 與 event wake-up worker；CUPS / 實體列印仍未實作。
 
 Worker 工作：
 
-1. 定期呼叫 `POST /api/print-worker/jobs/claim` 取得待印任務。
-2. connectivity worker 階段先印出 job 摘要，並回報 `succeed` 或 `fail`。
-3. printer worker 階段再把 `payload` 轉成實際標籤格式。
-4. printer worker 階段再寫入 CUPS / USB 標籤機。
-5. 呼叫 `POST /api/print-worker/jobs/{id}/succeed` 或 `POST /api/print-worker/jobs/{id}/fail` 回報結果。
+1. `serve` 啟動時先 claim 一次，處理已存在 backlog。
+2. worker 訂閱 public `printing:worker-wakeup`，收到 `printing.job_available` 後再 claim。
+3. 同時保留 `60` 秒 fallback claim，補 missed event / heartbeat。
+4. connectivity worker 階段先印出 job 摘要，並回報 `succeed` 或 `fail`。
+5. printer worker 階段再把 `payload` 轉成實際標籤格式。
+6. printer worker 階段再寫入 CUPS / USB 標籤機。
+7. 呼叫 `POST /api/print-worker/jobs/{id}/succeed` 或 `POST /api/print-worker/jobs/{id}/fail` 回報結果。
 
-Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並在 body 帶 `deviceKey`。
+Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並在 body 帶 `deviceKey`。Realtime wake-up 只負責通知，不直接授權 claim。
+
+`printing:worker-wakeup` 是 public minimal topic，只帶 `eventType`、`changedAt`、`reason`。Pi 不可信任 payload 內容，收到後仍需重新呼叫 `claim`。
 
 ## 標籤語言與品牌策略
 
@@ -109,6 +116,7 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 - 如果列印失敗或標籤破損，使用者可建立補印任務。
 - 補印必須新增 `print_jobs` 記錄，不覆蓋舊任務。
 - 建立工單不要求同步列印成功。
+- work-order detail / create success / bulk-status 只顯示列印摘要與 deep link；完整列印操作仍集中在 `/admin/printing`。
 
 ## 樹莓派定位
 

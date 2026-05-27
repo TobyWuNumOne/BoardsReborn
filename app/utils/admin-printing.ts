@@ -79,6 +79,30 @@ export interface AdminPrintDeviceListResponse {
   pageInfo: AdminListPageInfo;
 }
 
+export interface AdminPrintSummaryLatestJob {
+  attemptCount: number;
+  createdAt: string;
+  id: string;
+  lastError: string | null;
+  maxAttempts: number;
+  printedAt: string | null;
+  status: PrintJobStatus;
+  updatedAt: string;
+}
+
+export interface AdminPrintSummaryItem {
+  hasActiveJob: boolean;
+  hasFailedJob: boolean;
+  hasPendingJob: boolean;
+  latestJob: AdminPrintSummaryLatestJob | null;
+  reprintAllowed: boolean;
+  workOrderId: string;
+}
+
+export interface AdminPrintSummaryResponse {
+  data: Record<string, AdminPrintSummaryItem>;
+}
+
 export interface AdminPrintJobListQueryState {
   page: number;
   pageSize: number;
@@ -464,3 +488,20 @@ export const getPrintDeviceConnectionStateLabel = (state: PrintDeviceConnectionS
 
 export const getPrintDeviceConnectionStateTone = (state: PrintDeviceConnectionState) =>
   PRINT_DEVICE_CONNECTION_STATE_TONES[state];
+
+export const createEmptyAdminPrintSummary = (workOrderId: string): AdminPrintSummaryItem => ({
+  hasActiveJob: false,
+  hasFailedJob: false,
+  hasPendingJob: false,
+  latestJob: null,
+  reprintAllowed: true,
+  workOrderId,
+});
+
+export const getAdminPrintActionLabel = (summary: AdminPrintSummaryItem | null) =>
+  summary?.latestJob ? '建立補印' : '建立列印任務';
+
+export const getAdminPrintingCenterPath = (paperOrderNo: string | null | undefined) =>
+  paperOrderNo?.trim()
+    ? `/admin/printing?paperOrderNo=${encodeURIComponent(paperOrderNo)}`
+    : '/admin/printing';

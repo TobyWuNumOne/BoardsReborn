@@ -142,6 +142,7 @@
 列印中心與 Worker 管理使用：
 
 - `GET /api/admin/print-jobs`
+- `GET /api/admin/print-summaries`
 - `POST /api/admin/print-jobs/{id}/retry`
 - `GET /api/admin/print-devices`
 - `PATCH /api/admin/print-devices/{id}`
@@ -212,6 +213,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - mode toggle
 - F4 的 detail page 至少顯示：
   - 工單摘要
+  - 列印狀態摘要
   - 顧客資訊
   - 板子資訊
   - 報價資訊
@@ -232,6 +234,8 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - `note` 永遠包含在 request 中；空白送 `null`
   - `internalNote` 空白代表不變更既有內部備註；若要清空，改走 `mode=edit`
   - 成功後 refresh detail、清空 form，並保留在 `mode=work`
+- detail 頁列印狀態卡使用 `GET /api/admin/print-summaries?workOrderId=...`，只刷新 summary，不因列印事件整頁重抓 work order detail。
+- detail 頁列印狀態卡只顯示 summary + deep link，不嵌入完整 print timeline。
 
 ## Work Order Create
 
@@ -259,7 +263,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
 - 建立成功後：
   - 清除 unsaved-change guard
   - 顯示 success toast
-  - 導向 `/admin/work-orders/[id]?mode=view`
+  - 導向 `/admin/work-orders/[id]?mode=view&created=1`
 
 ## Bulk Status
 
@@ -275,6 +279,9 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
 - textarea parser 規則：
   - 支援換行、逗號、空白
   - trim
+- preview 區可顯示 compact print summary + `前往列印中心` deep link，但不提供補印按鈕。
+- recent batch result 區顯示 print summary；只有 `updated` items 可顯示單筆 `建立列印任務 / 建立補印`。
+- bulk-status 以 `GET /api/admin/print-summaries` 分批讀取 summary，避免對 `/api/admin/print-jobs` 做 N+1。
 
 ## Printing Center
 
@@ -283,6 +290,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 快速判斷成功 / 失敗 / 處理中 / 待列印
   - 依工單號或狀態篩選最近任務
   - 對 `failed` 任務直接 retry
+- 首屏抓 snapshot 後，改由 Supabase Realtime 通知觸發 refetch；hidden tab 不做固定 polling。
 - 列表規則：
   - desktop（`xl` 起）用 table
   - `xl` 以下用 card list
@@ -315,7 +323,9 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 做啟用 / 停用與名稱 / 位置編輯
   - 直接在 UI 新增 / 刪除 worker，不需要再去 Supabase Studio 手動維護
 - 由於第一版預期只有 1~2 台裝置，這頁**不做查詢、篩選或分頁控制**，直接顯示全部 worker。
-- 頁面每 `5` 秒自動 refresh 一次 worker list；只刷新列表資料，不可重置 dialog、create/edit form 或目前操作中的 pending state。
+- 頁面首屏先抓一次 worker list，之後改由 Supabase Realtime notification layer 觸發 refetch。
+- fixed fallback sync 僅在頁面可見時啟用，頻率為每 `60` 秒一次。
+- 分頁 hidden 時不可再固定打 worker list API；回到 visible 時若收到事件或最後同步已超過 `60` 秒，需立刻補一次 refresh。
 - 第一版欄位：
   - 燈號
   - Worker 名稱
@@ -340,6 +350,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - `status = active` 且 `lastSeenAt` 為空 -> `離線` / 灰燈
   - `status = active` 且 `lastSeenAt` 超過 30 秒 -> `心跳過期` / 黃燈
 - `在線 / 離線 / 心跳過期` 都是前端衍生 UI 狀態，不回寫 DB，也不新增 API 欄位。
+- `lastSeenAt` 的過期判斷應以本地時間推進，不可依賴持續打 API 來更新燈號。
 - 只要 Pi 持續跑 `printer-worker poll`，即使暫時沒有待印任務，`claim -> job: null` 也會刷新 `lastSeenAt`；因此空佇列時仍應維持顯示為 `在線`。
 - 第一版不做：
   - 重設 `deviceKey`

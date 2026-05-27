@@ -11,8 +11,8 @@
 
 ## 目前快照
 
-- 最後更新：2026-05-26
-- 目前階段：admin 主流程、public customer lookup、第一版列印中心 UI 與 `printer-worker` connectivity worker 已建立；Raspberry Pi 第一輪 smoke test 已完成，下一步往 `poll` 常駐驗證、device provisioning、CUPS 與實機列印驗證推進
+- 最後更新：2026-05-27
+- 目前階段：admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up 與 work-order 列印摘要通知層已建立；下一步往 Raspberry Pi systemd 落地、CUPS 與實機列印驗證推進
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -27,7 +27,10 @@
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作、sticky 必填摘要，以及顧客手機 10 碼自動查詢與單一候選顧客自動選取；送出錯誤 scroll 與成功後 next actions 尚待下一輪。
   - `/admin/printing` 已接上列印中心列表、狀態燈、篩選與 failed retry；`/admin/printing/workers` 已接上 Worker 列表、最後心跳、最近錯誤、名稱 / 位置編輯、啟停，以及新增 / 刪除，且燈號會依 `status + lastSeenAt` 顯示在線 / 離線 / 心跳過期。
-  - `/printer-worker` 已建立 connectivity-first Python Worker 子專案，支援 `run-once` / `poll` 來驗證 `claim -> succeed/fail` flow。
+  - admin printing 已加上 Supabase Realtime notification layer：`/admin/printing` 與 `/admin/printing/workers` 改成收到事件後 refetch + visible-only 60 秒 fallback，不再固定每 5 秒打 API；Phase 2 起 Realtime emit ownership 已收斂到 Nuxt server-side utility，並新增 public `printing:worker-wakeup` topic。
+  - `/printer-worker` 已建立 connectivity-first Python Worker 子專案，支援 `run-once` / `poll` 與新的 `serve` mode；`serve` 會做 Realtime wake-up + 60 秒 fallback claim，但 CUPS / 實體列印仍未實作。
+  - `/admin/work-orders/[id]` 已接上列印摘要卡與 `前往列印中心 / 建立列印任務 / 建立補印`；建單成功會導到 detail 並帶 `created=1` banner。
+  - `/admin/work-orders/bulk-status` 已補 compact print summary、列印中心 deep link，以及 recent batch result 的單筆列印任務建立。
   - Raspberry Pi `192.168.0.242` 已完成第一輪 connectivity smoke test：Pi 端 `printer-worker run-once` 可透過區網呼叫本機 Nuxt `print-worker` API，並成功驗證 `claim -> printed` 與 `claim -> pending(last_error, attempt_count+1)` 兩條路徑。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
@@ -54,14 +57,14 @@
 | 進度追蹤與 agent workflow              | done    | 本文件、AGENTS 規範與一致性檢查 skill 已建立。                                                                                                                                        |
 | Supabase local stack 與 migrations     | done    | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。                                                                                                       |
 | Server API foundation                  | done    | 共用 requestId、typed errors、Supabase client helpers 與 admin gate 已建立。                                                                                                          |
-| Admin work-order API                   | partial | Create/list/detail/update/status/resolve/bulk-status 與 customer lookup 已建立；建工單後 best-effort print enqueue 已接上，但 detail / create success 後的列印狀態銜接仍待補強。     |
+| Admin work-order API                   | done    | Create/list/detail/update/status/resolve/bulk-status、customer lookup 與 `GET /api/admin/print-summaries` 已建立；建工單後 best-effort print enqueue 已接上。                           |
 | Auth 與管理端流程                      | done    | Admin gate helper、session endpoint、login/logout UI、admin middleware 與 session bootstrap 已建立。                                                                                  |
 | Frontend strategy / UI foundation      | done    | Tailwind CSS v4、shadcn-vue primitives、admin shell、dashboard summary 與 frontend rules 已建立。                                                                                     |
 | Admin work-order list UI               | done    | `/admin/work-orders` 已接上 list API、URL query state、table/card list 與 detail 導頁。                                                                                               |
-| Admin work-order detail UI             | partial | `/admin/work-orders/[id]` 已接上 detail API 與 `view/edit/work` mode；`view`、`edit` 與 `work` 皆已有第一版可用雛形，細節仍待與甲方討論後進二版調整。                                 |
+| Admin work-order detail UI             | done    | `/admin/work-orders/[id]` 已接上 detail API、`view/edit/work` mode 與列印摘要卡；完整列印操作仍以 `/admin/printing` 為中心。                                                         |
 | Admin work-order create UI             | done    | `/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價、tablet-first F8A/F8B 快捷操作與成功導向 detail。                                                           |
-| Admin bulk status UI                   | done    | `/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作與批量結果摘要。                                                                                      |
-| Barcode / print job API 與 Print Agent | partial | `print_devices` / `print_jobs` schema、admin print-jobs / print-devices API、print-worker claim/succeed/fail API、admin 列印 UI 與 `printer-worker` connectivity worker 已建立；CUPS / 實體列印仍 pending。 |
+| Admin bulk status UI                   | done    | `/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作、批量結果摘要與列印摘要 / deep link。                                                               |
+| Barcode / print job API 與 Print Agent | partial | `print_devices` / `print_jobs` schema、admin print-jobs / print-devices / print-summaries API、print-worker claim/succeed/fail API、admin 列印 UI，以及 `printer-worker run-once/poll/serve` 已建立；CUPS / 實體列印仍 pending。 |
 | Admin printing UI                      | done    | `/admin/printing` 與 `/admin/printing/workers` 第一版已建立，包含列印紀錄、retry、Worker 列表、dialog 建立與輕量管理。                                                                |
 | Customer lookup flow                   | done    | `POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。                                                                |
 | Production workflow 與部署硬化         | pending | Staging Supabase / Vercel 基礎部署已完成；正式 production cutover、production Auth 設定與部署硬化尚未完成。                                                                           |
@@ -79,6 +82,7 @@
 - Admin session endpoint：`GET /api/admin/session`。
 - Admin customer lookup：`GET /api/admin/customers/lookup`。
 - Admin work-order API：create/list/detail/update/status/resolve/bulk-status。
+- Admin print summary API：`GET /api/admin/print-summaries`，供 detail / bulk-status 讀取列印摘要 read model。
 - Admin work-order create RPC：原子建立 customer、work_order、第一筆 status_history 與 quote_items；route 會在 RPC 成功後 best-effort enqueue 第一筆 print job。
 - Admin work-order status RPC：原子 append `status_history`、同步 `work_orders.current_status`，並維護 ready/delivered/cancelled timestamp。
 - Admin bulk status API：以 `paperOrderNos` 批量更新狀態，回傳 `requestedCount`、`dedupedCount`、`updatedCount`、`skippedCount` 與逐筆結果；未知錯誤時立即停止後續處理。
@@ -89,10 +93,12 @@
 - Admin work-order list UI：URL query canonicalization middleware、read-only 工單列表、提醒 badges、桌機 table / 手機 card list 與 detail placeholder route。
 - Admin work-order list rendering fix：改為顯式 import `work-orders` 目錄下的列表與 badge 元件，排除 Nuxt auto-import 前綴不符造成「總數正確但列表不顯示」的回歸。
 - Admin work-order detail UI：單一路由 detail page、`mode=view|edit|work` query canonicalization、detail data keyed only by id、view mode 只讀區塊、edit mode PATCH 表單、work mode 狀態更新卡與 404/422 分流已建立。
+- Work-order detail 列印摘要：detail 頁已新增列印狀態卡、`created=1` banner、`前往列印中心` deep link 與單筆 `建立列印任務 / 建立補印`。
 - Admin work-order create UI：單頁現場收件建單頁、lookup-first 顧客流程、`intakeDate -> estimatedCompletionDate` 預設規則、初始報價映射、tablet-first F8A/F8B 快捷操作與成功導向 detail 已建立。
 - Admin work-order create tablet-first F8A/F8B：已加大本頁觸控目標，補工單號 / 顧客手機 / 初始報價 numeric input attributes，新增衝浪板尺寸 quick selector 與 +/- 英寸、預估完成日 quick actions、初始報價 quick amount / 微調、損傷描述與維修處數量 quick chips、公開 / 內部備註 quick chips，以及 sticky 必填欄位摘要；未改 API payload、schema 或建單狀態流程。
 - Surfboard 長度分類：`board_length_class` schema、create validation、create/list/detail API mapping 與 admin create/list/detail UI 顯示已建立。
 - Admin bulk status UI：獨立 `/admin/work-orders/bulk-status` 頁面、resolve fan-out preview、共享狀態 select、依狀態分組的快捷操作與最近一次批量結果摘要已建立。
+- Bulk status 列印摘要：preview 與 recent batch result 已補 compact print summary；recent result 的 updated items 可單筆建立列印任務。
 - Bulk preview / 工單列表資訊密度升級：`resolve` preview 已補顧客電話、長度分類、顏色、預估完成日與提醒 flags；bulk status 與工單列表都會顯示顏色 swatch。
 - Public customer lookup：`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，使用完整手機號碼驗證、server-generated progress timeline / cancelled state 與 MVP in-memory rate limit。
 - Admin dashboard quick entries：已接上工單列表與建單頁入口，排除 create entry 仍停留 disabled placeholder 的不一致狀態。
@@ -109,28 +115,28 @@
 - Print device admin APIs：已新增 `GET /api/admin/print-devices`、`POST /api/admin/print-devices`、`PATCH /api/admin/print-devices/{id}` 與 `DELETE /api/admin/print-devices/{id}`，支援 Worker 列表、建立、名稱 / 位置編輯、啟停與刪除。
 - Work-order create print enqueue：建工單成功後會 best-effort 自動建立第一筆 `work_order_label` print job；enqueue 失敗不回滾工單。
 - Admin printing UI：已新增 `/admin/printing` 與 `/admin/printing/workers`，提供列印紀錄列表、狀態燈、failed retry、Worker 狀態查看、shadcn dialog 建立與輕量管理。
-- Worker admin status display：`/admin/printing/workers` 已加入 5 秒自動刷新，並以 `status + lastSeenAt` 衍生 connection-aware 燈號；Pi 目前仍是 connectivity worker，`last_seen_at` 會在 `claim / succeed / fail` 時更新，且 `claim -> job: null` 也會刷新心跳。
+- Printing admin Realtime sync：database-side Supabase Realtime broadcast 已接上 `print_jobs` / `print_devices`，admin 列印頁面改成 event-driven refetch；fallback sync 只在 visible tab 每 60 秒執行一次。
 - `printer-worker` connectivity worker：已新增 repo 內 Python 子專案，支援 `run-once` / `poll`，可在 local / Raspberry Pi 上驗證 `claim -> succeed/fail` flow。
+- `printer-worker serve`：已新增 Pi event wake-up runtime，使用 public `printing:worker-wakeup` + 60 秒 fallback claim，並附 systemd artifacts / env example。
 - Raspberry Pi connectivity smoke test：已在 Pi 上驗證 `run-once` 的 success 與 fail 路徑，確認可打通本機 Nuxt API、正確更新 `print_jobs.status`、`attempt_count`、`last_error` 與 `printed_at`。
 - Raspberry Pi poll heartbeat behavior：已確認 Pi 在 `printer-worker poll` 模式下，即使本輪 `No job available`，仍會透過 `claim -> job: null` 更新 `print_devices.last_seen_at`，所以 Worker 管理頁可在空佇列時維持顯示為在線。
 - Local preview asset fix：`pnpm build` 現在會自動修正 Nitro build output 的 public asset link，避免 `pnpm preview` / `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
 
 ## 目前焦點
 
-- 驗證 `printer-worker` 在 local / staging / Raspberry Pi 的 token、device provisioning 與 stale lock reclaim 行為；持續確認 Worker 管理頁的 heartbeat 呈現是否與 run-once / poll 行為一致。
-- 在 Raspberry Pi 進一步驗證 `poll` 常駐輪詢與長時間連線穩定性。
-- 盤點列印流程與既有 detail / create / bulk status / public lookup 頁面的列印狀態銜接方式。
+- 驗證 `printer-worker serve` 在 local / staging / Raspberry Pi 的 token、device provisioning、Realtime wake-up 與 fallback claim 行為。
+- 在 Raspberry Pi 落地 systemd，確認長時間斷線 / 重連與 graceful shutdown。
+- 開始接 CUPS / 實體標籤機，確認 `serve` mode 在真實 transport 下的 succeed / fail 行為。
 - 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
 
 ## 下一步
 
-- 在 local / staging 建立第一台 `print_devices` seed / 手動 provisioning 流程，驗證 `PRINT_WORKER_TOKEN` + `deviceKey` 認證。
-- 在 Raspberry Pi 執行 `printer-worker poll`，確認連續輪詢與 stale lock reclaim。
-- 補工單 detail / create 成功後的列印狀態呈現與列印中心導流。
+- 在 local / staging 建立第一台 `print_devices` seed / 手動 provisioning 流程，驗證 `PRINT_WORKER_TOKEN` + `deviceKey` + `SUPABASE_ANON_KEY`。
+- 在 Raspberry Pi 套用 systemd service / env file，驗證開機自啟、異常重啟與 `SIGTERM` 收尾。
+- 開始接 CUPS / 實體印表機整合。
+- 規劃 `locked` / `printing` stale job recovery。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
 - 延續新增工單頁 F8C：送出時 scroll 到第一個錯誤欄位、建立成功後 next actions 區塊。
-- 開始接 CUPS / 實體印表機整合。
-- 盤點 detail / create / bulk status / public lookup 與後續列印流程之間的 UI / 操作銜接。
 
 ## Frontend Strategy 待辦
 
@@ -171,8 +177,9 @@
 - 建工單後會 best-effort enqueue 第一筆 `print_job`；若 enqueue 失敗，需靠 server log 與 admin print-jobs 補建流程補救。
 - 既有 legacy `SURFBOARD` 工單可能尚未有 `board_length_class`；目前 list / detail 會顯示 `—`，這次沒有補 edit flow 或 backfill。
 - 新增工單頁 F8C 尚未完整收尾：送出錯誤 scroll、建立成功後 next actions 尚未在本輪加入。
-- Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁、bulk status 與列印中心 / Worker 管理第一版；Worker 已可直接在 UI 建立 / 刪除，工單 detail / create 成功後的列印狀態銜接仍待補強。
-- Worker 管理頁目前的連線狀態是前端依 `last_seen_at` 衍生判斷，不是獨立後端 heartbeat service；Pi 若只跑 `run-once`，顯示為離線或心跳過期是預期行為，但持續跑 `poll` 時即使佇列為空也應維持在線。
+- Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁、bulk status 與列印中心 / Worker 管理第一版；detail / create / bulk-status 的列印摘要與 deep link 已接上，但完整 print timeline 仍集中在 `/admin/printing`。
+- Worker 管理頁目前的連線狀態仍是前端依 `last_seen_at` 衍生判斷，不是獨立後端 heartbeat service；Pi 若只跑 `run-once`，顯示為離線或心跳過期是預期行為，但持續跑 `poll` 時即使佇列為空也應維持在線。
+- Pi worker 已新增 `serve` mode 與 public `printing:worker-wakeup`；但 systemd / CUPS / 實機列印仍未完成，`locked` / `printing` stale job recovery 也尚未實作。
 - Admin 前端目前仍屬第一版雛形；雖然大方向與主流程已可展示，但欄位配置、文案、資訊密度、互動回饋與模式切換細節尚未定案，預期需在與甲方討論後進行第二版調整。
 - Nuxt 4 在此專案目前的本機開發組合下，`experimental.appManifest` 會導致 `/_nuxt/builds/meta/dev.json` 404；目前已先關閉這個實驗功能，以穩定開發中的 admin 頁面導航與刷新行為。
 - Nitro `node-server` build output 目前仍依賴 build 後補的 public asset symlink / fallback copy 來讓本機 `preview` 與直接 `node .output/server/index.mjs` 正常提供 `/_nuxt/*`；此 workaround 已落地，但後續仍可追蹤上游 Nitro 行為是否修正。

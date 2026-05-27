@@ -398,7 +398,7 @@ const submitCreateForm = async () => {
 
     clearUnsavedGuard();
     toast.success('工單已建立');
-    await navigateTo(getAdminWorkOrderDetailPath(response.data.id));
+    await navigateTo(`${getAdminWorkOrderDetailPath(response.data.id)}?created=1`);
   } catch (error) {
     if (await maybeHandleAdminAuthRedirect(error)) {
       return;

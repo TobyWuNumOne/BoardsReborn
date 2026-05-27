@@ -201,6 +201,7 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 - 目前鎖住的 job（若有）
 - 最近錯誤訊息（若有）
 - `search_text`（由 `name` / `device_key` / `location` 組成，供 admin list search）
+- admin printing Realtime private topics 使用 `realtime.messages` RLS 授權；`authenticated` admin 需要同時具備 `select` 與 `insert` policy 才能完成 private broadcast topic join
 
 ### `print_jobs`
 
@@ -365,4 +366,5 @@ TypeScript 名稱：`PrintJobType`
 - 顧客查詢不得直接開放 Supabase table read，必須經由 Nuxt server API 驗證工單號，並以 `customers.phone` 的完整正規化手機號碼比對使用者輸入後，才回傳有限欄位。
 - Server-only elevated key 只能在 Nitro server API 使用。
 - 管理端 user-scoped Supabase client 需要 `authenticated` role 具備對應 table / view privileges，並由 RLS policies 與 Nuxt admin gate 共同限制實際操作。
+- private Realtime broadcast topic 的 join 授權也由 `realtime.messages` RLS policy 控制；本 repo 的 printing topics 限制為 `printing:*` 且僅允許 `admin_profiles` 使用者加入。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。

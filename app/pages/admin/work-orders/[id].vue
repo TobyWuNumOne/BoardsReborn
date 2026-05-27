@@ -2,6 +2,12 @@
 import { parseDate } from '@internationalized/date';
 import { CalendarIcon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
+import type { AdminPrintSummaryItem, AdminPrintSummaryResponse } from '~/utils/admin-printing';
+import {
+  createEmptyAdminPrintSummary,
+  getAdminPrintActionLabel,
+  getAdminPrintingCenterPath,
+} from '~/utils/admin-printing';
 import type {
   AdminWorkOrderDetailItem,
   AdminWorkOrderDetailMode,
@@ -36,6 +42,7 @@ import {
   normalizeAdminWorkOrderEditFormState,
 } from '~/utils/admin-work-orders';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
+import PrintJobStatusBadge from '~/components/printing/PrintJobStatusBadge.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 import { Textarea } from '~/components/ui/textarea';
 
@@ -114,6 +121,7 @@ const lastWorkFormWorkOrderId = ref<string | null>(null);
 const isSubmittingWorkForm = ref(false);
 const clientWorkFieldErrors = ref<Record<string, string[]>>({});
 const submitWorkApiError = ref<ApiErrorEnvelope | null>(null);
+const isSubmittingPrintAction = ref(false);
 const workOrderStatusValues = new Set(
   ADMIN_WORK_ORDER_STATUS_OPTIONS.map((option) => option.value),
 );
@@ -215,6 +223,47 @@ const fetchWorkOrderDetail = async () => {
   }
 };
 
+const handleAuthRedirect = async (error: unknown) => {
+  const statusCode = getApiErrorStatusCode(error);
+
+  if (statusCode !== 401 && statusCode !== 403) {
+    return false;
+  }
+
+  const sessionSnapshot = await adminSession.refreshAdminSession({ force: true });
+  const redirectTarget = getAdminRouteGuardRedirect(sessionSnapshot.status, route.fullPath);
+
+  if (redirectTarget) {
+    await navigateTo(redirectTarget);
+  }
+
+  return true;
+};
+
+const fetchPrintSummary = async () => {
+  if (!routeWorkOrderId.value) {
+    return {
+      data: {},
+    } satisfies AdminPrintSummaryResponse;
+  }
+
+  try {
+    return await getRequestFetch()<AdminPrintSummaryResponse>('/api/admin/print-summaries', {
+      query: {
+        workOrderId: routeWorkOrderId.value,
+      },
+    });
+  } catch (error) {
+    if (await handleAuthRedirect(error)) {
+      return {
+        data: {},
+      } satisfies AdminPrintSummaryResponse;
+    }
+
+    throw error;
+  }
+};
+
 const {
   data,
   error,
@@ -223,8 +272,35 @@ const {
 } = await useAsyncData(detailAsyncKey, fetchWorkOrderDetail, {
   watch: [routeWorkOrderId],
 });
+const {
+  data: printSummaryResponse,
+  refresh: refreshPrintSummary,
+  status: printSummaryStatus,
+} = await useAsyncData(
+  computed(() => `admin-print-summary:${routeWorkOrderId.value}`),
+  fetchPrintSummary,
+  {
+    watch: [routeWorkOrderId],
+  },
+);
 
 const detail = computed<AdminWorkOrderDetailItem | null>(() => data.value?.data ?? null);
+const printSummary = computed<AdminPrintSummaryItem | null>(() => {
+  if (!routeWorkOrderId.value) {
+    return null;
+  }
+
+  return (
+    printSummaryResponse.value?.data?.[routeWorkOrderId.value]
+    ?? createEmptyAdminPrintSummary(routeWorkOrderId.value)
+  );
+});
+const printActionLabel = computed(() => getAdminPrintActionLabel(printSummary.value));
+const printCenterPath = computed(() => getAdminPrintingCenterPath(detail.value?.paperOrderNo));
+const shouldShowCreatedBanner = computed(() => route.query.created === '1');
+const isPrintSummaryLoading = computed(
+  () => printSummaryStatus.value === 'pending' && !printSummaryResponse.value,
+);
 const detailTitle = computed(() => {
   const paperOrderNo = detail.value?.paperOrderNo;
 
@@ -351,6 +427,16 @@ const headerSubtitle = computed(() => {
 
   return '查看工單摘要、顧客、板子、報價、取件資訊與狀態歷史。';
 });
+
+useAdminPrintingRealtime({
+  onRefresh: async () => {
+    await refreshPrintSummary();
+  },
+  shouldRefreshFromEvent: (payload) =>
+    !payload.workOrderId || payload.workOrderId === routeWorkOrderId.value,
+  topics: ['printing:jobs'],
+});
+
 const editEstimatedCalendarValue = computed({
   get: () =>
     getSafeCalendarDate(
@@ -740,6 +826,38 @@ const submitWorkForm = async () => {
     });
   } finally {
     isSubmittingWorkForm.value = false;
+  }
+};
+
+const createPrintJobFromDetail = async () => {
+  if (!detail.value || !printSummary.value?.reprintAllowed || isSubmittingPrintAction.value) {
+    return;
+  }
+
+  isSubmittingPrintAction.value = true;
+
+  try {
+    await getRequestFetch()('/api/admin/print-jobs', {
+      body: {
+        jobType: 'work_order_label',
+        workOrderId: detail.value.id,
+      },
+      method: 'POST',
+    });
+
+    toast.success(`${printActionLabel.value}已送出`);
+    await refreshPrintSummary();
+  } catch (error) {
+    if (await handleAuthRedirect(error)) {
+      return;
+    }
+
+    const apiEnvelope = extractApiErrorEnvelope(error);
+    toast.error(`${printActionLabel.value}失敗。`, {
+      description: apiEnvelope?.error.message ?? '請稍後再試。',
+    });
+  } finally {
+    isSubmittingPrintAction.value = false;
   }
 };
 
@@ -1162,18 +1280,119 @@ if (import.meta.client) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>顧客資訊</CardTitle>
-            <CardDescription>目前綁定在這張工單上的顧客基本資料。</CardDescription>
-          </CardHeader>
-          <CardContent class="grid gap-4 sm:grid-cols-2">
-            <div v-for="field in customerFields" :key="field.label" class="space-y-1">
-              <p class="text-sm text-muted-foreground">{{ field.label }}</p>
-              <p class="text-sm font-medium">{{ field.value }}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div class="grid gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>列印狀態</CardTitle>
+              <CardDescription>顯示最新一筆標籤列印任務，完整操作仍以列印中心為主。</CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-4">
+              <div
+                v-if="shouldShowCreatedBanner"
+                class="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
+              >
+                工單已建立，標籤列印狀態如下；若失敗可直接補印或前往列印中心查看。
+              </div>
+
+              <div v-if="isPrintSummaryLoading" class="space-y-3">
+                <Skeleton class="h-5 w-28" />
+                <Skeleton class="h-16 w-full" />
+              </div>
+
+              <template v-else>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div class="space-y-1">
+                    <p class="text-sm text-muted-foreground">最新狀態</p>
+                    <PrintJobStatusBadge
+                      v-if="printSummary?.latestJob"
+                      :status="printSummary.latestJob.status"
+                    />
+                    <p v-else class="text-sm font-medium">尚未建立列印任務</p>
+                  </div>
+
+                  <Button as-child type="button" variant="outline">
+                    <NuxtLink :to="printCenterPath">前往列印中心</NuxtLink>
+                  </Button>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div class="space-y-1">
+                    <p class="text-sm text-muted-foreground">最近更新</p>
+                    <p class="text-sm font-medium">
+                      {{
+                        printSummary?.latestJob
+                          ? formatAdminDateTime(printSummary.latestJob.updatedAt)
+                          : '—'
+                      }}
+                    </p>
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-sm text-muted-foreground">列印完成時間</p>
+                    <p class="text-sm font-medium">
+                      {{
+                        printSummary?.latestJob
+                          ? formatAdminDateTime(printSummary.latestJob.printedAt)
+                          : '—'
+                      }}
+                    </p>
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-sm text-muted-foreground">失敗 / 補印狀態</p>
+                    <p class="text-sm font-medium">
+                      {{
+                        printSummary?.hasFailedJob
+                          ? '曾有失敗任務'
+                          : printSummary?.hasPendingJob
+                            ? '目前有待處理任務'
+                            : '—'
+                      }}
+                    </p>
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-sm text-muted-foreground">最新錯誤</p>
+                    <p class="text-sm font-medium">
+                      {{ printSummary?.latestJob?.lastError?.trim() || '—' }}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  v-if="printSummary?.reprintAllowed"
+                  class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-3"
+                >
+                  <p class="text-sm text-muted-foreground">
+                    {{
+                      printSummary?.latestJob
+                        ? '需要重送標籤時，會建立新的 print job，不覆蓋舊紀錄。'
+                        : '目前還沒有列印任務；可手動建立第一筆標籤列印。'
+                    }}
+                  </p>
+                  <Button
+                    type="button"
+                    :disabled="isSubmittingPrintAction"
+                    @click="createPrintJobFromDetail"
+                  >
+                    <Spinner v-if="isSubmittingPrintAction" data-icon="inline-start" />
+                    {{ printActionLabel }}
+                  </Button>
+                </div>
+              </template>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>顧客資訊</CardTitle>
+              <CardDescription>目前綁定在這張工單上的顧客基本資料。</CardDescription>
+            </CardHeader>
+            <CardContent class="grid gap-4 sm:grid-cols-2">
+              <div v-for="field in customerFields" :key="field.label" class="space-y-1">
+                <p class="text-sm text-muted-foreground">{{ field.label }}</p>
+                <p class="text-sm font-medium">{{ field.value }}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <div

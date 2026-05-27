@@ -1,4 +1,10 @@
 import { InternalServerError } from './api-errors';
+import {
+  emitPrintDeviceChangedBestEffort,
+  emitPrintJobChangedBestEffort,
+  getPrintDeviceRealtimeSnapshotByKey,
+  getPrintJobRealtimeSnapshot,
+} from './printing-realtime';
 import { throwMappedSupabaseError } from './supabase-errors';
 import type {
   ClaimPrintJobInput,
@@ -227,8 +233,18 @@ export const createAdminPrintJob = async (
     throwMappedSupabaseError(error);
   }
 
+  const result = parsePrintJobMutationResult(data);
+  await emitPrintJobChangedBestEffort(supabase, {
+    changedAt: result.updatedAt,
+    entityId: result.id,
+    jobStatus: result.status,
+    operation: 'INSERT',
+    wakeupReason: result.status === 'pending' ? 'enqueued' : undefined,
+    workOrderId: result.workOrderId,
+  });
+
   return {
-    data: parsePrintJobMutationResult(data),
+    data: result,
   };
 };
 
@@ -246,8 +262,18 @@ export const retryAdminPrintJob = async (
     throwMappedSupabaseError(error);
   }
 
+  const result = parsePrintJobMutationResult(data);
+  await emitPrintJobChangedBestEffort(supabase, {
+    changedAt: result.updatedAt,
+    entityId: result.id,
+    jobStatus: result.status,
+    operation: 'UPDATE',
+    wakeupReason: result.status === 'pending' ? 'retried' : undefined,
+    workOrderId: result.workOrderId,
+  });
+
   return {
-    data: parsePrintJobMutationResult(data),
+    data: result,
   };
 };
 
@@ -286,8 +312,43 @@ export const claimPrintJob = async (
     throwMappedSupabaseError(error);
   }
 
+  const result = parsePrintJobClaimResult(data);
+
+  try {
+    const deviceSnapshot = await getPrintDeviceRealtimeSnapshotByKey(supabase, input.deviceKey);
+
+    if (result.job) {
+      const jobSnapshot = await getPrintJobRealtimeSnapshot(supabase, result.job.id);
+
+      if (jobSnapshot) {
+        await emitPrintJobChangedBestEffort(supabase, {
+          changedAt: jobSnapshot.changedAt,
+          entityId: jobSnapshot.entityId,
+          jobStatus: jobSnapshot.jobStatus,
+          operation: 'UPDATE',
+          workOrderId: jobSnapshot.workOrderId,
+        });
+      }
+    }
+
+    if (deviceSnapshot) {
+      await emitPrintDeviceChangedBestEffort(supabase, {
+        changedAt: deviceSnapshot.changedAt,
+        deviceKey: deviceSnapshot.deviceKey,
+        entityId: deviceSnapshot.entityId,
+        operation: 'UPDATE',
+      });
+    }
+  } catch (realtimeError) {
+    console.error('Failed to emit realtime events after claimPrintJob', {
+      deviceKey: input.deviceKey,
+      error: realtimeError,
+      jobId: result.job?.id ?? null,
+    });
+  }
+
   return {
-    data: parsePrintJobClaimResult(data),
+    data: result,
   };
 };
 
@@ -305,8 +366,42 @@ export const markPrintJobSucceeded = async (
     throwMappedSupabaseError(error);
   }
 
+  const result = parsePrintJobWorkerResult(data);
+
+  try {
+    const [jobSnapshot, deviceSnapshot] = await Promise.all([
+      getPrintJobRealtimeSnapshot(supabase, id),
+      getPrintDeviceRealtimeSnapshotByKey(supabase, deviceKey),
+    ]);
+
+    if (jobSnapshot) {
+      await emitPrintJobChangedBestEffort(supabase, {
+        changedAt: jobSnapshot.changedAt,
+        entityId: jobSnapshot.entityId,
+        jobStatus: jobSnapshot.jobStatus,
+        operation: 'UPDATE',
+        workOrderId: jobSnapshot.workOrderId,
+      });
+    }
+
+    if (deviceSnapshot) {
+      await emitPrintDeviceChangedBestEffort(supabase, {
+        changedAt: deviceSnapshot.changedAt,
+        deviceKey: deviceSnapshot.deviceKey,
+        entityId: deviceSnapshot.entityId,
+        operation: 'UPDATE',
+      });
+    }
+  } catch (realtimeError) {
+    console.error('Failed to emit realtime events after markPrintJobSucceeded', {
+      deviceKey,
+      error: realtimeError,
+      jobId: id,
+    });
+  }
+
   return {
-    data: parsePrintJobWorkerResult(data),
+    data: result,
   };
 };
 
@@ -325,7 +420,42 @@ export const markPrintJobFailed = async (
     throwMappedSupabaseError(error);
   }
 
+  const result = parsePrintJobWorkerResult(data);
+
+  try {
+    const [jobSnapshot, deviceSnapshot] = await Promise.all([
+      getPrintJobRealtimeSnapshot(supabase, id),
+      getPrintDeviceRealtimeSnapshotByKey(supabase, input.deviceKey),
+    ]);
+
+    if (jobSnapshot) {
+      await emitPrintJobChangedBestEffort(supabase, {
+        changedAt: jobSnapshot.changedAt,
+        entityId: jobSnapshot.entityId,
+        jobStatus: jobSnapshot.jobStatus,
+        operation: 'UPDATE',
+        wakeupReason: jobSnapshot.jobStatus === 'pending' ? 'retried' : undefined,
+        workOrderId: jobSnapshot.workOrderId,
+      });
+    }
+
+    if (deviceSnapshot) {
+      await emitPrintDeviceChangedBestEffort(supabase, {
+        changedAt: deviceSnapshot.changedAt,
+        deviceKey: deviceSnapshot.deviceKey,
+        entityId: deviceSnapshot.entityId,
+        operation: 'UPDATE',
+      });
+    }
+  } catch (realtimeError) {
+    console.error('Failed to emit realtime events after markPrintJobFailed', {
+      deviceKey: input.deviceKey,
+      error: realtimeError,
+      jobId: id,
+    });
+  }
+
   return {
-    data: parsePrintJobWorkerResult(data),
+    data: result,
   };
 };

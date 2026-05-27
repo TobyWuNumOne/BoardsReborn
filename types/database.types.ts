@@ -621,6 +621,15 @@ export type Database = {
         }
         Returns: Json
       }
+      emit_printing_realtime_event: {
+        Args: {
+          p_event: string
+          p_is_private?: boolean
+          p_payload: Json
+          p_topic: string
+        }
+        Returns: undefined
+      }
       mark_print_job_failed: {
         Args: { p_device_key: string; p_error: string; p_print_job_id: string }
         Returns: Json
@@ -1379,4 +1388,3 @@ export const Constants = {
     },
   },
 } as const
-

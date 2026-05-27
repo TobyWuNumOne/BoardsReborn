@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 import time
 from typing import Sequence
@@ -16,6 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("run-once", help="Claim and handle at most one print job, then exit.")
     subparsers.add_parser("poll", help="Poll the print-worker API continuously.")
+    subparsers.add_parser("serve", help="Run the event wake-up worker with fallback claim.")
     return parser
 
 
@@ -92,6 +94,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.command == "poll":
             return poll_forever(client, settings)
+
+        if args.command == "serve":
+            from service import PrintWorkerService
+
+            service = PrintWorkerService(client, settings, runner=run_once)
+            return asyncio.run(service.serve())
     except ConfigurationError as error:
         print(f"Configuration error: {error}", file=sys.stderr)
         return 1

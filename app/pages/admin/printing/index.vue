@@ -29,6 +29,7 @@ import {
   normalizeAdminPrintJobListRouteQuery,
   serializeAdminPrintJobListQuery,
 } from '~/utils/admin-printing';
+import { ADMIN_PRINTING_REALTIME_TOPICS } from '~/utils/admin-printing-realtime';
 import PrintJobStatusBadge from '~/components/printing/PrintJobStatusBadge.vue';
 import PrintStatusLight from '~/components/printing/PrintStatusLight.vue';
 
@@ -223,11 +224,25 @@ const {
   watch: [requestKey],
 });
 
+const refreshPrintJobs = async ({ force = false }: { force?: boolean } = {}) => {
+  if (!force && fetchStatus.value === 'pending') {
+    return;
+  }
+
+  await refresh();
+};
+
+const realtimeSync = useAdminPrintingRealtime({
+  onRefresh: () => refreshPrintJobs(),
+  topics: ADMIN_PRINTING_REALTIME_TOPICS,
+});
+
 watch(
   data,
   (response) => {
     if (response) {
       lastSuccessfulResponse.value = response;
+      realtimeSync.markSynchronized();
     }
   },
   { immediate: true },
@@ -325,7 +340,7 @@ const handleRetry = async (id: string) => {
       method: 'POST',
     });
     toast.success('列印任務已重新排入佇列。');
-    await refresh();
+    await refreshPrintJobs({ force: true });
   } catch (error) {
     if (await handleAuthRedirect(error)) {
       return;
@@ -398,7 +413,7 @@ const getPrintJobLightTone = (status: AdminPrintJobListResponse['data'][number][
       <AlertTitle>列印任務載入失敗</AlertTitle>
       <AlertDescription class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <span>{{ apiError?.error.message ?? '目前無法取得列印任務列表。' }}</span>
-        <Button type="button" variant="outline" @click="refresh()">重試</Button>
+        <Button type="button" variant="outline" @click="refreshPrintJobs({ force: true })">重試</Button>
       </AlertDescription>
     </Alert>
 

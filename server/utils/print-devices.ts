@@ -1,4 +1,8 @@
 import { ConflictError, InternalServerError, NotFoundError } from './api-errors';
+import {
+  emitPrintDeviceChangedBestEffort,
+  getPrintDeviceRealtimeSnapshotById,
+} from './printing-realtime';
 import { throwMappedSupabaseError } from './supabase-errors';
 import type {
   CreatePrintDeviceInput,
@@ -145,8 +149,16 @@ export const updateAdminPrintDevice = async (
     throw new NotFoundError('Print device not found.');
   }
 
+  const result = await getPrintDeviceById(supabase, id);
+  await emitPrintDeviceChangedBestEffort(supabase, {
+    changedAt: result.updatedAt,
+    deviceKey: result.deviceKey,
+    entityId: result.id,
+    operation: 'UPDATE',
+  });
+
   return {
-    data: await getPrintDeviceById(supabase, id),
+    data: result,
   };
 };
 
@@ -173,8 +185,16 @@ export const createAdminPrintDevice = async (
     throw new InternalServerError('Unable to create print device.');
   }
 
+  const result = await getPrintDeviceById(supabase, data.id);
+  await emitPrintDeviceChangedBestEffort(supabase, {
+    changedAt: result.updatedAt,
+    deviceKey: result.deviceKey,
+    entityId: result.id,
+    operation: 'INSERT',
+  });
+
   return {
-    data: await getPrintDeviceById(supabase, data.id),
+    data: result,
   };
 };
 
@@ -182,6 +202,17 @@ export const deleteAdminPrintDevice = async (
   supabase: UserScopedSupabaseClient,
   id: string,
 ) => {
+  let deviceSnapshot: Awaited<ReturnType<typeof getPrintDeviceRealtimeSnapshotById>> = null;
+
+  try {
+    deviceSnapshot = await getPrintDeviceRealtimeSnapshotById(supabase, id);
+  } catch (realtimeError) {
+    console.error('Failed to load realtime snapshot before deleteAdminPrintDevice', {
+      deviceId: id,
+      error: realtimeError,
+    });
+  }
+
   const { count, error: activeJobCheckError } = await supabase
     .from('print_jobs')
     .select('id', { count: 'exact', head: true })
@@ -209,6 +240,15 @@ export const deleteAdminPrintDevice = async (
 
   if (!data?.id) {
     throw new NotFoundError('Print device not found.');
+  }
+
+  if (deviceSnapshot) {
+    await emitPrintDeviceChangedBestEffort(supabase, {
+      changedAt: deviceSnapshot.changedAt,
+      deviceKey: deviceSnapshot.deviceKey,
+      entityId: deviceSnapshot.entityId,
+      operation: 'DELETE',
+    });
   }
 
   return {

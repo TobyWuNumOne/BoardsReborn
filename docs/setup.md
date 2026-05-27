@@ -56,7 +56,7 @@ pnpm build
 pnpm preview
 ```
 
-`pnpm build` 目前會在 build 後自動修正 Nitro `node-server` output 的 public asset link，避免 `pnpm preview` 或 `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
+`pnpm build` 目前會在 build 後自動修正 Nitro `node-server` output 的 public asset link，並把 client chunks 內對 `#entry` 的引用改寫成實際 entry asset，避免 `pnpm preview` 或 `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500` 或 Safari `Importing a module script failed`。
 
 The `@nuxtjs/supabase` module is always enabled so that server API helpers and the Supabase Database types alias are available at build time. If Supabase URL / client key are not configured, a module warning will appear, but actual connections require filling in `.env` or the deployment environment. See [docs/progress.md](progress.md) for current implementation status. Confirm the Supabase CLI and Docker daemon are available before running Supabase commands.
 

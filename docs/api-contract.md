@@ -29,6 +29,7 @@
 - `implemented` `GET /api/admin/print-jobs`：查詢列印任務列表。
 - `implemented` `POST /api/admin/print-jobs`：建立列印任務或補印任務。
 - `implemented` `POST /api/admin/print-jobs/{id}/retry`：將失敗任務重新排入佇列。
+- `implemented` `GET /api/admin/print-summaries`：查詢一批工單的列印摘要 read model。
 - `implemented` `GET /api/admin/print-devices`：查詢 Print Worker / 裝置列表。
 - `implemented` `POST /api/admin/print-devices`：新增 Print Worker / 裝置。
 - `implemented` `PATCH /api/admin/print-devices/{id}`：更新 Worker 名稱、位置或狀態。
@@ -773,6 +774,63 @@ Response：
 - `lockedAt` / `lockedBy` 清空
 - `attemptCount` 保留
 
+### `GET /api/admin/print-summaries`
+
+提供 work-order 頁面使用的列印摘要 read model。這支 endpoint 不取代 `/api/admin/print-jobs`，而是避免 detail / bulk-status 以 N+1 方式自行掃 print job 列表。
+
+Query 規則：
+
+- 使用 repeated `workOrderId`
+- 至少 1 筆、最多 50 筆
+- duplicate `workOrderId` 由 server dedupe
+- 缺少 `workOrderId`、非法 UUID、超過 50 筆都回 `422 VALIDATION_ERROR`
+
+Query example：
+
+```text
+/api/admin/print-summaries?workOrderId=4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2&workOrderId=2b09da30-74a1-4a5b-a47b-62b01431c1bf
+```
+
+Response：
+
+```json
+{
+  "data": {
+    "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2": {
+      "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+      "latestJob": {
+        "id": "0f2ac870-a2fd-45a8-912e-38ad6ee26e43",
+        "status": "failed",
+        "attemptCount": 3,
+        "maxAttempts": 3,
+        "lastError": "Printer offline",
+        "createdAt": "2026-05-27T01:00:00.000Z",
+        "updatedAt": "2026-05-27T01:02:00.000Z",
+        "printedAt": null
+      },
+      "hasPendingJob": false,
+      "hasActiveJob": false,
+      "hasFailedJob": true,
+      "reprintAllowed": true
+    }
+  }
+}
+```
+
+`latestJob` 排序固定為 `created_at desc, id desc`。  
+沒有任何列印任務時，仍需回傳該 `workOrderId` entry，且：
+
+- `latestJob = null`
+- `hasPendingJob = false`
+- `hasActiveJob = false`
+- `hasFailedJob = false`
+- `reprintAllowed = true`
+
+`reprintAllowed` 規則：
+
+- `true`：沒有 job，或 `latestJob.status in printed | failed | cancelled`
+- `false`：`latestJob.status in pending | locked | printing`
+
 ### `GET /api/admin/print-devices`
 
 查詢 Print Worker / 裝置列表。此 endpoint 使用管理端 Supabase Auth session。
@@ -934,9 +992,49 @@ Response：
 }
 ```
 
+## Admin Printing Realtime Notifications
+
+以下 Realtime contract 只供管理端列印頁面與後續 worker integration 使用，不取代既有 REST API。
+
+- Realtime notifications are internal coordination signals；client 收到事件後必須 refetch server truth，不可把 event payload 當成唯一資料來源。
+- server-side Nuxt API / utility 會在相關 DB write / RPC 成功後 best-effort emit；client-side UI 不可自行發送 worker wake-up。
+- 若主流程 DB write 成功但 Realtime emit 失敗，原本 API request 仍成功；server 只記錄錯誤 log，交由 fallback claim / refresh 補救。
+- private admin topic：
+  - `printing:jobs`
+  - `printing:devices`
+  - `printing:summary`
+- public worker wake-up topic：
+  - `printing:worker-wakeup`
+- `printing:jobs` / `printing:devices` / `printing:summary` 使用 private broadcast，只有 authenticated admin client 可訂閱。
+- `printing:worker-wakeup` 是 public minimal topic，payload 不包含 job id、paperOrderNo、customerName 或 deviceKey。
+- payload 只保留通知級欄位：
+  - `eventType`
+  - `entityId`
+  - `changedAt`
+  - `operation`
+  - `source`
+  - `jobStatus`（僅 `printing:jobs`）
+  - `deviceKey`（僅 `printing:devices`）
+  - `workOrderId`（僅 server 端可便宜取得時，提供給 work-order 頁面做 targeted summary refresh）
+- `eventType` 第一版固定：
+  - `print_job.changed`
+  - `print_device.changed`
+  - `printing.summary.changed`
+  - `printing.job_available`
+- `printing.summary` 是 catch-all 通知 topic，用來提示 admin 頁面有列印相關資料變更；它不是獨立 read model，也不保證單靠 event payload 就能更新 UI。
+- `printing.job_available` 只在 print job **進入 claimable `pending`** 狀態時送出，例如：
+  - 建工單後自動 enqueue 第一筆 job
+  - `POST /api/admin/print-jobs`
+  - `POST /api/admin/print-jobs/{id}/retry`
+  - worker `fail` 後因 `attemptCount < maxAttempts` 回到 `pending`
+- `pending -> pending` metadata update、`pending -> locked/printing/printed/failed/cancelled`，以及單純 device heartbeat 更新，都不可送 `printing.job_available`。
+- Worker 必須把 wake-up 視為 untrusted hint：收到後仍必須重新呼叫 `POST /api/print-worker/jobs/claim`，且 `job: null` 不視為錯誤。
+
 ## Print Worker Jobs
 
 以下 endpoint 供固定桌機或樹莓派上的 Python Print Worker 使用，皆需要 `Authorization: Bearer <PRINT_WORKER_TOKEN>`。
+
+`printer-worker serve` 會用 `SUPABASE_URL + SUPABASE_ANON_KEY` 訂閱 `printing:worker-wakeup`，但真正 job auth 仍是 `PRINT_WORKER_TOKEN + deviceKey`。`serve` 預設保留 `REALTIME_FALLBACK_CLAIM_INTERVAL_SECONDS=60` 作為 missed event / heartbeat 補償。
 
 ### `POST /api/print-worker/jobs/claim`
 

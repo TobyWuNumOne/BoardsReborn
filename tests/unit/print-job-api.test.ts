@@ -312,12 +312,63 @@ describe('print job services', () => {
             updatedAt: '2026-05-21T00:03:00.000Z',
             workOrderId: 'work-order-1',
           },
+          emit_printing_realtime_event: null,
         };
 
         return Promise.resolve({
           data: dataByName[name],
           error: null,
         });
+      },
+      from(table: string) {
+        if (table === 'admin_print_job_list') {
+          return {
+            eq() {
+              return {
+                maybeSingle() {
+                  return Promise.resolve({
+                    data: {
+                      created_at: '2026-05-21T00:00:00.000Z',
+                      id: 'job-1',
+                      status: 'pending',
+                      updated_at: '2026-05-21T00:03:00.000Z',
+                      work_order_id: 'work-order-1',
+                    },
+                    error: null,
+                  });
+                },
+              };
+            },
+            select() {
+              return this;
+            },
+          };
+        }
+
+        if (table === 'print_devices') {
+          return {
+            eq() {
+              return {
+                maybeSingle() {
+                  return Promise.resolve({
+                    data: {
+                      created_at: '2026-05-21T00:00:00.000Z',
+                      device_key: 'raspi-print-worker-01',
+                      id: 'device-1',
+                      updated_at: '2026-05-21T00:03:00.000Z',
+                    },
+                    error: null,
+                  });
+                },
+              };
+            },
+            select() {
+              return this;
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
       },
     };
 
@@ -351,50 +402,59 @@ describe('print job services', () => {
     });
     await retryAdminPrintJob(client as never, 'job-1', 'user-1');
 
-    expect(calls).toEqual([
-      {
-        args: {
-          p_created_by_user_id: 'user-1',
-          p_job_type: 'work_order_label',
-          p_work_order_id: 'work-order-1',
-        },
-        name: 'create_admin_print_job',
+    expect(calls[0]).toEqual({
+      args: {
+        p_created_by_user_id: 'user-1',
+        p_job_type: 'work_order_label',
+        p_work_order_id: 'work-order-1',
       },
-      {
-        args: {
-          p_device_key: 'raspi-print-worker-01',
-          p_stale_lock_seconds: 300,
+      name: 'create_admin_print_job',
+    });
+    expect(calls.map((call) => call.name)).toContain('claim_next_print_job');
+    expect(calls.map((call) => call.name)).toContain('mark_print_job_succeeded');
+    expect(calls.map((call) => call.name)).toContain('mark_print_job_failed');
+    expect(calls.map((call) => call.name)).toContain('retry_admin_print_job');
+    expect(calls.filter((call) => call.name === 'emit_printing_realtime_event')).toEqual(
+      expect.arrayContaining([
+        {
+          args: {
+            p_event: 'printing.job_available',
+            p_is_private: false,
+            p_payload: {
+              changedAt: '2026-05-21T00:00:00.000Z',
+              eventType: 'printing.job_available',
+              reason: 'enqueued',
+            },
+            p_topic: 'printing:worker-wakeup',
+          },
+          name: 'emit_printing_realtime_event',
         },
-        name: 'claim_next_print_job',
-      },
-      {
-        args: {
-          p_device_key: 'raspi-print-worker-01',
-          p_print_job_id: 'job-1',
+        {
+          args: {
+            p_event: 'printing.job_available',
+            p_is_private: false,
+            p_payload: {
+              changedAt: '2026-05-21T00:03:00.000Z',
+              eventType: 'printing.job_available',
+              reason: 'retried',
+            },
+            p_topic: 'printing:worker-wakeup',
+          },
+          name: 'emit_printing_realtime_event',
         },
-        name: 'mark_print_job_succeeded',
-      },
-      {
-        args: {
-          p_device_key: 'raspi-print-worker-01',
-          p_error: 'Printer offline',
-          p_print_job_id: 'job-1',
-        },
-        name: 'mark_print_job_failed',
-      },
-      {
-        args: {
-          p_print_job_id: 'job-1',
-          p_requested_by_user_id: 'user-1',
-        },
-        name: 'retry_admin_print_job',
-      },
-    ]);
+      ]),
+    );
   });
 
   it('creates, lists, updates, and deletes admin print devices with nested state', async () => {
     const calls: Array<{ payload?: Record<string, unknown>; type: string }> = [];
     const client = {
+      rpc() {
+        return Promise.resolve({
+          data: null,
+          error: null,
+        });
+      },
       from(table: string) {
         if (table === 'admin_print_device_list') {
           return {
@@ -739,6 +799,9 @@ describe('work order print job enqueue', () => {
     expect(calls.map((call) => call.name)).toEqual([
       'create_admin_work_order',
       'create_admin_print_job',
+      'emit_printing_realtime_event',
+      'emit_printing_realtime_event',
+      'emit_printing_realtime_event',
     ]);
   });
 

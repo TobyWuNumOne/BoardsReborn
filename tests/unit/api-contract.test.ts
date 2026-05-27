@@ -19,10 +19,17 @@ describe('API contract', () => {
     expect(apiContract).toContain('GET /api/admin/print-jobs');
     expect(apiContract).toContain('POST /api/admin/print-jobs');
     expect(apiContract).toContain('POST /api/admin/print-jobs/{id}/retry');
+    expect(apiContract).toContain('GET /api/admin/print-summaries');
     expect(apiContract).toContain('GET /api/admin/print-devices');
     expect(apiContract).toContain('POST /api/admin/print-devices');
     expect(apiContract).toContain('PATCH /api/admin/print-devices/{id}');
     expect(apiContract).toContain('DELETE /api/admin/print-devices/{id}');
+    expect(apiContract).toContain('printing:jobs');
+    expect(apiContract).toContain('printing:devices');
+    expect(apiContract).toContain('printing:summary');
+    expect(apiContract).toContain('printing:worker-wakeup');
+    expect(apiContract).toContain('printing.job_available');
+    expect(apiContract).toContain('Realtime notifications are internal coordination signals');
     expect(apiContract).toContain('paperOrderNo');
     expect(apiContract).toContain('POST /api/print-worker/jobs/claim');
     expect(apiContract).toContain('POST /api/print-worker/jobs/{id}/succeed');

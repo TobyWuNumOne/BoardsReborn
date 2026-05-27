@@ -78,6 +78,21 @@ Admin UI / Work-order create
 
 這兩頁都只透過 Nitro `/api/admin/*` 存取資料，不直接從瀏覽器讀寫 Supabase table。
 
+### Admin Realtime Notification Layer
+
+目前 admin 列印頁面使用 **Realtime notification + server truth refetch**：
+
+- server-side Nuxt API / utility 會在 print job / print device 的 DB write 或 RPC 成功後，best-effort emit Supabase Realtime broadcast。
+- topic 固定為：
+  - `printing:jobs`
+  - `printing:devices`
+  - `printing:summary`
+- payload 只帶通知級最小資料，例如 `eventType`、`entityId`、`changedAt`、`jobStatus`、`deviceKey` 與可選的 `workOrderId`；不直接把完整 row 當作 UI 真實來源。
+- `/admin/printing` 與 `/admin/printing/workers` 首次載入抓 snapshot，收到事件後再 refetch 既有 `/api/admin/*` endpoint。
+- 這層 Realtime 只用來減少固定輪詢與改善 admin 即時感，不取代既有 API / DB state machine。
+- fallback sync 改為頁面可見時每 `60` 秒一次；hidden tab 不再固定打 API。
+- 若主流程 DB write 成功但 Realtime emit 失敗，API 仍成功，交由 admin fallback refresh 補救。
+
 ### Worker 管理邊界
 
 v1 UI 允許：
@@ -147,14 +162,24 @@ Server 端會同時驗證：
   - 若 `attempt_count < max_attempts`，回到 `pending`
   - 否則改成 `failed`
 
-## Connectivity Worker v1
+## Worker Runtime
 
-repo 內已新增 `/printer-worker` 子專案，提供一個 **no-op connectivity worker**：
+repo 內的 `/printer-worker` 子專案目前同時提供兩種 runtime：
 
 - 支援 `python worker.py run-once`
 - 支援 `python worker.py poll`
-- 只做 `claim -> succeed/fail`
-- 只印出 job 摘要，不做實體列印
+- 支援 `python worker.py serve`
+- 目前都只做 `claim -> succeed/fail`，只印出 job 摘要，不做實體列印
+
+`run-once` / `poll` 的目標仍是 connectivity smoke test。  
+`serve` 則是目前 Phase 2 的正式常駐模式：
+
+- 啟動時先 claim 一次，吃掉 backlog
+- 透過 `SUPABASE_URL + SUPABASE_ANON_KEY` 訂閱 public `printing:worker-wakeup`
+- 收到 `printing.job_available` 後立即再 claim
+- 保留每 `60` 秒一次 fallback claim，補 missed event、斷線期間消費與 `last_seen_at`
+- 同一時間只允許一個 claim / print / report 流程；wake-up 只視為 untrusted hint
+- `SIGINT` / `SIGTERM` 時停止接收新 wake-up，盡可能讓當前 claim / print / report 收尾
 
 這一版目標是先驗證：
 
@@ -162,13 +187,15 @@ repo 內已新增 `/printer-worker` 子專案，提供一個 **no-op connectivit
 - `PRINT_WORKER_TOKEN` + `deviceKey` 認證可用
 - `print_jobs` 狀態可正確從 `pending -> locked -> printed|failed`
 - `python worker.py poll` 在佇列為空時仍會持續更新 `last_seen_at`，讓 Worker 管理頁正確顯示在線 / 心跳過期 / 離線
+- admin 列印頁面可透過 Realtime notification layer 收到 job / device 變化並更新 UI，而不需要每 `5` 秒固定打 API
+- Pi 可在不依賴固定 `5` 秒 polling 的情況下，被 `printing:worker-wakeup` 喚醒後立即 claim
 
 ## Raspberry Pi 下一階段
 
 在 connectivity worker 驗證完成後，再依這個順序往下接：
 
-1. Raspberry Pi 啟動 `printer-worker`
-2. worker 定期呼叫 `POST /api/print-worker/jobs/claim`
+1. Raspberry Pi 啟動 `printer-worker serve`
+2. worker 先靠 Realtime wake-up + 低頻 fallback claim 維持 job 消費與 heartbeat
 3. 將 `payload` 轉成實際標籤格式
 4. 寫入 CUPS / 印表機
 5. 成功後呼叫 `succeed`
@@ -178,6 +205,7 @@ repo 內已新增 `/printer-worker` 子專案，提供一個 **no-op connectivit
 
 - `PRINT_WORKER_TOKEN`：放在 systemd `EnvironmentFile`
 - `deviceKey`：也放在同一個 root-only env file
+- `SUPABASE_ANON_KEY`：可放同一個 env file，但不可改成 service-role key
 - 不要把 service-role key 放到 Raspberry Pi
 
 ## 這一版不做
@@ -187,3 +215,4 @@ repo 內已新增 `/printer-worker` 子專案，提供一個 **no-op connectivit
 - device key rotation UI
 - 多店 routing policy
 - 依印表機 transport 細節擴充主系統狀態機
+- `locked` / `printing` stale job 的自動 recovery（本輪只文件化，不自動 requeue）

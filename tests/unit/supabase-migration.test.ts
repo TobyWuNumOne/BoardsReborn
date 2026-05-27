@@ -37,6 +37,24 @@ const adminPrintDeviceListMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260522103000_admin_print_device_list.sql'),
   'utf8',
 );
+const printingRealtimeBroadcastMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260526143000_printing_realtime_broadcast.sql'),
+  'utf8',
+);
+const printingRealtimeBroadcastJoinPolicyMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260526152000_printing_realtime_broadcast_join_policy.sql',
+  ),
+  'utf8',
+);
+const printingPhase2RealtimeEventsMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260527103000_printing_phase2_realtime_events.sql',
+  ),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -172,6 +190,63 @@ describe('initial Supabase migration', () => {
     expect(adminPrintDeviceListMigration).toContain("concat_ws(");
     expect(adminPrintDeviceListMigration).toContain(
       'grant select on table public.admin_print_device_list to authenticated',
+    );
+  });
+
+  it('adds admin-only realtime broadcast policies and triggers for printing changes', () => {
+    expect(printingRealtimeBroadcastMigration).toContain(
+      'create policy "admin profiles can listen to printing broadcasts"',
+    );
+    expect(printingRealtimeBroadcastMigration).toContain('on realtime.messages');
+    expect(printingRealtimeBroadcastMigration).toContain("realtime.topic() like 'printing:%'");
+    expect(printingRealtimeBroadcastMigration).toContain('from public.admin_profiles');
+    expect(printingRealtimeBroadcastMigration).toContain(
+      'create or replace function public.notify_printing_realtime()',
+    );
+    expect(printingRealtimeBroadcastMigration).toContain(
+      "perform realtime.send(v_payload, v_event, v_topic, true);",
+    );
+    expect(printingRealtimeBroadcastMigration).toContain("'printing:jobs'");
+    expect(printingRealtimeBroadcastMigration).toContain("'printing:devices'");
+    expect(printingRealtimeBroadcastMigration).toContain("'printing:summary'");
+    expect(printingRealtimeBroadcastMigration).toContain(
+      'create trigger notify_print_jobs_realtime',
+    );
+    expect(printingRealtimeBroadcastMigration).toContain(
+      'create trigger notify_print_devices_realtime',
+    );
+    expect(printingRealtimeBroadcastJoinPolicyMigration).toContain(
+      'create policy "admin profiles can join printing broadcast topics"',
+    );
+    expect(printingRealtimeBroadcastJoinPolicyMigration).toContain('on realtime.messages');
+    expect(printingRealtimeBroadcastJoinPolicyMigration).toContain('for insert');
+    expect(printingRealtimeBroadcastJoinPolicyMigration).toContain(
+      "realtime.messages.extension = 'broadcast'",
+    );
+    expect(printingRealtimeBroadcastJoinPolicyMigration).toContain(
+      "realtime.topic() like 'printing:%'",
+    );
+    expect(printingRealtimeBroadcastJoinPolicyMigration).toContain('from public.admin_profiles');
+  });
+
+  it('adds a server-callable realtime emit function for phase 2 printing events', () => {
+    expect(printingPhase2RealtimeEventsMigration).toContain(
+      'drop trigger if exists notify_print_jobs_realtime on public.print_jobs',
+    );
+    expect(printingPhase2RealtimeEventsMigration).toContain(
+      'drop trigger if exists notify_print_devices_realtime on public.print_devices',
+    );
+    expect(printingPhase2RealtimeEventsMigration).toContain(
+      'create or replace function public.emit_printing_realtime_event',
+    );
+    expect(printingPhase2RealtimeEventsMigration).toContain(
+      'perform realtime.send(p_payload, p_event, p_topic, p_is_private);',
+    );
+    expect(printingPhase2RealtimeEventsMigration).toContain(
+      'grant execute on function public.emit_printing_realtime_event(jsonb, text, text, boolean) to authenticated',
+    );
+    expect(printingPhase2RealtimeEventsMigration).toContain(
+      'grant execute on function public.emit_printing_realtime_event(jsonb, text, text, boolean) to service_role',
     );
   });
 });

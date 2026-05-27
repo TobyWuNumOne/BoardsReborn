@@ -1,4 +1,4 @@
-import { cp, lstat, mkdir, readlink, rm, symlink } from 'node:fs/promises';
+import { cp, lstat, mkdir, readFile, readdir, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +8,7 @@ const outputDir = resolve(repoRoot, '.output');
 const sourcePublicDir = resolve(outputDir, 'public');
 const serverChunksDir = resolve(outputDir, 'server', 'chunks');
 const targetPublicDir = resolve(serverChunksDir, 'public');
+const clientAssetsDir = resolve(sourcePublicDir, '_nuxt');
 const relativeTarget = relative(serverChunksDir, sourcePublicDir);
 
 const ensureLinkedPublicAssets = async () => {
@@ -45,4 +46,57 @@ const ensureLinkedPublicAssets = async () => {
   }
 };
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const rewriteClientEntryImports = async () => {
+  const assetNames = await readdir(clientAssetsDir);
+  let entryAsset;
+
+  for (const assetName of assetNames) {
+    if (!assetName.endsWith('.js')) {
+      continue;
+    }
+
+    const assetPath = resolve(clientAssetsDir, assetName);
+    const source = await readFile(assetPath, 'utf8');
+
+    if (source.includes('Error while mounting app:')) {
+      entryAsset = assetName;
+      break;
+    }
+  }
+
+  if (!entryAsset) {
+    console.warn('[fix-nitro-public-assets] skipped #entry rewrite because no client entry asset was found');
+    return;
+  }
+
+  let rewrittenFiles = 0;
+  const replacePattern = new RegExp(`(["'])#entry\\1`, 'g');
+
+  for (const assetName of assetNames) {
+    if (!assetName.endsWith('.js')) {
+      continue;
+    }
+
+    const assetPath = resolve(clientAssetsDir, assetName);
+    const source = await readFile(assetPath, 'utf8');
+    const nextSource = source.replace(replacePattern, (match, quote) => `${quote}./${entryAsset}${quote}`);
+
+    if (nextSource === source) {
+      continue;
+    }
+
+    await writeFile(assetPath, nextSource, 'utf8');
+    rewrittenFiles += 1;
+  }
+
+  if (rewrittenFiles > 0) {
+    console.log(
+      `[fix-nitro-public-assets] rewrote #entry imports to ./${entryAsset} in ${rewrittenFiles} client chunks`,
+    );
+  }
+};
+
 await ensureLinkedPublicAssets();
+await rewriteClientEntryImports();

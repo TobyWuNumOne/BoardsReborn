@@ -1,0 +1,16 @@
+[Unit]
+Description=BoardsReborn print worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/boards-reborn/printer-worker
+EnvironmentFile=/etc/boards-reborn/printer-worker.env
+ExecStart=/opt/boards-reborn/printer-worker/.venv/bin/python worker.py serve
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

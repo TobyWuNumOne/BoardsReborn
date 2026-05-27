@@ -20,6 +20,7 @@ const PRINT_JOB_LIST_ALLOWED_FIELDS = [
   'workOrderId',
   'paperOrderNo',
 ] as const;
+const PRINT_SUMMARY_ALLOWED_FIELDS = ['workOrderId'] as const;
 const ADMIN_PRINT_JOB_CREATE_ALLOWED_FIELDS = ['jobType', 'workOrderId'] as const;
 const PRINT_DEVICE_LIST_ALLOWED_FIELDS = ['page', 'pageSize', 'sort', 'status', 'q'] as const;
 const ADMIN_PRINT_DEVICE_CREATE_ALLOWED_FIELDS = ['deviceKey', 'location', 'name', 'status'] as const;
@@ -56,6 +57,10 @@ export interface PrintJobListQuery {
 export interface CreatePrintJobInput {
   jobType: PrintJobType;
   workOrderId: string;
+}
+
+export interface PrintSummaryQuery {
+  workOrderIds: string[];
 }
 
 export interface PrintDeviceListQuery {
@@ -138,6 +143,40 @@ const getSingleQueryValue = (
   }
 
   return value;
+};
+
+const getMultiQueryValues = (
+  query: Record<string, unknown>,
+  field: string,
+  errors: ErrorCollector,
+): string[] => {
+  const value = query[field];
+
+  if (value === undefined) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    const values: string[] = [];
+
+    for (const entry of value) {
+      if (typeof entry !== 'string') {
+        addError(errors, field, 'Must be a string.');
+        continue;
+      }
+
+      values.push(entry);
+    }
+
+    return values;
+  }
+
+  if (typeof value !== 'string') {
+    addError(errors, field, 'Must be a string.');
+    return [];
+  }
+
+  return [value];
 };
 
 const parsePositiveInteger = (
@@ -317,6 +356,54 @@ export const parsePrintJobListQuery = (query: Record<string, unknown>): PrintJob
     page: page as number,
     pageSize: pageSize as number,
     sort,
+  };
+};
+
+export const parsePrintSummaryQuery = (query: Record<string, unknown>): PrintSummaryQuery => {
+  const errors: ErrorCollector = {};
+  const unknownFields = Object.keys(query).filter(
+    (field) =>
+      !PRINT_SUMMARY_ALLOWED_FIELDS.includes(field as (typeof PRINT_SUMMARY_ALLOWED_FIELDS)[number]),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const rawWorkOrderIds = getMultiQueryValues(query, 'workOrderId', errors);
+  const dedupedWorkOrderIds: string[] = [];
+  const seenIds = new Set<string>();
+
+  if (rawWorkOrderIds.length === 0) {
+    addError(errors, 'workOrderId', 'Is required.');
+  }
+
+  if (rawWorkOrderIds.length > 50) {
+    addError(errors, 'workOrderId', 'Must include at most 50 values.');
+  }
+
+  for (const rawValue of rawWorkOrderIds) {
+    let parsedValue: string;
+
+    try {
+      parsedValue = parseUuid(rawValue, 'workOrderId');
+    } catch {
+      addError(errors, 'workOrderId', 'Must be a valid UUID.');
+      continue;
+    }
+
+    if (seenIds.has(parsedValue)) {
+      continue;
+    }
+
+    seenIds.add(parsedValue);
+    dedupedWorkOrderIds.push(parsedValue);
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    workOrderIds: dedupedWorkOrderIds,
   };
 };
 
