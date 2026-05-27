@@ -11,6 +11,9 @@ const targetPublicDir = resolve(serverChunksDir, 'public');
 const clientAssetsDir = resolve(sourcePublicDir, '_nuxt');
 const relativeTarget = relative(serverChunksDir, sourcePublicDir);
 
+const isMissingPathError = (error) =>
+  Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT');
+
 const ensureLinkedPublicAssets = async () => {
   try {
     const stat = await lstat(targetPublicDir);
@@ -26,7 +29,7 @@ const ensureLinkedPublicAssets = async () => {
 
     await rm(targetPublicDir, { recursive: true, force: true });
   } catch (error) {
-    if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) {
+    if (!isMissingPathError(error)) {
       throw error;
     }
   }
@@ -49,7 +52,21 @@ const ensureLinkedPublicAssets = async () => {
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const rewriteClientEntryImports = async () => {
-  const assetNames = await readdir(clientAssetsDir);
+  let assetNames;
+
+  try {
+    assetNames = await readdir(clientAssetsDir);
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
+
+    console.warn(
+      `[fix-nitro-public-assets] skipped #entry rewrite because client asset dir was not found: ${clientAssetsDir}`,
+    );
+    return;
+  }
+
   let entryAsset;
 
   for (const assetName of assetNames) {
