@@ -125,6 +125,7 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 - 可固定連接 USB 熱感標籤機。
 - 可常駐 Python Print Agent。
 - 可用 systemd 自動啟動與重啟。
+- 建議以 `python -u` 或 `PYTHONUNBUFFERED=1` 啟動，避免 `journalctl -f` 看不到即時 worker log。
 - 可降低平板瀏覽器直控硬體的不確定性。
 
 具體印表機是否能穩定回讀狀態，需要實機測試。文件不承諾特定型號一定支援完整雙向狀態回讀。connectivity worker 只驗證主系統與樹莓派之間的 contract，不驗證硬體能力。

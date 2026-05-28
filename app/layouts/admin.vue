@@ -4,6 +4,7 @@ import {
   HomeIcon,
   Layers3Icon,
   LogOutIcon,
+  PlusSquareIcon,
   PrinterIcon,
 } from 'lucide-vue-next';
 
@@ -13,6 +14,13 @@ const route = useRoute();
 await adminSession.refreshAdminSession();
 
 const displayName = computed(() => adminSession.profile.value?.displayName || 'Admin');
+
+const createNavItem = {
+  description: '直接進入現場建單流程',
+  icon: PlusSquareIcon,
+  label: '新增工單',
+  to: '/admin/work-orders/new',
+};
 
 const navItems = [
   {
@@ -89,6 +97,26 @@ const handleLogout = async () => {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  as-child
+                  variant="outline"
+                  :is-active="route.path === createNavItem.to"
+                  :tooltip="createNavItem.label"
+                  class="h-16 items-start bg-sidebar-primary/10 px-3 py-3 hover:bg-sidebar-primary/15 data-active:bg-sidebar-primary/20"
+                >
+                  <NuxtLink :to="createNavItem.to">
+                    <component :is="createNavItem.icon" class="mt-0.5" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-medium">{{ createNavItem.label }}</p>
+                      <p class="mt-1 truncate text-xs text-sidebar-foreground/70">
+                        {{ createNavItem.description }}
+                      </p>
+                    </div>
+                  </NuxtLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
               <SidebarMenuItem v-for="item in navItems" :key="item.to">
                 <SidebarMenuButton
                   v-if="item.enabled"

@@ -49,8 +49,6 @@ const ensureLinkedPublicAssets = async () => {
   }
 };
 
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 const rewriteClientEntryImports = async () => {
   let assetNames;
 

@@ -8,7 +8,9 @@ import {
   getPrintDeviceConnectionStateTone,
 } from '../../app/utils/admin-printing';
 import {
+  ADMIN_PRINTING_ACTIVE_SUMMARY_REFRESH_INTERVAL_MS,
   ADMIN_PRINTING_REALTIME_TOPICS,
+  isAdminPrintingActiveJobStatus,
   shouldRefreshAdminPrintingOnVisibility,
   shouldRunAdminPrintingFallbackRefresh,
 } from '../../app/utils/admin-printing-realtime';
@@ -148,6 +150,15 @@ describe('admin printing UI helpers', () => {
       'printing:devices',
       'printing:summary',
     ]);
+
+    expect(ADMIN_PRINTING_ACTIVE_SUMMARY_REFRESH_INTERVAL_MS).toBe(2_000);
+    expect(isAdminPrintingActiveJobStatus('pending')).toBe(true);
+    expect(isAdminPrintingActiveJobStatus('locked')).toBe(true);
+    expect(isAdminPrintingActiveJobStatus('printing')).toBe(true);
+    expect(isAdminPrintingActiveJobStatus('printed')).toBe(false);
+    expect(isAdminPrintingActiveJobStatus('failed')).toBe(false);
+    expect(isAdminPrintingActiveJobStatus('cancelled')).toBe(false);
+    expect(isAdminPrintingActiveJobStatus(null)).toBe(false);
 
     expect(
       shouldRefreshAdminPrintingOnVisibility({

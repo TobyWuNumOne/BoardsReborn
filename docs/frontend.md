@@ -123,8 +123,9 @@
 
 - Desktop（`xl` 起）：top bar + left sidebar + main content。
 - Tablet / mobile（`<xl`）：top bar + single-column content，sidebar 使用 offcanvas / sheet；第一版不做永久 sidebar。
+- Tablet / mobile sidebar 支援左緣右拖開啟、開啟後左拖關閉；維持 button trigger 與 close button 作為備援。
 - Sidebar / sheet / mobile layout 已加入 `app/plugins/ssr-width.ts`，以 `provideSSRWidth(1024, nuxtApp.vueApp)` 作為第一版 SSR width baseline。
-- Sidebar 第一版只放：
+- Sidebar 第一版在 `Navigation` 區最上方提供加高的 `新增工單` 快捷入口，其下再放：
   - Dashboard
   - 工單
   - 批量狀態
@@ -162,7 +163,8 @@
 
 ## Feedback And Errors
 
-- 使用 toast 顯示 action success / failure feedback。
+- 同頁操作可使用 toast 顯示 action success / failure feedback。
+- 若成功後會導頁，或成功後需要在新頁面保留明確回饋，應在頁面頂部顯示 shadcn alert。
 - 表單欄位錯誤使用 inline error。
 - API error envelope 的 `fieldErrors` 應映射到對應欄位。
 - 非欄位錯誤顯示在 form-level alert 或 toast。
@@ -236,6 +238,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 成功後 refresh detail、清空 form，並保留在 `mode=work`
 - detail 頁列印狀態卡使用 `GET /api/admin/print-summaries?workOrderId=...`，只刷新 summary，不因列印事件整頁重抓 work order detail。
 - detail 頁列印狀態卡只顯示 summary + deep link，不嵌入完整 print timeline。
+- detail 頁若最新列印任務處於 `pending / locked / printing`，需短週期補抓 print summary，直到進入 terminal state，避免 Realtime 漏事件時卡在 `已鎖定`。
 
 ## Work Order Create
 
@@ -264,6 +267,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 清除 unsaved-change guard
   - 顯示 success toast
   - 導向 `/admin/work-orders/[id]?mode=view&created=1`
+  - detail 頁頂部顯示 success alert，讓導頁後仍可確認操作成功
 
 ## Bulk Status
 
@@ -279,9 +283,8 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
 - textarea parser 規則：
   - 支援換行、逗號、空白
   - trim
-- preview 區可顯示 compact print summary + `前往列印中心` deep link，但不提供補印按鈕。
-- recent batch result 區顯示 print summary；只有 `updated` items 可顯示單筆 `建立列印任務 / 建立補印`。
-- bulk-status 以 `GET /api/admin/print-summaries` 分批讀取 summary，避免對 `/api/admin/print-jobs` 做 N+1。
+- preview 區只保留掃碼後核對狀態所需的工單資料，不顯示列印摘要或列印操作。
+- recent batch result 區只顯示 updated / skipped 摘要與狀態結果，不顯示列印摘要。
 
 ## Printing Center
 
@@ -388,9 +391,9 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
 - bulk submit 期間會鎖住 selected snapshot，禁止改動 textarea、selection、status、note 與快捷按鈕。
 - 成功後：
   - 顯示 updated / skipped 摘要 toast
+  - 在頁面頂部顯示 success alert
   - 保存最近一次批量結果
   - 重新執行 preview 搜尋
-  - smooth scroll 到結果區塊
 - 第一版不支援：
   - `internalNote`
   - 掃碼裝置事件監聽

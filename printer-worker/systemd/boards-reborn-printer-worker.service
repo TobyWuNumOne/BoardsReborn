@@ -7,7 +7,8 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/opt/boards-reborn/printer-worker
 EnvironmentFile=/etc/boards-reborn/printer-worker.env
-ExecStart=/opt/boards-reborn/printer-worker/.venv/bin/python worker.py serve
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/boards-reborn/printer-worker/.venv/bin/python -u worker.py serve
 Restart=always
 RestartSec=5
 TimeoutStopSec=30

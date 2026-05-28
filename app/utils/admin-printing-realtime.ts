@@ -2,6 +2,7 @@ import type { Database } from '../../types/database.types';
 
 export const ADMIN_PRINTING_REALTIME_DEBOUNCE_MS = 400;
 export const ADMIN_PRINTING_REALTIME_FALLBACK_INTERVAL_MS = 60_000;
+export const ADMIN_PRINTING_ACTIVE_SUMMARY_REFRESH_INTERVAL_MS = 2_000;
 
 export const ADMIN_PRINTING_REALTIME_TOPICS = [
   'printing:jobs',
@@ -31,6 +32,10 @@ export interface AdminPrintingRealtimePayload {
   deviceKey?: string | null;
   jobStatus?: Database['public']['Enums']['print_job_status'] | null;
 }
+
+export const isAdminPrintingActiveJobStatus = (
+  status: Database['public']['Enums']['print_job_status'] | null | undefined,
+) => status === 'pending' || status === 'locked' || status === 'printing';
 
 interface AdminPrintingRealtimeRefreshDecisionInput {
   dirty: boolean;

@@ -1,13 +1,6 @@
 <script setup lang="ts">
-import { nextTick } from 'vue';
 import { toast } from 'vue-sonner';
 import type { Database } from '../../../../types/database.types';
-import type { AdminPrintSummaryItem, AdminPrintSummaryResponse } from '~/utils/admin-printing';
-import {
-  createEmptyAdminPrintSummary,
-  getAdminPrintActionLabel,
-  getAdminPrintingCenterPath,
-} from '~/utils/admin-printing';
 import type {
   AdminWorkOrderBulkStatusResponse,
   AdminWorkOrderResolveItem,
@@ -35,7 +28,6 @@ import {
   resolveAdminBulkStatusPreview,
 } from '~/utils/admin-work-order-bulk-status';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
-import PrintJobStatusBadge from '~/components/printing/PrintJobStatusBadge.vue';
 import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
 import WorkOrderFlagBadges from '~/components/work-orders/WorkOrderFlagBadges.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
@@ -44,8 +36,6 @@ import { Textarea } from '~/components/ui/textarea';
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 type RequestFetch = <T>(request: string, options?: Record<string, unknown>) => Promise<T>;
 type PreviewStatus = 'idle' | 'loading' | 'ready' | 'stale';
-
-const BULK_STATUS_RESULT_SECTION_ID = 'recent-batch-result';
 
 definePageMeta({
   layout: 'admin',
@@ -78,12 +68,12 @@ const foundItems = ref<AdminWorkOrderResolveItem[]>([]);
 const notFoundPaperOrderNos = ref<string[]>([]);
 const selectedPaperOrderNos = ref<string[]>([]);
 const recentBatchResult = ref<AdminWorkOrderBulkStatusResponse['data'] | null>(null);
-const previewPrintSummaries = ref<Record<string, AdminPrintSummaryItem>>({});
-const recentBatchPrintSummaries = ref<Record<string, AdminPrintSummaryItem>>({});
+const successAlert = ref<{
+  description: string;
+  title: string;
+} | null>(null);
 const isSubmitting = ref(false);
-const reprintingWorkOrderIds = ref<string[]>([]);
 const submittingSelectedSnapshot = ref<string[]>([]);
-const recentBatchResultElement = ref<HTMLElement | null>(null);
 const statusValues = new Set(ADMIN_WORK_ORDER_STATUS_OPTIONS.map((option) => option.value));
 const groupExpandedState = reactive<Record<WorkOrderStatus, boolean>>({
   CANCELLED: true,
@@ -125,23 +115,6 @@ const selectedContainsSnowboard = computed(() =>
 const showSnowboardDryingWarning = computed(
   () => isPreviewReady.value && sharedStatus.value === 'DRYING' && selectedContainsSnowboard.value,
 );
-const previewWorkOrderIds = computed(() => foundItems.value.map((item) => item.id));
-const recentBatchUpdatedWorkOrderIds = computed(() =>
-  recentBatchResult.value?.updated.map((item) => item.workOrderId) ?? [],
-);
-const trackedPrintSummaryWorkOrderIds = computed(() => {
-  const ids = new Set<string>();
-
-  for (const workOrderId of previewWorkOrderIds.value) {
-    ids.add(workOrderId);
-  }
-
-  for (const workOrderId of recentBatchUpdatedWorkOrderIds.value) {
-    ids.add(workOrderId);
-  }
-
-  return Array.from(ids);
-});
 const notFoundCopyText = computed(() => notFoundPaperOrderNos.value.join('\n'));
 const sharedSubmitLabel = computed(() =>
   isSubmitting.value
@@ -181,16 +154,6 @@ const submitFormAlertMessages = computed(() => {
   return Array.from(messages);
 });
 
-const chunkWorkOrderIds = (workOrderIds: string[], chunkSize = 50) => {
-  const chunks: string[][] = [];
-
-  for (let index = 0; index < workOrderIds.length; index += chunkSize) {
-    chunks.push(workOrderIds.slice(index, index + chunkSize));
-  }
-
-  return chunks;
-};
-
 const clearSubmitFeedback = () => {
   submitClientFieldErrors.value = {};
   submitApiError.value = null;
@@ -217,6 +180,7 @@ const clearBulkInput = () => {
   bulkInput.value = '';
   sharedStatus.value = '';
   sharedNote.value = '';
+  successAlert.value = null;
   resetPreviewState();
 };
 
@@ -249,96 +213,6 @@ const handleAuthRedirect = async (error: unknown) => {
   }
 
   return true;
-};
-
-const fetchPrintSummaryMap = async (workOrderIds: string[]) => {
-  const dedupedIds = Array.from(new Set(workOrderIds.filter((value) => value.trim() !== '')));
-
-  if (dedupedIds.length === 0) {
-    return {} as Record<string, AdminPrintSummaryItem>;
-  }
-
-  const summaryMap: Record<string, AdminPrintSummaryItem> = {};
-
-  for (const chunk of chunkWorkOrderIds(dedupedIds)) {
-    const response = await getRequestFetch()<AdminPrintSummaryResponse>('/api/admin/print-summaries', {
-      query: {
-        workOrderId: chunk,
-      },
-    });
-
-    for (const workOrderId of chunk) {
-      summaryMap[workOrderId] =
-        response.data[workOrderId] ?? createEmptyAdminPrintSummary(workOrderId);
-    }
-  }
-
-  return summaryMap;
-};
-
-const refreshPreviewPrintSummaries = async () => {
-  try {
-    previewPrintSummaries.value = await fetchPrintSummaryMap(previewWorkOrderIds.value);
-  } catch (error) {
-    if (await handleAuthRedirect(error)) {
-      return;
-    }
-
-    console.error('Failed to refresh preview print summaries', error);
-  }
-};
-
-const refreshRecentBatchPrintSummaries = async () => {
-  try {
-    recentBatchPrintSummaries.value = await fetchPrintSummaryMap(recentBatchUpdatedWorkOrderIds.value);
-  } catch (error) {
-    if (await handleAuthRedirect(error)) {
-      return;
-    }
-
-    console.error('Failed to refresh recent batch print summaries', error);
-  }
-};
-
-const getPreviewPrintSummary = (workOrderId: string) =>
-  previewPrintSummaries.value[workOrderId] ?? createEmptyAdminPrintSummary(workOrderId);
-
-const getRecentBatchPrintSummary = (workOrderId: string) =>
-  recentBatchPrintSummaries.value[workOrderId] ?? createEmptyAdminPrintSummary(workOrderId);
-
-const isReprintingWorkOrder = (workOrderId: string) =>
-  reprintingWorkOrderIds.value.includes(workOrderId);
-
-const createPrintJobFromBulkResult = async (workOrderId: string) => {
-  if (isReprintingWorkOrder(workOrderId)) {
-    return;
-  }
-
-  reprintingWorkOrderIds.value = [...reprintingWorkOrderIds.value, workOrderId];
-
-  try {
-    await getRequestFetch()('/api/admin/print-jobs', {
-      body: {
-        jobType: 'work_order_label',
-        workOrderId,
-      },
-      method: 'POST',
-    });
-
-    toast.success(`${getAdminPrintActionLabel(getRecentBatchPrintSummary(workOrderId))}已送出`);
-    await Promise.all([refreshPreviewPrintSummaries(), refreshRecentBatchPrintSummaries()]);
-  } catch (error) {
-    if (await handleAuthRedirect(error)) {
-      return;
-    }
-
-    const apiEnvelope = extractApiErrorEnvelope(error);
-    toast.error('建立列印任務失敗。', {
-      description: apiEnvelope?.error.message ?? '請稍後再試。',
-    });
-  } finally {
-    reprintingWorkOrderIds.value = reprintingWorkOrderIds.value.filter((id) => id !== workOrderId);
-  }
 };
 
 const resolveWorkOrder = async (paperOrderNo: string) => {
@@ -473,6 +347,10 @@ const submitBulkStatusUpdate = async (
 
     recentBatchResult.value = response.data;
     toast.success(`已更新 ${response.data.updatedCount} 筆，略過 ${response.data.skippedCount} 筆`);
+    successAlert.value = {
+      title: '批量狀態更新成功',
+      description: `本次已更新 ${response.data.updatedCount} 筆，略過 ${response.data.skippedCount} 筆。最近一次批量結果已保留在頁面下方。`,
+    };
 
     try {
       await refreshPreviewFromCurrentInput();
@@ -487,12 +365,6 @@ const submitBulkStatusUpdate = async (
 
     sharedStatus.value = '';
     sharedNote.value = '';
-
-    await nextTick();
-    recentBatchResultElement.value?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
   } catch (error) {
     if (await handleAuthRedirect(error)) {
       return;
@@ -534,31 +406,6 @@ watch(bulkInput, (nextValue, previousValue) => {
     previewStatus.value = 'stale';
   }
 });
-
-watch(
-  previewWorkOrderIds,
-  () => {
-    void refreshPreviewPrintSummaries();
-  },
-  { immediate: true },
-);
-
-watch(
-  recentBatchUpdatedWorkOrderIds,
-  () => {
-    void refreshRecentBatchPrintSummaries();
-  },
-  { immediate: true },
-);
-
-useAdminPrintingRealtime({
-  onRefresh: async () => {
-    await Promise.all([refreshPreviewPrintSummaries(), refreshRecentBatchPrintSummaries()]);
-  },
-  shouldRefreshFromEvent: (payload) =>
-    !payload.workOrderId || trackedPrintSummaryWorkOrderIds.value.includes(payload.workOrderId),
-  topics: ['printing:jobs'],
-});
 </script>
 
 <template>
@@ -574,6 +421,14 @@ useAdminPrintingRealtime({
         </div>
       </div>
     </div>
+
+    <ActionSuccessAlert
+      v-if="successAlert"
+      :description="successAlert.description"
+      :title="successAlert.title"
+      dismissible
+      @dismiss="successAlert = null"
+    />
 
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
       <Card>
@@ -838,32 +693,6 @@ useAdminPrintingRealtime({
                       <span class="text-foreground">{{ formatAdminDateTime(item.lastUpdatedAt) }}</span>
                     </div>
                   </div>
-
-                  <div class="rounded-lg border bg-muted/20 px-3 py-3 text-sm">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                      <div class="space-y-1">
-                        <p class="text-muted-foreground">列印摘要</p>
-                        <PrintJobStatusBadge
-                          v-if="getPreviewPrintSummary(item.id).latestJob"
-                          :status="getPreviewPrintSummary(item.id).latestJob!.status"
-                        />
-                        <p v-else class="font-medium">尚未建立列印任務</p>
-                      </div>
-                      <Button as-child size="sm" type="button" variant="outline">
-                        <NuxtLink :to="getAdminPrintingCenterPath(item.paperOrderNo)">
-                          前往列印中心
-                        </NuxtLink>
-                      </Button>
-                    </div>
-
-                    <p class="mt-2 text-muted-foreground">
-                      {{
-                        getPreviewPrintSummary(item.id).latestJob
-                          ? `最近更新 ${formatAdminDateTime(getPreviewPrintSummary(item.id).latestJob!.updatedAt)}`
-                          : '目前可在列印中心或 detail 頁手動建立第一筆列印任務。'
-                      }}
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -897,11 +726,7 @@ useAdminPrintingRealtime({
       </template>
     </div>
 
-    <div
-      v-if="recentBatchResult"
-      :id="BULK_STATUS_RESULT_SECTION_ID"
-      ref="recentBatchResultElement"
-    >
+    <div v-if="recentBatchResult">
       <Card>
       <CardHeader>
         <CardTitle>最近一次批量結果</CardTitle>
@@ -947,48 +772,6 @@ useAdminPrintingRealtime({
                     <p class="break-all text-muted-foreground">workOrderId: {{ item.workOrderId }}</p>
                   </div>
                   <WorkOrderStatusBadge :status="item.currentStatus" />
-                </div>
-
-                <div class="mt-3 rounded-lg border bg-muted/20 px-3 py-3">
-                  <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div class="space-y-1">
-                      <p class="text-muted-foreground">列印摘要</p>
-                      <PrintJobStatusBadge
-                        v-if="getRecentBatchPrintSummary(item.workOrderId).latestJob"
-                        :status="getRecentBatchPrintSummary(item.workOrderId).latestJob!.status"
-                      />
-                      <p v-else class="font-medium">尚未建立列印任務</p>
-                    </div>
-
-                    <div class="flex flex-wrap gap-2">
-                      <Button as-child size="sm" type="button" variant="outline">
-                        <NuxtLink :to="getAdminPrintingCenterPath(item.paperOrderNo)">
-                          前往列印中心
-                        </NuxtLink>
-                      </Button>
-                      <Button
-                        v-if="getRecentBatchPrintSummary(item.workOrderId).reprintAllowed"
-                        size="sm"
-                        type="button"
-                        :disabled="isReprintingWorkOrder(item.workOrderId)"
-                        @click="createPrintJobFromBulkResult(item.workOrderId)"
-                      >
-                        <Spinner
-                          v-if="isReprintingWorkOrder(item.workOrderId)"
-                          data-icon="inline-start"
-                        />
-                        {{ getAdminPrintActionLabel(getRecentBatchPrintSummary(item.workOrderId)) }}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <p class="mt-2 text-muted-foreground">
-                    {{
-                      getRecentBatchPrintSummary(item.workOrderId).latestJob
-                        ? `最近更新 ${formatAdminDateTime(getRecentBatchPrintSummary(item.workOrderId).latestJob!.updatedAt)}`
-                        : '尚未建立列印任務，可直接建立第一筆標籤列印。'
-                    }}
-                  </p>
                 </div>
               </div>
             </div>

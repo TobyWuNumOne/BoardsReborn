@@ -8,6 +8,10 @@ import {
   getAdminPrintActionLabel,
   getAdminPrintingCenterPath,
 } from '~/utils/admin-printing';
+import {
+  ADMIN_PRINTING_ACTIVE_SUMMARY_REFRESH_INTERVAL_MS,
+  isAdminPrintingActiveJobStatus,
+} from '~/utils/admin-printing-realtime';
 import type {
   AdminWorkOrderDetailItem,
   AdminWorkOrderDetailMode,
@@ -301,6 +305,9 @@ const shouldShowCreatedBanner = computed(() => route.query.created === '1');
 const isPrintSummaryLoading = computed(
   () => printSummaryStatus.value === 'pending' && !printSummaryResponse.value,
 );
+const shouldActiveRefreshPrintSummary = computed(() =>
+  isAdminPrintingActiveJobStatus(printSummary.value?.latestJob?.status),
+);
 const detailTitle = computed(() => {
   const paperOrderNo = detail.value?.paperOrderNo;
 
@@ -435,6 +442,43 @@ useAdminPrintingRealtime({
   shouldRefreshFromEvent: (payload) =>
     !payload.workOrderId || payload.workOrderId === routeWorkOrderId.value,
   topics: ['printing:jobs'],
+});
+
+let activePrintSummaryRefreshTimer: number | null = null;
+
+const clearActivePrintSummaryRefreshTimer = () => {
+  if (activePrintSummaryRefreshTimer !== null) {
+    window.clearInterval(activePrintSummaryRefreshTimer);
+    activePrintSummaryRefreshTimer = null;
+  }
+};
+
+const syncActivePrintSummaryRefreshTimer = () => {
+  if (!import.meta.client) {
+    return;
+  }
+
+  clearActivePrintSummaryRefreshTimer();
+
+  if (!shouldActiveRefreshPrintSummary.value) {
+    return;
+  }
+
+  activePrintSummaryRefreshTimer = window.setInterval(() => {
+    if (document.hidden || isSubmittingPrintAction.value) {
+      return;
+    }
+
+    void refreshPrintSummary();
+  }, ADMIN_PRINTING_ACTIVE_SUMMARY_REFRESH_INTERVAL_MS);
+};
+
+watch(shouldActiveRefreshPrintSummary, () => {
+  syncActivePrintSummaryRefreshTimer();
+}, { immediate: true });
+
+onBeforeUnmount(() => {
+  clearActivePrintSummaryRefreshTimer();
 });
 
 const editEstimatedCalendarValue = computed({
@@ -956,6 +1000,12 @@ if (import.meta.client) {
       </div>
     </div>
 
+    <ActionSuccessAlert
+      v-if="shouldShowCreatedBanner"
+      title="工單已建立"
+      description="已轉到工單詳情頁；上方建單已成功，這裡可直接確認列印狀態或繼續後續操作。"
+    />
+
     <div v-if="isInitialLoading" class="grid gap-4">
       <Card v-for="index in 4" :key="index">
         <CardHeader class="gap-3">
@@ -1287,13 +1337,6 @@ if (import.meta.client) {
               <CardDescription>顯示最新一筆標籤列印任務，完整操作仍以列印中心為主。</CardDescription>
             </CardHeader>
             <CardContent class="space-y-4">
-              <div
-                v-if="shouldShowCreatedBanner"
-                class="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
-              >
-                工單已建立，標籤列印狀態如下；若失敗可直接補印或前往列印中心查看。
-              </div>
-
               <div v-if="isPrintSummaryLoading" class="space-y-3">
                 <Skeleton class="h-5 w-28" />
                 <Skeleton class="h-16 w-full" />

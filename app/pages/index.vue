@@ -37,6 +37,9 @@ const statusItems = useScaffoldStatus();
           <Button as-child variant="outline">
             <NuxtLink to="/admin">前往 Admin</NuxtLink>
           </Button>
+          <Button as-child variant="outline">
+            <NuxtLink to="/repair-status">查詢維修進度</NuxtLink>
+          </Button>
         </div>
       </div>
 
