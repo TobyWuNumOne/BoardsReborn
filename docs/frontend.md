@@ -124,6 +124,7 @@
 - Desktop（`xl` 起）：top bar + left sidebar + main content。
 - Tablet / mobile（`<xl`）：top bar + single-column content，sidebar 使用 offcanvas / sheet；第一版不做永久 sidebar。
 - Tablet / mobile sidebar 支援左緣右拖開啟、開啟後左拖關閉；維持 button trigger 與 close button 作為備援。
+- Mobile sidebar 在路由切換後應自動收起，避免點選導航後遮住新頁面。
 - Sidebar / sheet / mobile layout 已加入 `app/plugins/ssr-width.ts`，以 `provideSSRWidth(1024, nuxtApp.vueApp)` 作為第一版 SSR width baseline。
 - Sidebar 第一版在 `Navigation` 區最上方提供加高的 `新增工單` 快捷入口，其下再放：
   - Dashboard
@@ -165,6 +166,7 @@
 
 - 同頁操作可使用 toast 顯示 action success / failure feedback。
 - 若成功後會導頁，或成功後需要在新頁面保留明確回饋，應在頁面頂部顯示 shadcn alert。
+- 可點擊的 button / nav button 應提供明確的 hover / active press feedback，至少包含背景或陰影變化，避免現場觸控時無法判斷是否已按下。
 - 表單欄位錯誤使用 inline error。
 - API error envelope 的 `fieldErrors` 應映射到對應欄位。
 - 非欄位錯誤顯示在 form-level alert 或 toast。
