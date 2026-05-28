@@ -23,19 +23,27 @@ const props = withDefaults(
   },
 );
 
-const { isMobile, state } = useSidebar();
+const { isMobile, state, setOpenMobile } = useSidebar();
 
 const delegatedProps = reactiveOmit(props, 'tooltip');
+
+const handleClick = () => {
+  if (!isMobile.value) {
+    return;
+  }
+
+  setOpenMobile(false);
+};
 </script>
 
 <template>
-  <SidebarMenuButtonChild v-if="!tooltip" v-bind="{ ...delegatedProps, ...$attrs }">
+  <SidebarMenuButtonChild v-if="!tooltip" v-bind="{ ...delegatedProps, ...$attrs }" @click="handleClick">
     <slot />
   </SidebarMenuButtonChild>
 
   <Tooltip v-else>
     <TooltipTrigger as-child>
-      <SidebarMenuButtonChild v-bind="{ ...delegatedProps, ...$attrs }">
+      <SidebarMenuButtonChild v-bind="{ ...delegatedProps, ...$attrs }" @click="handleClick">
         <slot />
       </SidebarMenuButtonChild>
     </TooltipTrigger>

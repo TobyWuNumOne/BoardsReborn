@@ -124,7 +124,7 @@
 - Desktop（`xl` 起）：top bar + left sidebar + main content。
 - Tablet / mobile（`<xl`）：top bar + single-column content，sidebar 使用 offcanvas / sheet；第一版不做永久 sidebar。
 - Tablet / mobile sidebar 支援左緣右拖開啟、開啟後左拖關閉；維持 button trigger 與 close button 作為備援。
-- Mobile sidebar 在路由切換後應自動收起，避免點選導航後遮住新頁面。
+- Mobile sidebar 在點下導航按鈕當下就應先收起；路由切換後也應維持關閉，避免點選導航後還要等待側欄停留在畫面上。
 - Sidebar / sheet / mobile layout 已加入 `app/plugins/ssr-width.ts`，以 `provideSSRWidth(1024, nuxtApp.vueApp)` 作為第一版 SSR width baseline。
 - Sidebar 第一版在 `Navigation` 區最上方提供加高的 `新增工單` 快捷入口，其下再放：
   - Dashboard
