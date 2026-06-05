@@ -1062,7 +1062,7 @@ Response：
         "paperOrderNo": "BR-2026-0001",
         "barcodeValue": "BR20260001",
         "customerNameAscii": "ALEX",
-        "maskedPhone": "****1234",
+        "customerPhone": "0912927265",
         "boardType": "SURFBOARD",
       },
       "attemptCount": 0,

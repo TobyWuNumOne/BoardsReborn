@@ -275,8 +275,8 @@ describe('print job services', () => {
               payload: {
                 barcodeValue: 'BR20260001',
                 boardType: 'SURFBOARD',
+                customerPhone: '0912927265',
                 customerNameAscii: 'Alex',
-                maskedPhone: '****1234',
                 paperOrderNo: 'BR-2026-0001',
                 templateVersion: 1,
               },

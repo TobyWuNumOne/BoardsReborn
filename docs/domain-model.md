@@ -214,7 +214,7 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 | `print_device_id`    | `uuid`             | nullable，references `print_devices.id`                    |
 | `job_type`           | `print_job_type`   | required，第一版固定 `work_order_label`                    |
 | `status`             | `print_job_status` | required，見 `PrintJobStatus`                              |
-| `payload`            | `jsonb`            | required，不可變的列印快照；第一版至少包含 `templateVersion`、`paperOrderNo`、`barcodeValue`、`customerNameAscii`、`maskedPhone`、ASCII-safe `boardType` |
+| `payload`            | `jsonb`            | required，不可變的列印快照；第一版至少包含 `templateVersion`、`paperOrderNo`、`barcodeValue`、`customerNameAscii`、`customerPhone`、ASCII-safe `boardType` |
 | `attempt_count`      | `smallint`         | required，default `0`                                      |
 | `max_attempts`       | `smallint`         | required，default `3`                                      |
 | `last_error`         | `text`             | nullable，最後一次錯誤原因                                 |

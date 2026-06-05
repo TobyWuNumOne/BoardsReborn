@@ -138,7 +138,8 @@
 - Raspberry Pi USB raw verification：已確認 Pi 端 `lsusb`、`/dev/usb/lp0`、ASCII、1D barcode、cut command 全部通過；有效 cut command 為 `\x1D\x56\x42\x05`。
 - Printing MVP decision：第一版先不做 QR Code，不處理中文列印；先以 ASCII-only receipt template 印工單號文字與 1D barcode。
 - Pi transport decision：正式 Pi worker 直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，不使用 macOS printer queue name。
-- Print snapshot payload：`work_order_label` 現在會建立 immutable print snapshot payload，包含 `templateVersion: 1`、`paperOrderNo`、`barcodeValue`、`customerNameAscii`、`maskedPhone` 與 ASCII-safe `boardType`。
+  - Print snapshot payload：`work_order_label` 現在會建立 immutable print snapshot payload，包含 `templateVersion: 1`、`paperOrderNo`、`barcodeValue`、`customerNameAscii`、`customerPhone` 與 ASCII-safe `boardType`。
+  - Receipt v1 已調整為顯示完整電話，並縮短條碼前後留白，避免單據頭尾多餘空白。
 - Worker raw USB transport：`printer-worker serve` 現在會直接把 ESC/POS raw bytes 寫到 `/dev/usb/lp0`，並在成功/失敗後回報既有 `succeed` / `fail` API。
 - Staging deployment refresh：GitHub `main` 已推送最新列印整合變更；Supabase staging 已套用 print snapshot migration，Vercel staging 已重新部署並更新穩定 alias。
 - Pi service refresh：Raspberry Pi 上 `boards-reborn-printer-worker.service` 已同步最新 worker 程式並重啟，啟動後已重新訂閱 `printing:worker-wakeup`。

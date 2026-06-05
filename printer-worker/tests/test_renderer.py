@@ -18,7 +18,7 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
             "barcodeValue": "BR20260601001",
             "boardType": "SURFBOARD",
             "customerNameAscii": "Alex",
-            "maskedPhone": "****1234",
+            "customerPhone": "0912927265",
             "paperOrderNo": "BR-20260601-001",
             "templateVersion": 1,
         }
@@ -27,9 +27,10 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
 
         self.assertTrue(rendered.startswith(b"\x1B\x40BoardsReborn\nOrder: BR-20260601-001\n"))
         self.assertIn(b"Customer: Alex\n", rendered)
-        self.assertIn(b"Phone: ****1234\n", rendered)
+        self.assertIn(b"Phone: 0912927265\n", rendered)
         self.assertIn(b"Board: SURFBOARD\n", rendered)
         self.assertIn(b"\x1D\x48\x02\x1D\x68\x64\x1D\x77\x02\x1D\x6B\x04BR20260601001\x00", rendered)
+        self.assertNotIn(b"\n\n\n", rendered)
         self.assertTrue(rendered.endswith(DEFAULT_CUT_COMMAND))
 
     def test_uses_fallbacks_for_optional_fields(self) -> None:
@@ -44,6 +45,17 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
         self.assertIn(b"Customer: -\n", rendered)
         self.assertIn(b"Phone: -\n", rendered)
         self.assertIn(b"Board: -\n", rendered)
+
+    def test_keeps_backward_compatibility_for_masked_phone_payloads(self) -> None:
+        payload = {
+            "barcodeValue": "BR20260601001",
+            "maskedPhone": "****7265",
+            "paperOrderNo": "BR-20260601-001",
+        }
+
+        rendered = render_work_order_receipt(payload)
+
+        self.assertIn(b"Phone: ****7265\n", rendered)
 
     def test_fails_for_missing_paper_order_number(self) -> None:
         with self.assertRaises(PrintPayloadError):

@@ -70,7 +70,7 @@ Admin UI / Work-order create
   "paperOrderNo": "BR-2026-0001",
   "barcodeValue": "BR20260001",
   "customerNameAscii": "ALEX",
-  "maskedPhone": "****1234",
+  "customerPhone": "0912927265",
   "boardType": "SURFBOARD",
 }
 ```
@@ -79,7 +79,7 @@ Admin UI / Work-order create
 
 - `job_type` 仍維持 `work_order_label`
 - worker 只消費 snapshot，不可自行 normalize customer name、phone、board type 或 work order number
-- server enqueue 端負責生成 `barcodeValue`、`customerNameAscii`、`maskedPhone` 與 ASCII-safe `boardType`
+- server enqueue 端負責生成 `barcodeValue`、`customerNameAscii`、`customerPhone` 與 ASCII-safe `boardType`
 
 ## 建單與補印規則
 

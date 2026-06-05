@@ -62,6 +62,13 @@ const printJobPayloadSnapshotMigration = readFileSync(
   ),
   'utf8',
 );
+const printJobFullPhoneReceiptMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260605160000_print_job_full_phone_receipt_spacing.sql',
+  ),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -278,6 +285,17 @@ describe('initial Supabase migration', () => {
     );
     expect(printJobPayloadSnapshotMigration).toContain(
       "length(v_barcode_value) > 32",
+    );
+  });
+
+  it('updates new print snapshots to use full customer phone for receipt display', () => {
+    expect(printJobFullPhoneReceiptMigration).toContain(
+      'create or replace function public.build_print_phone_value',
+    );
+    expect(printJobFullPhoneReceiptMigration).toContain("'customerPhone', v_print_phone");
+    expect(printJobFullPhoneReceiptMigration).not.toContain("'maskedPhone', v_masked_phone");
+    expect(printJobFullPhoneReceiptMigration).toContain(
+      "select nullif(regexp_replace(coalesce(p_value, ''), '[^0-9]', '', 'g'), '');",
     );
   });
 });

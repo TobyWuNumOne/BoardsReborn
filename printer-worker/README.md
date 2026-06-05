@@ -101,7 +101,7 @@ python worker.py serve
 - `paperOrderNo`
 - `barcodeValue`
 - `customerNameAscii`
-- `maskedPhone`
+- `customerPhone`
 - `boardType`
 
 Worker 不會自行 normalize customer name、phone、board type 或 work order number。
@@ -113,10 +113,10 @@ Worker 不會自行 normalize customer name、phone、board type 或 work order 
 - `BoardsReborn`
 - `Order: <paperOrderNo>`
 - `Customer: <customerNameAscii | ->`
-- `Phone: <maskedPhone | ->`
+- `Phone: <customerPhone | ->`
 - `Board: <boardType | ->`
 - 1D barcode using `barcodeValue`
-- feed lines
+- reduced feed lines
 - cut command `\x1D\x56\x42\x05`
 
 ## 預期輸出
@@ -130,6 +130,7 @@ Claimed print job
 - paperOrderNo: BR-2026-0001
 - barcodeValue: BR20260001
 - customerNameAscii: ALEX
+- customerPhone: 0912927265
 - boardType: SURFBOARD
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```
@@ -142,6 +143,7 @@ Claimed print job
 - jobType: work_order_label
 - paperOrderNo: BR-2026-0001
 - barcodeValue: BR20260001
+- customerPhone: 0912927265
 - boardType: SURFBOARD
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```

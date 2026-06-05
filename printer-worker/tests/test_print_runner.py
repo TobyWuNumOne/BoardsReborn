@@ -62,7 +62,7 @@ class HandleClaimedPrintJobTest(unittest.TestCase):
                 "barcodeValue": "BR20260601001",
                 "boardType": "SURFBOARD",
                 "customerNameAscii": "Alex",
-                "maskedPhone": "****1234",
+                "customerPhone": "0912927265",
                 "paperOrderNo": "BR-20260601-001",
                 "templateVersion": 1,
             },

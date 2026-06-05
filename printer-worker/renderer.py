@@ -39,16 +39,19 @@ def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
         raise PrintPayloadError("Invalid barcodeValue in print job payload.")
 
     customer_name = _optional_string(payload, "customerNameAscii", "-")
-    masked_phone = _optional_string(payload, "maskedPhone", "-")
+    customer_phone = _optional_string(
+        payload,
+        "customerPhone",
+        _optional_string(payload, "maskedPhone", "-"),
+    )
     board_type = _optional_string(payload, "boardType", "-")
 
     text_lines = [
         "BoardsReborn",
         f"Order: {paper_order_no}",
         f"Customer: {customer_name}",
-        f"Phone: {masked_phone}",
+        f"Phone: {customer_phone}",
         f"Board: {board_type}",
-        "",
     ]
 
     try:
@@ -68,7 +71,7 @@ def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
             b"\x1D\x6B\x04",
             barcode_bytes,
             b"\x00",
-            b"\n\n\n",
+            b"\n\n",
             DEFAULT_CUT_COMMAND,
         ]
     )
