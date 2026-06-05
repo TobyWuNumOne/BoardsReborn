@@ -84,8 +84,11 @@
 - Nuxt 是主系統與 API 層，不是硬體驅動層。
 - 掃碼走 keyboard wedge 模式，條碼槍輸入 `paper_order_no`。
 - 列印走非同步 `print_jobs`，不可要求建立工單必須同步列印成功。
-- 平板瀏覽器不可直接控制 USB 標籤機。
-- 不可綁死單一品牌 SDK；優先使用 TSPL/ZPL/EPL/DPL 原始列印語言。
+- 平板瀏覽器不可直接控制 USB 印表機。
+- 第一版已驗證硬體 profile 以 `ESC/POS` 80mm 熱感出單機為主，但仍不可綁死單一品牌 SDK。
+- 列印渲染與 transport 必須分離；不可把 ESC/POS command bytes 散落在 worker 主流程。
+- 第一版列印模板限 ASCII 內容，直到中文字編碼與字庫策略完成驗證前，不可把中文列為必印內容。
+- 第一版不做 QR Code 列印；先印工單號文字與 1D barcode。
 - 第一版主系統的 `print_job_status` 以 queue 為主：`pending`、`locked`、`printing`、`printed`、`failed`、`cancelled`。
 - Worker claim 必須是原子操作，避免多個 worker 同時取走同一筆 job。
 - 補印必須建立新的 `print_jobs` 記錄，不可覆蓋舊列印任務。
@@ -105,8 +108,9 @@
 - 自動寄板費計算。
 - 顧客修改狀態。
 - 顧客觀看影片。
-- 平板瀏覽器直接控制 USB 標籤機。
-- 綁死單一品牌標籤機 SDK。
+- 平板瀏覽器直接控制 USB 印表機。
+- 綁死單一品牌印表機 SDK。
+- QR Code 列印。
 - 完整微服務或複雜訊息佇列。
 
 如果任務要求碰到上述項目，必須先更新產品文件或要求重新確認 scope。

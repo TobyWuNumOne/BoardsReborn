@@ -111,7 +111,7 @@ class PrintWorkerService:
         print(
             "Starting serve mode"
             f" -> fallbackClaimInterval={interval_seconds}s"
-            f" mode={self._settings.worker_result_mode}"
+            f" devicePath={self._settings.printer_device_path}"
         )
 
         while not self._stop_event.is_set():

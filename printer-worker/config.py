@@ -14,6 +14,7 @@ class Settings:
     api_base_url: str
     device_key: str
     poll_interval_seconds: int
+    printer_device_path: str
     print_worker_token: str
     realtime_fallback_claim_interval_seconds: int
     realtime_reconnect_max_seconds: int
@@ -74,6 +75,7 @@ def load_settings() -> Settings:
 
     api_base_url = _require_env("API_BASE_URL").rstrip("/")
     device_key = _require_env("DEVICE_KEY")
+    printer_device_path = os.environ.get("PRINTER_DEVICE_PATH", "/dev/usb/lp0").strip() or "/dev/usb/lp0"
     print_worker_token = _require_env("PRINT_WORKER_TOKEN")
     poll_interval_seconds = _parse_positive_int("POLL_INTERVAL_SECONDS", 5)
     realtime_fallback_claim_interval_seconds = _parse_positive_int(
@@ -97,6 +99,7 @@ def load_settings() -> Settings:
         api_base_url=api_base_url,
         device_key=device_key,
         poll_interval_seconds=poll_interval_seconds,
+        printer_device_path=printer_device_path,
         print_worker_token=print_worker_token,
         realtime_fallback_claim_interval_seconds=realtime_fallback_claim_interval_seconds,
         realtime_reconnect_max_seconds=realtime_reconnect_max_seconds,

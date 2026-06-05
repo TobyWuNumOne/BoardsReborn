@@ -72,6 +72,15 @@ export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
 
   if (
     error.code === '23514' &&
+    includesErrorText(error, 'Print barcode value is invalid')
+  ) {
+    throw new ValidationError({
+      body: ['Print barcode value is invalid.'],
+    });
+  }
+
+  if (
+    error.code === '23514' &&
     includesErrorText(error, 'Print job is not locked by this device')
   ) {
     throw new ConflictError('Print job is not locked by this device.');

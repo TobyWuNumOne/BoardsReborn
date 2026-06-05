@@ -7,9 +7,9 @@
 
 ## What is BoardsReborn? / 什麼是 BoardsReborn？
 
-BoardsReborn replaces the notebook-and-memory workflow that most repair shops still rely on. When a board comes in, staff create a digital work order, print a barcode label, and the board's entire journey — intake, quote, repair stages, photos, and pickup — is tracked in one place. Anyone in the shop can see what's happening at a glance, and customers can look up their own repair status without calling in.
+BoardsReborn replaces the notebook-and-memory workflow that most repair shops still rely on. When a board comes in, staff create a digital work order, print a barcode work-order receipt, and the board's entire journey — intake, quote, repair stages, photos, and pickup — is tracked in one place. Anyone in the shop can see what's happening at a glance, and customers can look up their own repair status without calling in.
 
-BoardsReborn 取代了修板店長期依賴的紙本筆記與口耳相傳流程。板子進店後，工作人員建立數位工單並列印條碼標籤，從收件、報價、各維修階段、照片到取件，完整紀錄都集中在同一個系統。店內任何人都能即時掌握每張板子的狀態；顧客也可以自助查詢進度，不必打電話詢問。
+BoardsReborn 取代了修板店長期依賴的紙本筆記與口耳相傳流程。板子進店後，工作人員建立數位工單並列印帶條碼的工單收據，從收件、報價、各維修階段、照片到取件，完整紀錄都集中在同一個系統。店內任何人都能即時掌握每張板子的狀態；顧客也可以自助查詢進度，不必打電話詢問。
 
 ---
 
@@ -25,10 +25,10 @@ Repair shops track dozens of boards at a time using only their memory, physical 
 
 - **Work order lifecycle** — intake, quote, multi-stage repair, pickup, with full status history  
   工單全生命週期 — 收件、報價、多階段維修、取件，完整狀態歷程
-- **Barcode labels** — payload is the paper order number; scan to query or bulk-update status  
-  條碼標籤 — 內容為紙本工單號；掃碼即可查詢或批次更新狀態
-- **Async label printing** — print jobs are queued; a Print Agent on a fixed PC or Raspberry Pi drives the USB label printer  
-  非同步標籤列印 — 工作加入佇列後，由桌機或樹莓派上的 Print Agent 驅動 USB 標籤機
+- **Barcode work-order receipts** — payload is the paper order number; scan to query or bulk-update status
+  條碼工單收據 — 內容為紙本工單號；掃碼即可查詢或批次更新狀態
+- **Async print jobs** — print jobs are queued; a Print Agent on a fixed PC or Raspberry Pi drives the local receipt printer
+  非同步列印任務 — 工作加入佇列後，由桌機或樹莓派上的 Print Agent 驅動本地熱感出單機
 - **Smart flags** — highlight overdue boards, boards waiting too long for pickup, and stalled work orders  
   智慧提示 — 標示逾期、久候未取、長期未開工的工單
 - **Customer self-lookup** — customers can check their repair status using their order number and phone number  
@@ -48,7 +48,7 @@ Repair shops track dozens of boards at a time using only their memory, physical 
 
 Nuxt is the primary application and API layer — it handles UI, work order flows, data access, print job creation, and print result callbacks. It does not provide low-level USB printer drivers or control hardware directly from the browser.
 
-Nuxt 是主系統與 API 層，負責 UI、工單流程、資料存取、建立列印任務與接收列印結果；不負責低階硬體驅動，也不直接從瀏覽器控制 USB 標籤機。
+Nuxt 是主系統與 API 層，負責 UI、工單流程、資料存取、建立列印任務與接收列印結果；不負責低階硬體驅動，也不直接從瀏覽器控制 USB 印表機。
 
 ---
 
@@ -76,6 +76,7 @@ See [docs/setup.md](docs/setup.md) for toolchain versions, local setup, environm
 | [docs/domain-model.md](docs/domain-model.md) | Schema, enums, status rules, storage boundaries / 資料模型、枚舉、狀態規則、儲存邊界 |
 | [docs/api-contract.md](docs/api-contract.md) | Endpoint shapes, auth, pagination, error format / API 端點、認證、分頁、錯誤格式 |
 | [docs/barcode-printing.md](docs/barcode-printing.md) | Barcode payload, async print jobs, Print Agent / 條碼內容、非同步列印、Print Agent 架構 |
+| [docs/printer-hardware.md](docs/printer-hardware.md) | Verified printer hardware and isolated Pi print plan / 已驗證印表機硬體與 Pi 隔離列印計畫 |
 | [docs/progress.md](docs/progress.md) | Current implementation status and next steps / 目前實作狀態與下一步 |
 | [docs/setup.md](docs/setup.md) | Local setup, toolchain versions, env vars, commands / 本地設定、工具鏈版本、環境變數、指令 |
 | [docs/deployment.md](docs/deployment.md) | Staging deployment runbook / Staging 部署流程 |

@@ -1,6 +1,6 @@
 # Printing Model
 
-這份文件定義 BoardsReborn 第一版的列印任務模型、Worker API 邊界與 Raspberry Pi 後續整合方式。
+這份文件定義 BoardsReborn 第一版的列印任務模型、Worker API 邊界，以及目前 Raspberry Pi raw USB 列印整合方式。
 
 ## 目標
 
@@ -8,6 +8,17 @@
 - 列印是非同步 side effect，不可阻塞工單建立。
 - Raspberry Pi / Python Worker 是任務消費者，不是主系統的一部分。
 - 列印模型保留單店單機 MVP 的簡單性，同時保留未來多裝置擴充空間。
+- 列印渲染與 transport 必須分離，避免把硬體命令散落到 worker 主流程。
+
+## 目前已驗證硬體
+
+- 已驗證印表機：Prowill PD-X326 thermal receipt printer
+- 紙寬：80mm
+- 協定：`ESC/POS`
+- macOS USB raw printing：已驗證 ASCII 文字、1D barcode 與 cut command 可正常送出
+- Raspberry Pi raw USB printing：已完成 end-to-end 驗證，`/dev/usb/lp0`、ASCII、1D barcode 與 cut command 均正常
+
+具體硬體紀錄與約束見 [printer-hardware.md](printer-hardware.md)。
 
 ## Queue Model
 
@@ -18,7 +29,9 @@ Admin UI / Work-order create
   -> Nuxt Nitro API
   -> print_jobs
   -> Print Worker claim / succeed / fail
-  -> CUPS / USB label printer (下一階段)
+  -> render ESC/POS bytes
+  -> raw USB / TCP 9100 transport
+  -> 80mm thermal receipt printer
 ```
 
 核心資料表：
@@ -49,17 +62,24 @@ Admin UI / Work-order create
 
 第一版 API flow 只會主動使用 `pending`、`locked`、`printed`、`failed`。`printing` 保留給後續 Worker 內部更細的進度回報。
 
-`payload` 第一版固定包含：
+`payload` 第一版固定是 immutable print snapshot：
 
 ```json
 {
+  "templateVersion": 1,
   "paperOrderNo": "BR-2026-0001",
-  "customerName": "王小明",
+  "barcodeValue": "BR20260001",
+  "customerNameAscii": "ALEX",
+  "maskedPhone": "****1234",
   "boardType": "SURFBOARD",
-  "boardLengthClass": "SHORTBOARD",
-  "createdAt": "2026-05-21T00:00:00.000Z"
 }
 ```
+
+規則：
+
+- `job_type` 仍維持 `work_order_label`
+- worker 只消費 snapshot，不可自行 normalize customer name、phone、board type 或 work order number
+- server enqueue 端負責生成 `barcodeValue`、`customerNameAscii`、`maskedPhone` 與 ASCII-safe `boardType`
 
 ## 建單與補印規則
 
@@ -164,12 +184,13 @@ Server 端會同時驗證：
 
 ## Worker Runtime
 
-repo 內的 `/printer-worker` 子專案目前同時提供兩種 runtime：
+repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 
 - 支援 `python worker.py run-once`
 - 支援 `python worker.py poll`
 - 支援 `python worker.py serve`
-- 目前都只做 `claim -> succeed/fail`，只印出 job 摘要，不做實體列印
+- `run-once` / `poll` 仍只做 `claim -> succeed/fail` smoke test
+- `serve` 會做實體列印：render ESC/POS bytes 並直接寫入 `/dev/usb/lp0`
 
 `run-once` / `poll` 的目標仍是 connectivity smoke test。  
 `serve` 則是目前 Phase 2 的正式常駐模式：
@@ -190,16 +211,24 @@ repo 內的 `/printer-worker` 子專案目前同時提供兩種 runtime：
 - admin 列印頁面可透過 Realtime notification layer 收到 job / device 變化並更新 UI，而不需要每 `5` 秒固定打 API
 - Pi 可在不依賴固定 `5` 秒 polling 的情況下，被 `printing:worker-wakeup` 喚醒後立即 claim
 
+## Worker 列印實作
+
+正式列印只接在 `printer-worker serve`：
+
+- `run-once` / `poll` 保持 connectivity smoke test，不做實體列印
+- `serve` 直接 claim job、render receipt、寫入 `/dev/usb/lp0`、成功後回報 `succeed`
+- transport 固定不使用 CUPS
+- transport 固定每筆 job 寫 raw byte buffer、flush、close
+- 預設 cut command 使用 `\x1D\x56\x42\x05`
+
 ## Raspberry Pi 下一階段
 
 在 connectivity worker 驗證完成後，再依這個順序往下接：
 
-1. Raspberry Pi 啟動 `printer-worker serve`
-2. worker 先靠 Realtime wake-up + 低頻 fallback claim 維持 job 消費與 heartbeat
-3. 將 `payload` 轉成實際標籤格式
-4. 寫入 CUPS / 印表機
-5. 成功後呼叫 `succeed`
-6. 失敗後呼叫 `fail`
+1. 讓 repo 內的 `printer-worker serve` 在 Pi 上直接輸出 sample / real receipt
+2. 驗證 `serve` 在 wake-up 與 fallback claim 下都能穩定出紙
+3. 驗證 systemd 常駐、斷線重連與 graceful shutdown
+4. USB raw 穩定後，再評估 Ethernet TCP `9100`
 
 建議 Raspberry Pi 端 secret 儲存方式：
 
@@ -210,8 +239,7 @@ repo 內的 `/printer-worker` 子專案目前同時提供兩種 runtime：
 
 ## 這一版不做
 
-- CUPS 設定
-- 實體標籤機整合
+- QR Code 列印
 - device key rotation UI
 - 多店 routing policy
 - 依印表機 transport 細節擴充主系統狀態機

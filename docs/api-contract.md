@@ -1058,11 +1058,12 @@ Response：
       "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
       "jobType": "work_order_label",
       "payload": {
+        "templateVersion": 1,
         "paperOrderNo": "BR-2026-0001",
-        "customerName": "王小明",
+        "barcodeValue": "BR20260001",
+        "customerNameAscii": "ALEX",
+        "maskedPhone": "****1234",
         "boardType": "SURFBOARD",
-        "boardLengthClass": "SHORTBOARD",
-        "createdAt": "2026-05-21T09:50:00.000Z"
       },
       "attemptCount": 0,
       "maxAttempts": 3,
@@ -1091,6 +1092,7 @@ Response：
 - 就算本次 response 為 `job: null`，server 仍會更新該 `print_device.lastSeenAt`
 - claim 必須是原子操作，避免多個 worker 同時取走同一筆
 - claim 成功後寫入 `status = locked`、`lockedAt`、`lockedBy`、`printDeviceId`
+- `payload` 是 immutable print snapshot；worker 只消費，不可自行 normalize customer name、phone、board type 或 work order number
 
 ### `POST /api/print-worker/jobs/{id}/succeed`
 

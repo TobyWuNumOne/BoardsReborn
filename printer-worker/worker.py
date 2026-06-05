@@ -8,11 +8,12 @@ from typing import Sequence
 
 from client import PrintJob, PrintWorkerClient, PrintWorkerClientError
 from config import ConfigurationError, Settings, load_settings
+from print_runner import run_print_once
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="BoardsReborn connectivity-first print worker.",
+        description="BoardsReborn print worker.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("run-once", help="Claim and handle at most one print job, then exit.")
@@ -27,7 +28,8 @@ def summarize_job(job: PrintJob) -> None:
     print(f"- id: {job.id}")
     print(f"- jobType: {job.job_type}")
     print(f"- paperOrderNo: {payload.get('paperOrderNo', '—')}")
-    print(f"- customerName: {payload.get('customerName', '—')}")
+    print(f"- barcodeValue: {payload.get('barcodeValue', '—')}")
+    print(f"- customerNameAscii: {payload.get('customerNameAscii', '—')}")
     print(f"- boardType: {payload.get('boardType', '—')}")
 
 
@@ -98,7 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "serve":
             from service import PrintWorkerService
 
-            service = PrintWorkerService(client, settings, runner=run_once)
+            service = PrintWorkerService(client, settings, runner=run_print_once)
             return asyncio.run(service.serve())
     except ConfigurationError as error:
         print(f"Configuration error: {error}", file=sys.stderr)

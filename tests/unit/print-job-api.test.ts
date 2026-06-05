@@ -273,7 +273,12 @@ describe('print job services', () => {
               lockedAt: '2026-05-21T00:01:00.000Z',
               maxAttempts: 3,
               payload: {
+                barcodeValue: 'BR20260001',
+                boardType: 'SURFBOARD',
+                customerNameAscii: 'Alex',
+                maskedPhone: '****1234',
                 paperOrderNo: 'BR-2026-0001',
+                templateVersion: 1,
               },
               workOrderId: 'work-order-1',
             },

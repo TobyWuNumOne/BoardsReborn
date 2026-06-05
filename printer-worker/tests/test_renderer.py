@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+import unittest
+
+
+WORKER_ROOT = Path(__file__).resolve().parents[1]
+if str(WORKER_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKER_ROOT))
+
+from renderer import DEFAULT_CUT_COMMAND, PrintPayloadError, render_work_order_receipt
+
+
+class RenderWorkOrderReceiptTest(unittest.TestCase):
+    def test_renders_expected_receipt_bytes(self) -> None:
+        payload = {
+            "barcodeValue": "BR20260601001",
+            "boardType": "SURFBOARD",
+            "customerNameAscii": "Alex",
+            "maskedPhone": "****1234",
+            "paperOrderNo": "BR-20260601-001",
+            "templateVersion": 1,
+        }
+
+        rendered = render_work_order_receipt(payload)
+
+        self.assertTrue(rendered.startswith(b"\x1B\x40BoardsReborn\nOrder: BR-20260601-001\n"))
+        self.assertIn(b"Customer: Alex\n", rendered)
+        self.assertIn(b"Phone: ****1234\n", rendered)
+        self.assertIn(b"Board: SURFBOARD\n", rendered)
+        self.assertIn(b"\x1D\x48\x02\x1D\x68\x64\x1D\x77\x02\x1D\x6B\x04BR20260601001\x00", rendered)
+        self.assertTrue(rendered.endswith(DEFAULT_CUT_COMMAND))
+
+    def test_uses_fallbacks_for_optional_fields(self) -> None:
+        payload = {
+            "barcodeValue": "BR20260601001",
+            "paperOrderNo": "BR-20260601-001",
+            "templateVersion": 1,
+        }
+
+        rendered = render_work_order_receipt(payload)
+
+        self.assertIn(b"Customer: -\n", rendered)
+        self.assertIn(b"Phone: -\n", rendered)
+        self.assertIn(b"Board: -\n", rendered)
+
+    def test_fails_for_missing_paper_order_number(self) -> None:
+        with self.assertRaises(PrintPayloadError):
+            render_work_order_receipt({"barcodeValue": "BR20260601001"})
+
+    def test_fails_for_invalid_barcode_value(self) -> None:
+        with self.assertRaises(PrintPayloadError):
+            render_work_order_receipt(
+                {
+                    "barcodeValue": "br-2026-0001",
+                    "paperOrderNo": "BR-20260601-001",
+                }
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

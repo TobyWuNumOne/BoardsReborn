@@ -214,8 +214,8 @@ vercel deploy --prod -y
 ## 已知 MVP 風險
 
 - Public customer lookup rate limit 目前是 in-memory，只適合 staging / single-instance MVP 驗證，不是 production-grade distributed limiter。
-- Print queue model 與 API 已完成，但 Python Print Worker / CUPS / 實體印表機整合仍 pending。
-- `printed` 目前只代表 Worker 已回報成功；是否已與實體標籤機穩定整合仍需下一階段實測。
+- Print queue model 與 API 已完成，但 Python Print Worker 的 raw USB / Ethernet transport 與 production worker 整合仍 pending。
+- `printed` 目前只代表 Worker 已回報成功；是否已與實體熱感出單機穩定整合仍需下一階段實測。
 - Staging project 不應承載真實 production 資料；production 應另開 project 並重新設定 env / Auth URLs。
 
 ## 完成回報格式

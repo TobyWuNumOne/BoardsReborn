@@ -5,8 +5,9 @@
 第一版條碼與列印架構採低摩擦、品牌通用、現場可落地的方式：
 
 - 掃碼走 Web App，可直接在平板或桌機操作。
-- 列印不由平板瀏覽器直控 USB 標籤機。
-- USB 熱感標籤機由固定桌機或樹莓派上的 Python Print Agent 控制。
+- 列印不由平板瀏覽器直控 USB 印表機。
+- 目前已驗證的 MVP 硬體是 `ESC/POS` 80mm 熱感出單機。
+- USB 熱感出單機由固定桌機或樹莓派上的 Python Print Agent 控制。
 - Nuxt 4 是主系統與 API 層，不是硬體驅動層。
 
 ## 掃碼架構
@@ -29,7 +30,9 @@
   -> Nuxt Nitro API
   -> print_jobs
   -> Python Print Agent
-  -> USB 熱感標籤機
+  -> render ESC/POS bytes
+  -> USB raw / TCP 9100 transport
+  -> 80mm 熱感出單機
 ```
 
 Nuxt 負責：
@@ -46,19 +49,19 @@ Nuxt 負責：
 Nuxt 不負責：
 
 - 低階 USB 驅動。
-- 直接控制所有品牌標籤機。
+- 直接控制所有品牌印表機。
 - 在前端頁面寫死列印語言或品牌 SDK。
-- 從平板瀏覽器直接控制 USB 標籤機。
+- 從平板瀏覽器直接控制 USB 印表機。
 
 ## Print Worker Runtime
 
-Print Worker 第一版先拆成兩個階段：
+Print Worker 第一版先拆成三個階段：
 
 1. **connectivity worker**：`run-once` / `poll`，只驗證 `claim -> succeed/fail`
 2. **event wake-up worker**：`serve`，用 Supabase Realtime wake-up + fallback claim 常駐
-3. **printer worker**：後續再接 systemd、CUPS 與實體標籤機
+3. **printer worker**：在 `serve` 模式下接入 ESC/POS render + raw USB transport
 
-目前 repo 已包含 connectivity worker 與 event wake-up worker；CUPS / 實體列印仍未實作。
+目前 repo 已包含 connectivity worker、event wake-up worker 與 `serve` 模式的 raw USB 列印 transport；接下來主要是 Pi 上的常駐驗證與 systemd 落地。
 
 Worker 工作：
 
@@ -66,24 +69,33 @@ Worker 工作：
 2. worker 訂閱 public `printing:worker-wakeup`，收到 `printing.job_available` 後再 claim。
 3. 同時保留 `60` 秒 fallback claim，補 missed event / heartbeat。
 4. connectivity worker 階段先印出 job 摘要，並回報 `succeed` 或 `fail`。
-5. printer worker 階段再把 `payload` 轉成實際標籤格式。
-6. printer worker 階段再寫入 CUPS / USB 標籤機。
-7. 呼叫 `POST /api/print-worker/jobs/{id}/succeed` 或 `POST /api/print-worker/jobs/{id}/fail` 回報結果。
+5. `serve` 模式會把 immutable print snapshot render 成 ESC/POS bytes。
+6. `serve` 模式會直接把 raw bytes 寫到 `/dev/usb/lp0`。
+7. 完成 raw USB 後，再評估 Ethernet TCP `9100` transport。
+8. 呼叫 `POST /api/print-worker/jobs/{id}/succeed` 或 `POST /api/print-worker/jobs/{id}/fail` 回報結果。
 
 Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並在 body 帶 `deviceKey`。Realtime wake-up 只負責通知，不直接授權 claim。
 
 `printing:worker-wakeup` 是 public minimal topic，只帶 `eventType`、`changedAt`、`reason`。Pi 不可信任 payload 內容，收到後仍需重新呼叫 `claim`。
 
-## 標籤語言與品牌策略
+## 列印語言與內容策略
 
-第一版優先支援原始列印語言：
+第一版已驗證的硬體 profile 為：
 
-- `TSPL`
-- `ZPL`
-- `EPL`
-- `DPL`
+- `ESC/POS`
+- `80mm` thermal receipt printer
+- USB raw first
+- Ethernet TCP `9100` later
 
-不要在 MVP 綁死單一品牌 SDK。具體標籤機型號尚未定案，所以文件與 API 只保留抽象列印語言與 payload。
+目前 MVP 列印內容策略：
+
+- 不做 QR Code
+- 使用 ASCII-only 模板
+- 列印工單號文字
+- 列印同一個工單號的 1D barcode
+- 1D barcode 優先評估 `Code39` 或 `Code128`
+
+不要在 MVP 綁死單一品牌 SDK。具體已驗證硬體與測試結果見 [printer-hardware.md](printer-hardware.md)。
 
 ## 列印狀態
 
@@ -105,7 +117,7 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 - `printed`：Worker 已回報成功
 - `failed`：已達 retry 上限或需要人工介入
 
-實際的 CUPS / 印表機 transport 細節留到 Worker 實作階段處理，不在主系統 schema 裡展開成另一套狀態機。
+實際的 USB raw / TCP `9100` transport 細節留到 Worker 實作階段處理，不在主系統 schema 裡展開成另一套狀態機。
 
 ## 補印流程
 
@@ -122,13 +134,13 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 
 樹莓派適合作為本地列印中樞：
 
-- 可固定連接 USB 熱感標籤機。
+- 可固定連接 USB 熱感出單機。
 - 可常駐 Python Print Agent。
 - 可用 systemd 自動啟動與重啟。
 - 建議以 `python -u` 或 `PYTHONUNBUFFERED=1` 啟動，避免 `journalctl -f` 看不到即時 worker log。
 - 可降低平板瀏覽器直控硬體的不確定性。
 
-具體印表機是否能穩定回讀狀態，需要實機測試。文件不承諾特定型號一定支援完整雙向狀態回讀。connectivity worker 只驗證主系統與樹莓派之間的 contract，不驗證硬體能力。
+具體印表機是否能穩定回讀狀態，需要實機測試。文件不承諾特定型號一定支援完整雙向狀態回讀。connectivity worker 只驗證主系統與樹莓派之間的 contract；目前 `serve` 已直接接上 `/dev/usb/lp0` raw USB transport，下一步是用 repo 內 worker 在 Pi 上重跑並驗證常駐行為。
 
 詳細 queue model、API 與 Raspberry Pi 下一階段整合方式，見 [printing.md](printing.md)。
 
@@ -136,8 +148,9 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 
 第一版不做：
 
-- 平板瀏覽器直接控制 USB 標籤機。
+- 平板瀏覽器直接控制 USB 印表機。
 - 綁定單一品牌 SDK。
 - 完整微服務或複雜訊息佇列。
 - 把標籤列印當一般文件列印流程。
 - 要求建立工單必須同步列印成功。
+- QR Code 列印。

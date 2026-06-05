@@ -55,6 +55,13 @@ const printingPhase2RealtimeEventsMigration = readFileSync(
   ),
   'utf8',
 );
+const printJobPayloadSnapshotMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260605140000_print_job_payload_snapshot_worker_receipt.sql',
+  ),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -247,6 +254,30 @@ describe('initial Supabase migration', () => {
     );
     expect(printingPhase2RealtimeEventsMigration).toContain(
       'grant execute on function public.emit_printing_realtime_event(jsonb, text, text, boolean) to service_role',
+    );
+  });
+
+  it('adds immutable print snapshot helpers for Pi worker receipts', () => {
+    expect(printJobPayloadSnapshotMigration).toContain(
+      'create or replace function public.to_printable_ascii',
+    );
+    expect(printJobPayloadSnapshotMigration).toContain(
+      'create or replace function public.mask_print_phone',
+    );
+    expect(printJobPayloadSnapshotMigration).toContain(
+      'create or replace function public.build_print_barcode_value',
+    );
+    expect(printJobPayloadSnapshotMigration).toContain("'templateVersion', 1");
+    expect(printJobPayloadSnapshotMigration).toContain("'barcodeValue', v_barcode_value");
+    expect(printJobPayloadSnapshotMigration).toContain("'customerNameAscii', v_customer_name_ascii");
+    expect(printJobPayloadSnapshotMigration).toContain("'maskedPhone', v_masked_phone");
+    expect(printJobPayloadSnapshotMigration).toContain("'boardType', v_board_type");
+    expect(printJobPayloadSnapshotMigration).toContain('Print barcode value is invalid');
+    expect(printJobPayloadSnapshotMigration).toContain(
+      "length(v_barcode_value) < 4",
+    );
+    expect(printJobPayloadSnapshotMigration).toContain(
+      "length(v_barcode_value) > 32",
     );
   });
 });
