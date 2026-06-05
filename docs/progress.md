@@ -12,7 +12,7 @@
 ## 目前快照
 
 - 最後更新：2026-06-05
-- 目前階段：admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up 與 work-order 列印摘要通知層已建立；staging 已重新部署到包含 immutable print snapshot 與 Pi USB raw ESC/POS transport 的版本，Pi 上 `printer-worker serve` 也已重啟，下一步是用 web 建單實際重跑 end-to-end 自動出紙
+- 目前階段：Cloud-to-Physical Printing MVP 已完成；admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up、worker claim/report 與 Raspberry Pi USB raw ESC/POS 實體列印皆已打通，下一階段聚焦真實場景穩定化、branch / environment discipline 與掃碼硬體補齊
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -30,7 +30,7 @@
   - admin mobile sidebar 現在在點下導航按鈕時就會立即收起，路由切換後也會維持關閉，避免點選導航後覆蓋新頁；共用 Button 與 sidebar nav button 也已補按壓視覺回饋。
   - `/admin/printing` 已接上列印中心列表、狀態燈、篩選與 failed retry；`/admin/printing/workers` 已接上 Worker 列表、最後心跳、最近錯誤、名稱 / 位置編輯、啟停，以及新增 / 刪除，且燈號會依 `status + lastSeenAt` 顯示在線 / 離線 / 心跳過期。
   - admin printing 已加上 Supabase Realtime notification layer：`/admin/printing` 與 `/admin/printing/workers` 改成收到事件後 refetch + visible-only 60 秒 fallback，不再固定每 5 秒打 API；Phase 2 起 Realtime emit ownership 已收斂到 Nuxt server-side utility，並新增 public `printing:worker-wakeup` topic。
-- `/printer-worker` 已建立 Python Worker 子專案，`run-once` / `poll` 保持 connectivity smoke test，`serve` 已接上 Realtime wake-up + 60 秒 fallback claim 與 raw `/dev/usb/lp0` ESC/POS transport。
+  - `/printer-worker` 已建立 Python Worker 子專案，`run-once` / `poll` 保持 connectivity smoke test，`serve` 已接上 Realtime wake-up + 60 秒 fallback claim、raw `/dev/usb/lp0` ESC/POS transport，並已完成實體列印與 succeeded / failed 回報。
 - `printer-worker` 的 systemd service 模板已改成 `PYTHONUNBUFFERED=1` + `python -u`，避免 Pi 上 `journalctl -f` 看不到即時 claim / succeed / fail log。
 - `/admin/work-orders/[id]` 已接上列印摘要卡與 `前往列印中心 / 建立列印任務 / 建立補印`；建單成功會導到 detail 並帶 `created=1` 頂部成功提示。
 - `/admin/work-orders/[id]` 的列印摘要卡在最新 job 為 `pending / locked / printing` 時，會短週期補抓 summary，避免 Realtime 漏事件時卡在 `已鎖定`。
@@ -44,8 +44,8 @@
   - Pi 端已確認有效 cut command 為 `\x1D\x56\x42\x05`，可靠手動驗證方式為 `printf ... | sudo tee /dev/usb/lp0 > /dev/null`。
   - 已確認 Pi worker 路徑應直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，也不使用 macOS printer queue name。
   - `printer-worker serve` 已實作 immutable print snapshot renderer 與 raw USB transport；`run-once` / `poll` 保持既有 smoke test，不會真的出紙。
-  - Staging Supabase 已推送 `20260605140000_print_job_payload_snapshot_worker_receipt.sql`，Vercel staging `https://board-reborn-staging.vercel.app` 已重新部署到包含 immutable print snapshot 與 Pi raw USB transport 的版本。
-  - Raspberry Pi `172.20.10.4` 上的 `boards-reborn-printer-worker.service` 已同步最新 `~/printer-worker` 程式碼並重啟成功；啟動 log 已確認 `serve` mode 使用 `/dev/usb/lp0`、startup claim 與 Realtime subscription 正常。
+  - Staging Supabase 已推送 `20260605140000_print_job_payload_snapshot_worker_receipt.sql`，Vercel staging `https://board-reborn-staging.vercel.app` 已重新部署到包含 immutable print snapshot 與 Pi raw USB transport 的版本，並已完成 web 建單到 Pi 自動出紙的 end-to-end 驗證。
+  - Raspberry Pi `172.20.10.4` 上的 `boards-reborn-printer-worker.service` 已同步最新 `~/printer-worker` 程式碼並重啟成功；`serve` mode 已確認使用 `/dev/usb/lp0`、startup claim、Realtime subscription、實體出紙與成功/失敗回報皆正常。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
   - Supabase Database types 已產生於 `types/database.types.ts`。
@@ -57,31 +57,30 @@
   - Staging 第一輪 API smoke test 已建立測試工單 `STG-20260506005302`，並確認 admin session、dashboard、create、resolve、list search、detail、detail edit、status update 與 bulk status 可用；第二輪已將 public lookup 的 repo-side service-role helper 改為 direct `createClient`，推送 `service_role` lookup grants migration 到 staging，並重測 `POST /api/public/work-orders/lookup` 通過 `200/404/422` 路徑。
   - Repo env 解析已直接相容 Vercel Supabase integration 匯入的 `SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`；既有 `SUPABASE_KEY` / `SUPABASE_SECRET_KEY` alias 仍保留相容。admin session/client SSR 已將 anon key 優先順序調整為先吃 `SUPABASE_ANON_KEY` / `NUXT_PUBLIC_SUPABASE_ANON_KEY`，避免錯吃 `SUPABASE_PUBLISHABLE_KEY` 的 local/demo 值；Nuxt 前端 Supabase URL/client key 解析也已調整為優先吃 `NEXT_PUBLIC_*` / `NUXT_PUBLIC_*`，降低 staging 同時存在多組 env 時發生 URL/key 錯配導致登入 `401` 的風險，staging `/api/admin/session` 已恢復為預期的 `401/200/403` 分流，不再回 `500`。
   - 共用 `Card` 元件已從 `ring-1` 改為實體 `border`，修正 Chrome 下 dashboard / admin 卡片外框比 Safari 更不明顯、看起來像少一層框的視覺不一致。
-  - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print queue model、admin print-jobs API、print-worker claim/succeed/fail API 與 connectivity worker 已建立，但 Raspberry Pi raw USB 腳本與 production worker transport integration 仍未建立。
+  - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print queue model、admin print-jobs API、print-worker claim/succeed/fail API、Realtime wake-up、Pi `serve` runtime 與 Raspberry Pi raw USB transport integration 已建立並完成 MVP 驗證。
 - 本機 HTTP 開發環境已明確關閉 Supabase secure auth cookie，避免 SSR session bootstrap 在 `localhost` / `127.0.0.1` 上反覆 `401`。
 - 目前已停用 Nuxt `experimental.appManifest`，避免本機開發環境出現 `/_nuxt/builds/meta/dev.json` 404 並直接觸發整頁 Nuxt error page。
 - `pnpm build` 現在會在 build 後自動補 `.output/server/chunks/public -> ../../public` symlink（必要時 fallback copy），修正 `pnpm preview` 與 `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`、導致 `/admin` 無法渲染的問題。
 
 ## 里程碑
 
-| 里程碑                                 | 狀態    | 說明                                                                                                                                                                                  |
-| -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 核心規格與工程規則文件                 | done    | 產品、domain model、API contract、列印架構與 AI 規則文件已存在。                                                                                                                      |
-| Minimal Nuxt scaffold 與基礎工具鏈     | done    | app shell、lint、typecheck、Vitest baseline 已建立。                                                                                                                                  |
-| 進度追蹤與 agent workflow              | done    | 本文件、AGENTS 規範與一致性檢查 skill 已建立。                                                                                                                                        |
-| Supabase local stack 與 migrations     | done    | `supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。                                                                                                       |
-| Server API foundation                  | done    | 共用 requestId、typed errors、Supabase client helpers 與 admin gate 已建立。                                                                                                          |
-| Admin work-order API                   | done    | Create/list/detail/update/status/resolve/bulk-status、customer lookup 與 `GET /api/admin/print-summaries` 已建立；建工單後 best-effort print enqueue 已接上。                           |
-| Auth 與管理端流程                      | done    | Admin gate helper、session endpoint、login/logout UI、admin middleware 與 session bootstrap 已建立。                                                                                  |
-| Frontend strategy / UI foundation      | done    | Tailwind CSS v4、shadcn-vue primitives、admin shell、dashboard summary 與 frontend rules 已建立。                                                                                     |
-| Admin work-order list UI               | done    | `/admin/work-orders` 已接上 list API、URL query state、table/card list 與 detail 導頁。                                                                                               |
-| Admin work-order detail UI             | done    | `/admin/work-orders/[id]` 已接上 detail API、`view/edit/work` mode 與列印摘要卡；完整列印操作仍以 `/admin/printing` 為中心。                                                         |
-| Admin work-order create UI             | done    | `/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價、tablet-first F8A/F8B 快捷操作與成功導向 detail。                                                           |
-| Admin bulk status UI                   | done    | `/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作、批量結果摘要與頁頂成功提示；此頁不再顯示列印摘要。                                                 |
-| Barcode / print job API 與 Print Agent | partial | `print_devices` / `print_jobs` schema、admin print-jobs / print-devices / print-summaries API、print-worker claim/succeed/fail API、admin 列印 UI，以及 `printer-worker run-once/poll/serve` 已建立；server 端 immutable print snapshot 與 `serve` raw USB transport 已接入，待用 repo 內 worker 在 Pi 上重跑驗證。 |
-| Admin printing UI                      | done    | `/admin/printing` 與 `/admin/printing/workers` 第一版已建立，包含列印紀錄、retry、Worker 列表、dialog 建立與輕量管理。                                                                |
-| Customer lookup flow                   | done    | `POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。                                                                |
-| Production workflow 與部署硬化         | pending | Staging Supabase / Vercel 基礎部署已完成；正式 production cutover、production Auth 設定與部署硬化尚未完成。                                                                           |
+- 核心規格與工程規則文件：done。產品、domain model、API contract、列印架構與 AI 規則文件已存在。
+- Minimal Nuxt scaffold 與基礎工具鏈：done。app shell、lint、typecheck、Vitest baseline 已建立。
+- 進度追蹤與 agent workflow：done。本文件、AGENTS 規範與一致性檢查 skill 已建立。
+- Supabase local stack 與 migrations：done。`supabase/config.toml`、initial migration baseline 與 seed placeholder 已建立。
+- Server API foundation：done。共用 requestId、typed errors、Supabase client helpers 與 admin gate 已建立。
+- Admin work-order API：done。Create/list/detail/update/status/resolve/bulk-status、customer lookup 與 `GET /api/admin/print-summaries` 已建立；建工單後 best-effort print enqueue 已接上。
+- Auth 與管理端流程：done。Admin gate helper、session endpoint、login/logout UI、admin middleware 與 session bootstrap 已建立。
+- Frontend strategy / UI foundation：done。Tailwind CSS v4、shadcn-vue primitives、admin shell、dashboard summary 與 frontend rules 已建立。
+- Admin work-order list UI：done。`/admin/work-orders` 已接上 list API、URL query state、table/card list 與 detail 導頁。
+- Admin work-order detail UI：done。`/admin/work-orders/[id]` 已接上 detail API、`view/edit/work` mode 與列印摘要卡；完整列印操作仍以 `/admin/printing` 為中心。
+- Admin work-order create UI：done。`/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價、tablet-first F8A/F8B 快捷操作與成功導向 detail。
+- Admin bulk status UI：done。`/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作、批量結果摘要與頁頂成功提示；此頁不再顯示列印摘要。
+- Barcode / print job API 與 Print Agent：done。`print_devices` / `print_jobs` schema、admin print-jobs / print-devices / print-summaries API、print-worker claim/succeed/fail API、admin 列印 UI，以及 `printer-worker run-once/poll/serve` 已建立；web 建單/補印、worker wake-up/claim、Pi raw USB ESC/POS 實體列印與 succeeded/failed 回報已完成端到端驗證。
+- Admin printing UI：done。`/admin/printing` 與 `/admin/printing/workers` 第一版已建立，包含列印紀錄、retry、Worker 列表、dialog 建立與輕量管理。
+- Customer lookup flow：done。`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。
+- Production workflow 與部署硬化：pending。Staging Supabase / Vercel 基礎部署已完成；正式 production cutover、production Auth 設定與部署硬化尚未完成。
+- Cloud-to-Physical Printing MVP：done。雲端 Web 建立工單、建立 `print_job`、worker wake-up / claim、Raspberry Pi `/dev/usb/lp0` raw ESC/POS 實體列印、成功/失敗回報與 retry flow 已完成，已跨過「雲端系統控制現場硬體」的關鍵門檻。
 
 ## 已完成
 
@@ -144,23 +143,26 @@
 - Worker raw USB transport：`printer-worker serve` 現在會直接把 ESC/POS raw bytes 寫到 `/dev/usb/lp0`，並在成功/失敗後回報既有 `succeed` / `fail` API。
 - Staging deployment refresh：GitHub `main` 已推送最新列印整合變更；Supabase staging 已套用 print snapshot migration，Vercel staging 已重新部署並更新穩定 alias。
 - Pi service refresh：Raspberry Pi 上 `boards-reborn-printer-worker.service` 已同步最新 worker 程式並重啟，啟動後已重新訂閱 `printing:worker-wakeup`。
+- Cloud-to-Physical Printing MVP：已完成雲端 Web 建立工單/補印 -> 建立 `print_jobs` -> worker wake-up / claim -> Pi USB raw ESC/POS 實體列印 -> succeeded / failed 回報的端到端流程，現場已可支撐最小可用標籤工作流。
 - Local preview asset fix：`pnpm build` 現在會自動修正 Nitro build output 的 public asset link，避免 `pnpm preview` / `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
 
 ## 目前焦點
 
-- 驗證 `printer-worker serve` 在 local / staging / Raspberry Pi 的 token、device provisioning、Realtime wake-up 與 fallback claim 行為。
-- 在 Raspberry Pi 上重跑 repo 內 `printer-worker serve`，確認新 renderer / transport 路徑可以自動出紙。
-- 確認 render / transport abstraction 可先支援 USB raw，後續再擴到 Ethernet TCP `9100`。
-- 把 repo 現況描述集中在本文件，避免 README、AGENTS 與任務背景持續漂移。
+- 把已完成的 Cloud-to-Physical Printing MVP 收斂成穩定可演示的現場流程，補齊文件、runbook 與驗證 checklist。
+- 從直接在 `main` 開發，轉向至少 `dev -> staging -> main` 的基本 branch discipline，降低真實場景測試直接衝擊主線的風險。
+- 補做真實場景穩定化驗證：Pi 重開機自啟、印表機未連接時 fail / retry、連續 3-5 筆工單不漏印不重印。
+- 掃碼端先維持 keyboard wedge 規劃；實際條碼槍硬體與使用者端掃碼 UX，待取得設備後再做實機驗證。
 
 ## 下一步
 
-- 用 web 建工單或手動建立 print job，驗證 staging -> Pi `serve` -> `/dev/usb/lp0` -> printed/succeed 的正式自動出紙路徑。
+- 建立 `dev` 分支作為日常整合線，讓 `main` 保持接近可展示 / 可部署狀態；後續至少維持 `feature -> dev -> staging 驗證 -> main`。
+- 補一個固定的測試環境，建議沿用現有 Vercel staging + Supabase staging，並把 Raspberry Pi worker 指到 staging 先跑 smoke / recovery tests，再決定何時切 production。
 - 確認 Raspberry Pi 開機自啟、異常重啟與 `SIGTERM` 收尾在最新 worker 版本下仍正常。
-- 在 local / staging 建立第一台 `print_devices` seed / 手動 provisioning 流程，驗證 `PRINT_WORKER_TOKEN` + `deviceKey` + `SUPABASE_ANON_KEY`。
-- 規劃 `locked` / `printing` stale job recovery。
+- 驗證印表機未連接、USB 裝置路徑失效、網路中斷等錯誤情境下的 fail / retry 與人工補救流程。
+- 連續建立 3-5 筆工單，確認不重複列印、不漏印，並確認 `barcodeValue` 與 `paper_order_no` 的對應在掃碼流程可直接使用。
+- 規劃並文件化 `locked` / `printing` stale job recovery、device provisioning 與 worker 更新流程。
+- 掃碼硬體尚未到位前，先維持使用者端查單 / 狀態頁最小可用；拿到條碼槍後再驗證 keyboard wedge 掃碼、掃描後 Enter、自動查詢與批量收件場景。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
-- 延續新增工單頁 F8C：送出時 scroll 到第一個錯誤欄位、建立成功後 next actions 區塊。
 
 ## Frontend Strategy 待辦
 
@@ -192,7 +194,7 @@
 
 ## 風險與阻塞
 
-- Schema 與 status rules 已寫入 migration；create/list/detail/update/status/resolve/bulk-status、admin print-jobs、print-worker APIs 與 connectivity worker 已建立，但 production worker 的實體列印 runtime 尚未建立。
+- Schema 與 status rules 已寫入 migration；create/list/detail/update/status/resolve/bulk-status、admin print-jobs、print-worker APIs、worker wake-up 與 Pi 實體列印 runtime 已建立，但 production-grade branch discipline、測試環境操作規範與現場異常 runbook 尚未收斂。
 - Admin 單筆 detail/update/status endpoint 保留 UUID path 作為 internal resource identity；現場掃碼或人工輸入紙本工單號時，前端應先呼叫 `GET /api/admin/work-orders/resolve?paperOrderNo=...` 取得 UUID，再呼叫既有 UUID-based endpoint。
 - Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
 - Public customer lookup 已落地，但目前 rate limit 採 in-memory store，只適用 local / single-instance MVP，未達 production-grade distributed limiter。
@@ -203,9 +205,11 @@
 - 新增工單頁 F8C 尚未完整收尾：送出錯誤 scroll、建立成功後 next actions 尚未在本輪加入。
 - Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁、bulk status 與列印中心 / Worker 管理第一版；detail 頁仍保留列印摘要與 deep link，但 bulk status 已改為純掃碼狀態頁，完整 print timeline 仍集中在 `/admin/printing`。
 - Worker 管理頁目前的連線狀態仍是前端依 `last_seen_at` 衍生判斷，不是獨立後端 heartbeat service；Pi 若只跑 `run-once`，顯示為離線或心跳過期是預期行為，但持續跑 `poll` 時即使佇列為空也應維持在線。
-- Pi worker 已新增 `serve` mode 與 public `printing:worker-wakeup`，並已接上 raw USB worker transport；但 Pi 實機重測、systemd 常駐驗證與 `locked` / `printing` stale job recovery 仍未實作。
+- Pi worker 已新增 `serve` mode 與 public `printing:worker-wakeup`，並已接上 raw USB worker transport，且已完成 end-to-end 實體出紙；但 Pi 重開機後自啟、長時間常駐穩定性、印表機未連接錯誤處理與 `locked` / `printing` stale job recovery 仍待完整驗證。
 - Admin 前端目前仍屬第一版雛形；雖然大方向與主流程已可展示，但欄位配置、文案、資訊密度、互動回饋與模式切換細節尚未定案，預期需在與甲方討論後進行第二版調整。
 - Nuxt 4 在此專案目前的本機開發組合下，`experimental.appManifest` 會導致 `/_nuxt/builds/meta/dev.json` 404；目前已先關閉這個實驗功能，以穩定開發中的 admin 頁面導航與刷新行為。
 - Nitro `node-server` build output 目前仍依賴 build 後補的 public asset symlink / fallback copy 來讓本機 `preview` 與直接 `node .output/server/index.mjs` 正常提供 `/_nuxt/*`；此 workaround 已落地，但後續仍可追蹤上游 Nitro 行為是否修正。
 - shadcn-vue latest 的 `reka-vega` style registry base style 在初始化時回 404；本次以 `--no-base-style` 初始化並依官方 neutral theme scaffold 手動補齊 global CSS tokens。
 - 已確認目前印表機型號為 Prowill PD-X326，且 Raspberry Pi raw USB `/dev/usb/lp0` 已驗證可用；但 Ethernet TCP `9100` 尚未驗證，另外中文 ESC/POS 編碼仍未解，因此 production printing workflow 仍有不確定性。
+- 條碼掃描端目前缺少實際條碼槍硬體，因此 user-side 掃碼流程仍停在文件與 Web 輸入設計階段；是否採 keyboard wedge、掃描後自動 Enter 與現場批量操作細節，需等實機後再驗證。
+- 目前仍以 `main` 承接主要開發，對真實場景測試風險偏高；若不切出 `dev` / staging discipline，之後 production 行為與正在開發中的變更會持續互相干擾。

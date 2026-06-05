@@ -21,6 +21,8 @@
 - 單張掃碼用於快速查詢工單。
 - 多張掃碼用於先累積多個工單號，再一次批量更新狀態。
 
+目前尚未拿到實際條碼槍硬體，因此這一段仍停留在 Web 輸入模式與操作契約設計；真正的掃描後自動 Enter、焦點管理、連續掃碼節奏與現場批量操作，需等設備到位後再做實機驗證。
+
 ## 列印架構
 
 第一版列印採非同步 print queue：
@@ -61,7 +63,7 @@ Print Worker 第一版先拆成三個階段：
 2. **event wake-up worker**：`serve`，用 Supabase Realtime wake-up + fallback claim 常駐
 3. **printer worker**：在 `serve` 模式下接入 ESC/POS render + raw USB transport
 
-目前 repo 已包含 connectivity worker、event wake-up worker 與 `serve` 模式的 raw USB 列印 transport；接下來主要是 Pi 上的常駐驗證與 systemd 落地。
+目前 repo 已包含 connectivity worker、event wake-up worker 與 `serve` 模式的 raw USB 列印 transport，且已完成從 web 建單到 Pi 實體出紙與成功/失敗回報的端到端 MVP；接下來主要是 Pi 常駐穩定化與 systemd 驗證。
 
 Worker 工作：
 

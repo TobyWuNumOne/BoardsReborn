@@ -1,6 +1,6 @@
 # Printing Model
 
-這份文件定義 BoardsReborn 第一版的列印任務模型、Worker API 邊界，以及目前 Raspberry Pi raw USB 列印整合方式。
+這份文件定義 BoardsReborn 第一版的列印任務模型、Worker API 邊界，以及目前 Raspberry Pi raw USB 列印整合方式。現況上，Cloud-to-Physical Printing MVP 已完成，系統已能從雲端建單一路打通到 Raspberry Pi 實體出紙與結果回報。
 
 ## 目標
 
@@ -9,6 +9,23 @@
 - Raspberry Pi / Python Worker 是任務消費者，不是主系統的一部分。
 - 列印模型保留單店單機 MVP 的簡單性，同時保留未來多裝置擴充空間。
 - 列印渲染與 transport 必須分離，避免把硬體命令散落到 worker 主流程。
+
+## 目前完成的 MVP 鏈路
+
+已完成並實際驗證的端到端流程：
+
+```text
+雲端 Web 建立工單 / 補印
+  -> Nuxt API 建立 print_job
+  -> Supabase Realtime wake-up / worker claim
+  -> Raspberry Pi `printer-worker serve`
+  -> render ESC/POS bytes
+  -> raw `/dev/usb/lp0`
+  -> 80mm thermal printer 實體出紙
+  -> succeed / fail 回報與 retry flow
+```
+
+這代表列印已不只是 smoke test，而是可支撐現場最小可用標籤流程的工作流能力。
 
 ## 目前已驗證硬體
 
@@ -202,7 +219,7 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 - 同一時間只允許一個 claim / print / report 流程；wake-up 只視為 untrusted hint
 - `SIGINT` / `SIGTERM` 時停止接收新 wake-up，盡可能讓當前 claim / print / report 收尾
 
-這一版目標是先驗證：
+目前已完成驗證：
 
 - Raspberry Pi 能連到 Nuxt print-worker API
 - `PRINT_WORKER_TOKEN` + `deviceKey` 認證可用
@@ -210,6 +227,8 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 - `python worker.py poll` 在佇列為空時仍會持續更新 `last_seen_at`，讓 Worker 管理頁正確顯示在線 / 心跳過期 / 離線
 - admin 列印頁面可透過 Realtime notification layer 收到 job / device 變化並更新 UI，而不需要每 `5` 秒固定打 API
 - Pi 可在不依賴固定 `5` 秒 polling 的情況下，被 `printing:worker-wakeup` 喚醒後立即 claim
+- `printer-worker serve` 可在 Pi 上直接寫入 `/dev/usb/lp0`，完成 ASCII receipt、1D barcode 與 cut command 的實體列印
+- Worker 成功或失敗都會回報既有 `succeed` / `fail` API，並回到 queue / retry 流程
 
 ## Worker 列印實作
 
@@ -221,14 +240,15 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 - transport 固定每筆 job 寫 raw byte buffer、flush、close
 - 預設 cut command 使用 `\x1D\x56\x42\x05`
 
-## Raspberry Pi 下一階段
+## Raspberry Pi 穩定化下一階段
 
-在 connectivity worker 驗證完成後，再依這個順序往下接：
+端到端 MVP 已完成，接下來的 Pi 工作不再是「接上列印」，而是把已接通的流程穩定化：
 
-1. 讓 repo 內的 `printer-worker serve` 在 Pi 上直接輸出 sample / real receipt
-2. 驗證 `serve` 在 wake-up 與 fallback claim 下都能穩定出紙
-3. 驗證 systemd 常駐、斷線重連與 graceful shutdown
-4. USB raw 穩定後，再評估 Ethernet TCP `9100`
+1. 驗證 systemd 開機自啟、異常重啟與 graceful shutdown
+2. 驗證印表機未接上、`/dev/usb/lp0` 消失、網路中斷時的 fail / retry 與人工補救
+3. 驗證連續 3-5 筆工單下的 claim / print / report 不重印不漏印
+4. 補 document 化 device provisioning、worker 更新與 rollback 流程
+5. USB raw 穩定後，再評估 Ethernet TCP `9100`
 
 建議 Raspberry Pi 端 secret 儲存方式：
 
@@ -240,6 +260,7 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 ## 這一版不做
 
 - QR Code 列印
+- 中文列印
 - device key rotation UI
 - 多店 routing policy
 - 依印表機 transport 細節擴充主系統狀態機
