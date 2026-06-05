@@ -69,7 +69,7 @@ Worker 工作：
 
 1. `serve` 啟動時先 claim 一次，處理已存在 backlog。
 2. worker 訂閱 public `printing:worker-wakeup`，收到 `printing.job_available` 後再 claim。
-3. 同時保留 `60` 秒 fallback claim，補 missed event / heartbeat。
+3. 同時保留 `15` 秒 fallback claim，補 missed event / heartbeat；Realtime 重連成功後也會立即補一次 claim。
 4. connectivity worker 階段先印出 job 摘要，並回報 `succeed` 或 `fail`。
 5. `serve` 模式會把 immutable print snapshot render 成 ESC/POS bytes。
 6. `serve` 模式會直接把 raw bytes 寫到 `/dev/usb/lp0`。

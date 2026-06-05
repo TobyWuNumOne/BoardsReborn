@@ -79,7 +79,7 @@ def load_settings() -> Settings:
     print_worker_token = _require_env("PRINT_WORKER_TOKEN")
     poll_interval_seconds = _parse_positive_int("POLL_INTERVAL_SECONDS", 5)
     realtime_fallback_claim_interval_seconds = _parse_positive_int(
-        "REALTIME_FALLBACK_CLAIM_INTERVAL_SECONDS", 60
+        "REALTIME_FALLBACK_CLAIM_INTERVAL_SECONDS", 15
     )
     realtime_reconnect_max_seconds = _parse_positive_int(
         "REALTIME_RECONNECT_MAX_SECONDS", 30

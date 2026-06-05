@@ -113,20 +113,6 @@ export const emitPrintJobChangedBestEffort = async (
       workOrderId: input.workOrderId,
     };
 
-    await emitPrintingRealtimeEvent(supabase, {
-      event: PRINTING_REALTIME_EVENT_TYPES.jobChanged,
-      payload,
-      topic: 'printing:jobs',
-    });
-
-    await emitPrintSummaryChanged(supabase, {
-      changedAt: input.changedAt,
-      entityId: input.entityId,
-      operation: input.operation,
-      source: 'print_jobs',
-      workOrderId: input.workOrderId,
-    });
-
     if (input.wakeupReason) {
       await emitPrintingRealtimeEvent(supabase, {
         event: PRINTING_REALTIME_EVENT_TYPES.jobAvailable,
@@ -139,6 +125,21 @@ export const emitPrintJobChangedBestEffort = async (
         topic: 'printing:worker-wakeup',
       });
     }
+
+    await Promise.all([
+      emitPrintingRealtimeEvent(supabase, {
+        event: PRINTING_REALTIME_EVENT_TYPES.jobChanged,
+        payload,
+        topic: 'printing:jobs',
+      }),
+      emitPrintSummaryChanged(supabase, {
+        changedAt: input.changedAt,
+        entityId: input.entityId,
+        operation: input.operation,
+        source: 'print_jobs',
+        workOrderId: input.workOrderId,
+      }),
+    ]);
   } catch (error) {
     console.error('Failed to emit print job realtime event', {
       error,

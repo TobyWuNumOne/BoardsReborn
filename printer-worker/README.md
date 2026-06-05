@@ -11,7 +11,7 @@ BoardsReborn 的第一版 Python Print Worker 子專案。
 - 列印成功後回報 `succeed`
 - 列印失敗後回報 `fail`
 - 在 `poll` 模式下，就算本輪 `No job available`，server 仍會更新該 device 的 `last_seen_at`
-- 在 `serve` 模式下，會訂閱 public `printing:worker-wakeup` 並保留 60 秒 fallback claim
+- 在 `serve` 模式下，會訂閱 public `printing:worker-wakeup` 並保留 15 秒 fallback claim
 
 ## 這一版不做
 
@@ -62,7 +62,7 @@ cp .env.example .env
 - `POLL_INTERVAL_SECONDS`：輪詢秒數，預設 `5`
 - `SUPABASE_URL`：Supabase project / local gateway URL，供 `serve` 訂閱 Realtime
 - `SUPABASE_ANON_KEY`：public key，供 `serve` 訂閱 public wake-up topic
-- `REALTIME_FALLBACK_CLAIM_INTERVAL_SECONDS`：`serve` 模式 fallback claim 秒數，預設 `60`
+- `REALTIME_FALLBACK_CLAIM_INTERVAL_SECONDS`：`serve` 模式 fallback claim 秒數，預設 `15`
 - `REALTIME_RECONNECT_MAX_SECONDS`：`serve` 模式 reconnect backoff 上限，預設 `30`
 - `WORKER_RESULT_MODE`：只供 `run-once` / `poll` smoke test 使用，`succeed` 或 `fail`
 - `WORKER_FAIL_MESSAGE`：只供 `run-once` / `poll` fail mode 使用
@@ -161,7 +161,8 @@ No job available
 ```text
 Claim requested -> reason=startup
 Realtime subscribed -> printing:worker-wakeup
-Starting serve mode -> fallbackClaimInterval=60s devicePath=/dev/usb/lp0
+Realtime re-subscribed -> requesting immediate claim
+Starting serve mode -> fallbackClaimInterval=15s devicePath=/dev/usb/lp0
 Realtime wake-up received -> reason=enqueued
 ```
 

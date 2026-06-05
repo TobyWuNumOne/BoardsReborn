@@ -30,7 +30,8 @@
   - admin mobile sidebar 現在在點下導航按鈕時就會立即收起，路由切換後也會維持關閉，避免點選導航後覆蓋新頁；共用 Button 與 sidebar nav button 也已補按壓視覺回饋。
   - `/admin/printing` 已接上列印中心列表、狀態燈、篩選與 failed retry；`/admin/printing/workers` 已接上 Worker 列表、最後心跳、最近錯誤、名稱 / 位置編輯、啟停，以及新增 / 刪除，且燈號會依 `status + lastSeenAt` 顯示在線 / 離線 / 心跳過期。
   - admin printing 已加上 Supabase Realtime notification layer：`/admin/printing` 與 `/admin/printing/workers` 改成收到事件後 refetch + visible-only 60 秒 fallback，不再固定每 5 秒打 API；Phase 2 起 Realtime emit ownership 已收斂到 Nuxt server-side utility，並新增 public `printing:worker-wakeup` topic。
-  - `/printer-worker` 已建立 Python Worker 子專案，`run-once` / `poll` 保持 connectivity smoke test，`serve` 已接上 Realtime wake-up + 60 秒 fallback claim、raw `/dev/usb/lp0` ESC/POS transport，並已完成實體列印與 succeeded / failed 回報。
+  - server 端 `printing:worker-wakeup` 已提前於 `printing:jobs` / `printing:summary` 發送，降低建單或補印後 worker 被喚醒的等待時間。
+  - `/printer-worker` 已建立 Python Worker 子專案，`run-once` / `poll` 保持 connectivity smoke test，`serve` 已接上 Realtime wake-up + 15 秒 fallback claim、Realtime 重連後立即補 claim、raw `/dev/usb/lp0` ESC/POS transport，並已完成實體列印與 succeeded / failed 回報。
 - `printer-worker` 的 systemd service 模板已改成 `PYTHONUNBUFFERED=1` + `python -u`，避免 Pi 上 `journalctl -f` 看不到即時 claim / succeed / fail log。
 - `/admin/work-orders/[id]` 已接上列印摘要卡與 `前往列印中心 / 建立列印任務 / 建立補印`；建單成功會導到 detail 並帶 `created=1` 頂部成功提示。
 - `/admin/work-orders/[id]` 的列印摘要卡在最新 job 為 `pending / locked / printing` 時，會短週期補抓 summary，避免 Realtime 漏事件時卡在 `已鎖定`。
@@ -131,7 +132,7 @@
 - Admin printing UI：已新增 `/admin/printing` 與 `/admin/printing/workers`，提供列印紀錄列表、狀態燈、failed retry、Worker 狀態查看、shadcn dialog 建立與輕量管理。
 - Printing admin Realtime sync：database-side Supabase Realtime broadcast 已接上 `print_jobs` / `print_devices`，admin 列印頁面改成 event-driven refetch；fallback sync 只在 visible tab 每 60 秒執行一次。
 - `printer-worker` connectivity worker：已新增 repo 內 Python 子專案，支援 `run-once` / `poll`，可在 local / Raspberry Pi 上驗證 `claim -> succeed/fail` flow。
-- `printer-worker serve`：已新增 Pi event wake-up runtime，使用 public `printing:worker-wakeup` + 60 秒 fallback claim，並附 systemd artifacts / env example。
+- `printer-worker serve`：已新增 Pi event wake-up runtime，使用 public `printing:worker-wakeup` + 15 秒 fallback claim，並在 Realtime 重連成功後立即補 claim；附 systemd artifacts / env example。
 - Raspberry Pi connectivity smoke test：已在 Pi 上驗證 `run-once` 的 success 與 fail 路徑，確認可打通本機 Nuxt API、正確更新 `print_jobs.status`、`attempt_count`、`last_error` 與 `printed_at`。
 - Raspberry Pi poll heartbeat behavior：已確認 Pi 在 `printer-worker poll` 模式下，即使本輪 `No job available`，仍會透過 `claim -> job: null` 更新 `print_devices.last_seen_at`，所以 Worker 管理頁可在空佇列時維持顯示為在線。
 - Printer hardware verification：已確認 Prowill PD-X326 為目前 MVP 實機，支援 `ESC/POS`、80mm、USB/Serial/Ethernet；macOS raw USB 已驗證 ASCII、1D barcode 與 cut。

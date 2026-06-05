@@ -30,6 +30,7 @@ class WorkerWakeupRealtimeClient:
     ) -> None:
         self._settings = settings
         self._on_wakeup = on_wakeup
+        self._has_completed_initial_subscription = False
         self._stop_event = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
         self._realtime: AsyncRealtimeClient | None = None
@@ -99,18 +100,12 @@ class WorkerWakeupRealtimeClient:
         channel_error: dict[str, Exception | None] = {"value": None}
 
         def on_subscribe(status: RealtimeSubscribeStates, error: Exception | None) -> None:
-            if status == RealtimeSubscribeStates.SUBSCRIBED:
-                print("Realtime subscribed -> printing:worker-wakeup")
-                subscription_state_changed.set()
-                return
-
-            if status in {
-                RealtimeSubscribeStates.CHANNEL_ERROR,
-                RealtimeSubscribeStates.CLOSED,
-                RealtimeSubscribeStates.TIMED_OUT,
-            }:
-                channel_error["value"] = error or Exception(status.value)
-                subscription_state_changed.set()
+            self._handle_subscribe_status(
+                status,
+                error,
+                subscription_state_changed,
+                channel_error,
+            )
 
         await self._channel.subscribe(on_subscribe)
         await subscription_state_changed.wait()
@@ -144,6 +139,32 @@ class WorkerWakeupRealtimeClient:
         finally:
             self._channel = None
             self._realtime = None
+
+    def _handle_subscribe_status(
+        self,
+        status: RealtimeSubscribeStates,
+        error: Exception | None,
+        subscription_state_changed: asyncio.Event,
+        channel_error: dict[str, Exception | None],
+    ) -> None:
+        if status == RealtimeSubscribeStates.SUBSCRIBED:
+            if self._has_completed_initial_subscription:
+                print("Realtime re-subscribed -> requesting immediate claim")
+                self._on_wakeup("reconnected")
+            else:
+                print("Realtime subscribed -> printing:worker-wakeup")
+                self._has_completed_initial_subscription = True
+
+            subscription_state_changed.set()
+            return
+
+        if status in {
+            RealtimeSubscribeStates.CHANNEL_ERROR,
+            RealtimeSubscribeStates.CLOSED,
+            RealtimeSubscribeStates.TIMED_OUT,
+        }:
+            channel_error["value"] = error or Exception(status.value)
+            subscription_state_changed.set()
 
     def _handle_broadcast(self, payload: BroadcastPayload) -> None:
         inner_payload = payload.get("payload") or {}

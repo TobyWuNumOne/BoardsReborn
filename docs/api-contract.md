@@ -1034,7 +1034,7 @@ Response：
 
 以下 endpoint 供固定桌機或樹莓派上的 Python Print Worker 使用，皆需要 `Authorization: Bearer <PRINT_WORKER_TOKEN>`。
 
-`printer-worker serve` 會用 `SUPABASE_URL + SUPABASE_ANON_KEY` 訂閱 `printing:worker-wakeup`，但真正 job auth 仍是 `PRINT_WORKER_TOKEN + deviceKey`。`serve` 預設保留 `REALTIME_FALLBACK_CLAIM_INTERVAL_SECONDS=60` 作為 missed event / heartbeat 補償。
+`printer-worker serve` 會用 `SUPABASE_URL + SUPABASE_ANON_KEY` 訂閱 `printing:worker-wakeup`，但真正 job auth 仍是 `PRINT_WORKER_TOKEN + deviceKey`。`serve` 預設保留 `REALTIME_FALLBACK_CLAIM_INTERVAL_SECONDS=15` 作為 missed event / heartbeat 補償，且 Realtime 重連成功後會立刻補一次 claim。
 
 ### `POST /api/print-worker/jobs/claim`
 

@@ -215,7 +215,7 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 - 啟動時先 claim 一次，吃掉 backlog
 - 透過 `SUPABASE_URL + SUPABASE_ANON_KEY` 訂閱 public `printing:worker-wakeup`
 - 收到 `printing.job_available` 後立即再 claim
-- 保留每 `60` 秒一次 fallback claim，補 missed event、斷線期間消費與 `last_seen_at`
+- 保留每 `15` 秒一次 fallback claim，補 missed event、斷線期間消費與 `last_seen_at`
 - 同一時間只允許一個 claim / print / report 流程；wake-up 只視為 untrusted hint
 - `SIGINT` / `SIGTERM` 時停止接收新 wake-up，盡可能讓當前 claim / print / report 收尾
 
