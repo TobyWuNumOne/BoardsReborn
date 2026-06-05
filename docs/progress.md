@@ -57,6 +57,7 @@
   - Staging admin session 首次驗證發現 `authenticated` role 缺少核心 table / view privileges，導致 `/api/admin/session` 查詢 `admin_profiles` 時 Supabase REST 回 `403`; authenticated table grants migration 已推送到 staging，cookie-based admin session API 已重測通過。
   - Staging 第一輪 API smoke test 已建立測試工單 `STG-20260506005302`，並確認 admin session、dashboard、create、resolve、list search、detail、detail edit、status update 與 bulk status 可用；第二輪已將 public lookup 的 repo-side service-role helper 改為 direct `createClient`，推送 `service_role` lookup grants migration 到 staging，並重測 `POST /api/public/work-orders/lookup` 通過 `200/404/422` 路徑。
   - Repo env 解析已直接相容 Vercel Supabase integration 匯入的 `SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`；既有 `SUPABASE_KEY` / `SUPABASE_SECRET_KEY` alias 仍保留相容。admin session/client SSR 已將 anon key 優先順序調整為先吃 `SUPABASE_ANON_KEY` / `NUXT_PUBLIC_SUPABASE_ANON_KEY`，避免錯吃 `SUPABASE_PUBLISHABLE_KEY` 的 local/demo 值；Nuxt 前端 Supabase URL/client key 解析也已調整為優先吃 `NEXT_PUBLIC_*` / `NUXT_PUBLIC_*`，降低 staging 同時存在多組 env 時發生 URL/key 錯配導致登入 `401` 的風險，staging `/api/admin/session` 已恢復為預期的 `401/200/403` 分流，不再回 `500`。
+  - Vercel CLI 本機部署現已透過 `.vercelignore` 明確排除 `.env` / `.env.*`，避免 local Supabase demo key 與 `http://localhost:3000` 汙染 staging build，導致 `/login` 注入錯誤的 public Supabase runtime config。
   - 共用 `Card` 元件已從 `ring-1` 改為實體 `border`，修正 Chrome 下 dashboard / admin 卡片外框比 Safari 更不明顯、看起來像少一層框的視覺不一致。
   - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print queue model、admin print-jobs API、print-worker claim/succeed/fail API、Realtime wake-up、Pi `serve` runtime 與 Raspberry Pi raw USB transport integration 已建立並完成 MVP 驗證。
 - 本機 HTTP 開發環境已明確關閉 Supabase secure auth cookie，避免 SSR session bootstrap 在 `localhost` / `127.0.0.1` 上反覆 `401`。
@@ -143,6 +144,7 @@
   - Receipt v1 已調整為顯示完整電話，並縮短條碼前後留白，避免單據頭尾多餘空白。
 - Worker raw USB transport：`printer-worker serve` 現在會直接把 ESC/POS raw bytes 寫到 `/dev/usb/lp0`，並在成功/失敗後回報既有 `succeed` / `fail` API。
 - Staging deployment refresh：GitHub `main` 已推送最新列印整合變更；Supabase staging 已套用 print snapshot migration，Vercel staging 已重新部署並更新穩定 alias。
+- Staging login config hardening：已補 `.vercelignore` 排除 local `.env` / `.env.*`，避免 `vercel deploy` 從本機上傳 source 時把 local Supabase demo env 帶進 staging build。
 - Pi service refresh：Raspberry Pi 上 `boards-reborn-printer-worker.service` 已同步最新 worker 程式並重啟，啟動後已重新訂閱 `printing:worker-wakeup`。
 - Cloud-to-Physical Printing MVP：已完成雲端 Web 建立工單/補印 -> 建立 `print_jobs` -> worker wake-up / claim -> Pi USB raw ESC/POS 實體列印 -> succeeded / failed 回報的端到端流程，現場已可支撐最小可用標籤工作流。
 - Local preview asset fix：`pnpm build` 現在會自動修正 Nitro build output 的 public asset link，避免 `pnpm preview` / `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
@@ -152,6 +154,7 @@
 - 把已完成的 Cloud-to-Physical Printing MVP 收斂成穩定可演示的現場流程，補齊文件、runbook 與驗證 checklist。
 - 從直接在 `main` 開發，轉向至少 `dev -> staging -> main` 的基本 branch discipline，降低真實場景測試直接衝擊主線的風險。
 - 補做真實場景穩定化驗證：Pi 重開機自啟、印表機未連接時 fail / retry、連續 3-5 筆工單不漏印不重印。
+- 收斂 staging / production 部署來源，避免 local `.env`、local `.output` 或其他開發態 artifacts 再汙染雲端 build。
 - 掃碼端先維持 keyboard wedge 規劃；實際條碼槍硬體與使用者端掃碼 UX，待取得設備後再做實機驗證。
 
 ## 下一步

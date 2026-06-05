@@ -146,6 +146,8 @@ pnpm build
 vercel link
 ```
 
+在使用 `vercel deploy` 從本機工作目錄上傳 source 時，必須確保本機 `.env` / `.env.*` 不會被一起打包上傳到 Vercel build。repo 已透過 `.vercelignore` 排除這些檔案，避免 local Supabase demo key 或 `http://localhost:3000` 汙染 staging / production build。
+
 若使用一般 preview deployment，設定 preview env。每個值由你在 CLI prompt 手動貼入，不要寫入 repo：
 
 ```bash
