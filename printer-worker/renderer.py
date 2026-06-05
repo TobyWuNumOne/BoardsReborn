@@ -6,6 +6,7 @@ import re
 
 BARCODE_PATTERN = re.compile(r"^[A-Z0-9]{4,32}$")
 DEFAULT_CUT_COMMAND = b"\x1D\x56\x42\x05"
+BARCODE_HEIGHT = b"\x50"
 
 
 class PrintPayloadError(Exception):
@@ -101,12 +102,12 @@ def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
             text_bytes,
             b"\n",
             b"\x1D\x48\x02",
-            b"\x1D\x68\x64",
+            b"\x1D\x68" + BARCODE_HEIGHT,
             b"\x1D\x77\x02",
             b"\x1D\x6B\x04",
             barcode_bytes,
             b"\x00",
-            b"\n\n",
+            b"\n",
             DEFAULT_CUT_COMMAND,
         ]
     )

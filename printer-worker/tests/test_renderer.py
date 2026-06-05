@@ -35,7 +35,7 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
         self.assertIn(b"ETA: 2026-06-10\n", rendered)
         self.assertIn(b"Quote: NT$1200\n", rendered)
         self.assertIn(b"Paid: YES\n", rendered)
-        self.assertIn(b"\x1D\x48\x02\x1D\x68\x64\x1D\x77\x02\x1D\x6B\x04BR20260601001\x00", rendered)
+        self.assertIn(b"\x1D\x48\x02\x1D\x68\x50\x1D\x77\x02\x1D\x6B\x04BR20260601001\x00", rendered)
         self.assertNotIn(b"\n\n\n", rendered)
         self.assertTrue(rendered.endswith(DEFAULT_CUT_COMMAND))
 
