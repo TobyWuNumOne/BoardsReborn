@@ -60,7 +60,14 @@ export const getAdminSessionState = async <
   event: H3Event,
   dependencies: AdminAuthDependencies<Client> = {},
 ): Promise<AdminSessionState<Client>> => {
-  const claims = await (dependencies.getSupabaseUser ?? getSupabaseUserClaims)(event);
+  let claims: SupabaseUserClaims | null;
+
+  try {
+    claims = await (dependencies.getSupabaseUser ?? getSupabaseUserClaims)(event);
+  } catch {
+    claims = null;
+  }
+
   const userId = getUserId(claims);
 
   if (!userId) {

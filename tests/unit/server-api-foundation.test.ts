@@ -235,6 +235,18 @@ describe('server API foundation', () => {
     });
   });
 
+  it('treats invalid Supabase auth cookies as an anonymous session', async () => {
+    const { event } = createMockEvent();
+
+    const session = await getAdminSessionState(event, {
+      getSupabaseUser: () => Promise.reject(new Error('bad jwt')),
+    });
+
+    expect(session).toEqual({
+      status: 'anonymous',
+    });
+  });
+
   it('reports forbidden admin session state for authenticated non-admin users', async () => {
     const { client } = createAdminProfileClient({
       data: null,
