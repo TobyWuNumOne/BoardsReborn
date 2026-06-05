@@ -45,6 +45,7 @@
   - Pi 端已確認有效 cut command 為 `\x1D\x56\x42\x05`，可靠手動驗證方式為 `printf ... | sudo tee /dev/usb/lp0 > /dev/null`。
   - 已確認 Pi worker 路徑應直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，也不使用 macOS printer queue name。
   - `printer-worker serve` 已實作 immutable print snapshot renderer 與 raw USB transport；`run-once` / `poll` 保持既有 smoke test，不會真的出紙。
+  - 最新 receipt snapshot 已補 `estimatedCompletionDate`、`initialQuoteAmount` 與 `paymentReceived`，第一版實體單據可直接顯示 ETA、初始報價與是否已收款。
   - Staging Supabase 已推送 `20260605140000_print_job_payload_snapshot_worker_receipt.sql`，Vercel staging `https://board-reborn-staging.vercel.app` 已重新部署到包含 immutable print snapshot 與 Pi raw USB transport 的版本，並已完成 web 建單到 Pi 自動出紙的 end-to-end 驗證。
   - Raspberry Pi `172.20.10.4` 上的 `boards-reborn-printer-worker.service` 已同步最新 `~/printer-worker` 程式碼並重啟成功；`serve` mode 已確認使用 `/dev/usb/lp0`、startup claim、Realtime subscription、實體出紙與成功/失敗回報皆正常。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
@@ -141,6 +142,7 @@
 - Printing MVP decision：第一版先不做 QR Code，不處理中文列印；先以 ASCII-only receipt template 印工單號文字與 1D barcode。
 - Pi transport decision：正式 Pi worker 直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，不使用 macOS printer queue name。
   - Print snapshot payload：`work_order_label` 現在會建立 immutable print snapshot payload，包含 `templateVersion: 1`、`paperOrderNo`、`barcodeValue`、`customerNameAscii`、`customerPhone` 與 ASCII-safe `boardType`。
+  - Print snapshot payload 已擴充 `estimatedCompletionDate`、`initialQuoteAmount` 與 `paymentReceived`，讓 worker 不需額外查 DB 即可印出 ETA、初始報價與收款狀態。
   - Receipt v1 已調整為顯示完整電話，並縮短條碼前後留白，避免單據頭尾多餘空白。
 - Worker raw USB transport：`printer-worker serve` 現在會直接把 ESC/POS raw bytes 寫到 `/dev/usb/lp0`，並在成功/失敗後回報既有 `succeed` / `fail` API。
 - Staging deployment refresh：GitHub `main` 已推送最新列印整合變更；Supabase staging 已套用 print snapshot migration，Vercel staging 已重新部署並更新穩定 alias。

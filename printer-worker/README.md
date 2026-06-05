@@ -103,6 +103,9 @@ python worker.py serve
 - `customerNameAscii`
 - `customerPhone`
 - `boardType`
+- `estimatedCompletionDate`
+- `initialQuoteAmount`
+- `paymentReceived`
 
 Worker 不會自行 normalize customer name、phone、board type 或 work order number。
 
@@ -115,6 +118,9 @@ Worker 不會自行 normalize customer name、phone、board type 或 work order 
 - `Customer: <customerNameAscii | ->`
 - `Phone: <customerPhone | ->`
 - `Board: <boardType | ->`
+- `ETA: <estimatedCompletionDate | ->`
+- `Quote: <NT$initialQuoteAmount | ->`
+- `Paid: <YES | NO | ->`
 - 1D barcode using `barcodeValue`
 - reduced feed lines
 - cut command `\x1D\x56\x42\x05`
@@ -132,6 +138,9 @@ Claimed print job
 - customerNameAscii: ALEX
 - customerPhone: 0912927265
 - boardType: SURFBOARD
+- estimatedCompletionDate: 2026-06-10
+- initialQuoteAmount: 1200
+- paymentReceived: true
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```
 
@@ -145,6 +154,9 @@ Claimed print job
 - barcodeValue: BR20260001
 - customerPhone: 0912927265
 - boardType: SURFBOARD
+- estimatedCompletionDate: 2026-06-10
+- initialQuoteAmount: 1200
+- paymentReceived: true
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```
 

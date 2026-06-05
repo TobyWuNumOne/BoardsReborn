@@ -19,7 +19,10 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
             "boardType": "SURFBOARD",
             "customerNameAscii": "Alex",
             "customerPhone": "0912927265",
+            "estimatedCompletionDate": "2026-06-10",
+            "initialQuoteAmount": 1200,
             "paperOrderNo": "BR-20260601-001",
+            "paymentReceived": True,
             "templateVersion": 1,
         }
 
@@ -29,6 +32,9 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
         self.assertIn(b"Customer: Alex\n", rendered)
         self.assertIn(b"Phone: 0912927265\n", rendered)
         self.assertIn(b"Board: SURFBOARD\n", rendered)
+        self.assertIn(b"ETA: 2026-06-10\n", rendered)
+        self.assertIn(b"Quote: NT$1200\n", rendered)
+        self.assertIn(b"Paid: YES\n", rendered)
         self.assertIn(b"\x1D\x48\x02\x1D\x68\x64\x1D\x77\x02\x1D\x6B\x04BR20260601001\x00", rendered)
         self.assertNotIn(b"\n\n\n", rendered)
         self.assertTrue(rendered.endswith(DEFAULT_CUT_COMMAND))
@@ -45,6 +51,9 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
         self.assertIn(b"Customer: -\n", rendered)
         self.assertIn(b"Phone: -\n", rendered)
         self.assertIn(b"Board: -\n", rendered)
+        self.assertIn(b"ETA: -\n", rendered)
+        self.assertIn(b"Quote: -\n", rendered)
+        self.assertIn(b"Paid: -\n", rendered)
 
     def test_keeps_backward_compatibility_for_masked_phone_payloads(self) -> None:
         payload = {

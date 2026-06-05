@@ -31,6 +31,35 @@ def _optional_string(payload: dict[str, Any], key: str, fallback: str) -> str:
     return trimmed or fallback
 
 
+def _optional_integer(payload: dict[str, Any], key: str) -> int | None:
+    value = payload.get(key)
+
+    if isinstance(value, bool) or value is None:
+        return None
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+
+    if isinstance(value, str):
+        trimmed = value.strip()
+        if trimmed and re.fullmatch(r"-?\d+", trimmed):
+            return int(trimmed)
+
+    return None
+
+
+def _optional_boolean(payload: dict[str, Any], key: str) -> bool | None:
+    value = payload.get(key)
+
+    if isinstance(value, bool):
+        return value
+
+    return None
+
+
 def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
     paper_order_no = _required_string(payload, "paperOrderNo")
     barcode_value = _required_string(payload, "barcodeValue")
@@ -45,6 +74,9 @@ def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
         _optional_string(payload, "maskedPhone", "-"),
     )
     board_type = _optional_string(payload, "boardType", "-")
+    estimated_completion_date = _optional_string(payload, "estimatedCompletionDate", "-")
+    initial_quote_amount = _optional_integer(payload, "initialQuoteAmount")
+    payment_received = _optional_boolean(payload, "paymentReceived")
 
     text_lines = [
         "BoardsReborn",
@@ -52,6 +84,9 @@ def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
         f"Customer: {customer_name}",
         f"Phone: {customer_phone}",
         f"Board: {board_type}",
+        f"ETA: {estimated_completion_date}",
+        f"Quote: {'NT$' + str(initial_quote_amount) if initial_quote_amount is not None else '-'}",
+        f"Paid: {'YES' if payment_received is True else 'NO' if payment_received is False else '-'}",
     ]
 
     try:

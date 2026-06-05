@@ -94,6 +94,7 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 - 不做 QR Code
 - 使用 ASCII-only 模板
 - 列印工單號文字
+- 列印 ETA、初始報價與是否已收款
 - 列印同一個工單號的 1D barcode
 - 1D barcode 優先評估 `Code39` 或 `Code128`
 

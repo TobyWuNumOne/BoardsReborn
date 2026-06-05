@@ -69,6 +69,13 @@ const printJobFullPhoneReceiptMigration = readFileSync(
   ),
   'utf8',
 );
+const printJobEtaQuotePaymentSnapshotMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260605183000_print_job_eta_quote_payment_snapshot.sql',
+  ),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -296,6 +303,21 @@ describe('initial Supabase migration', () => {
     expect(printJobFullPhoneReceiptMigration).not.toContain("'maskedPhone', v_masked_phone");
     expect(printJobFullPhoneReceiptMigration).toContain(
       "select nullif(regexp_replace(coalesce(p_value, ''), '[^0-9]', '', 'g'), '');",
+    );
+  });
+
+  it('extends print snapshots with eta, initial quote, and payment status', () => {
+    expect(printJobEtaQuotePaymentSnapshotMigration).toContain(
+      "and item_type = 'INITIAL'",
+    );
+    expect(printJobEtaQuotePaymentSnapshotMigration).toContain(
+      "'estimatedCompletionDate', v_work_order.estimated_completion_date",
+    );
+    expect(printJobEtaQuotePaymentSnapshotMigration).toContain(
+      "'initialQuoteAmount', v_initial_quote_amount",
+    );
+    expect(printJobEtaQuotePaymentSnapshotMigration).toContain(
+      "'paymentReceived', v_work_order.payment_received",
     );
   });
 });

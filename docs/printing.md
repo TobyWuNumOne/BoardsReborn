@@ -89,6 +89,9 @@ Admin UI / Work-order create
   "customerNameAscii": "ALEX",
   "customerPhone": "0912927265",
   "boardType": "SURFBOARD",
+  "estimatedCompletionDate": "2026-06-10",
+  "initialQuoteAmount": 1200,
+  "paymentReceived": true
 }
 ```
 
@@ -96,7 +99,7 @@ Admin UI / Work-order create
 
 - `job_type` 仍維持 `work_order_label`
 - worker 只消費 snapshot，不可自行 normalize customer name、phone、board type 或 work order number
-- server enqueue 端負責生成 `barcodeValue`、`customerNameAscii`、`customerPhone` 與 ASCII-safe `boardType`
+- server enqueue 端負責生成 `barcodeValue`、`customerNameAscii`、`customerPhone`、ASCII-safe `boardType`，以及列印用的 `estimatedCompletionDate`、`initialQuoteAmount`、`paymentReceived` snapshot
 
 ## 建單與補印規則
 

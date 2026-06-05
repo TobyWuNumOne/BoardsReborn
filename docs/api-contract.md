@@ -1064,6 +1064,9 @@ Response：
         "customerNameAscii": "ALEX",
         "customerPhone": "0912927265",
         "boardType": "SURFBOARD",
+        "estimatedCompletionDate": "2026-06-10",
+        "initialQuoteAmount": 1200,
+        "paymentReceived": true
       },
       "attemptCount": 0,
       "maxAttempts": 3,
