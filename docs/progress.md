@@ -12,7 +12,7 @@
 ## 目前快照
 
 - 最後更新：2026-06-05
-- 目前階段：admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up 與 work-order 列印摘要通知層已建立；`printer-worker serve` 已接上 Pi USB raw ESC/POS transport，下一步是在 Pi 上用 repo 內 worker 重跑 end-to-end 與 systemd 常駐驗證
+- 目前階段：admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up 與 work-order 列印摘要通知層已建立；staging 已重新部署到包含 immutable print snapshot 與 Pi USB raw ESC/POS transport 的版本，Pi 上 `printer-worker serve` 也已重啟，下一步是用 web 建單實際重跑 end-to-end 自動出紙
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -44,6 +44,8 @@
   - Pi 端已確認有效 cut command 為 `\x1D\x56\x42\x05`，可靠手動驗證方式為 `printf ... | sudo tee /dev/usb/lp0 > /dev/null`。
   - 已確認 Pi worker 路徑應直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，也不使用 macOS printer queue name。
   - `printer-worker serve` 已實作 immutable print snapshot renderer 與 raw USB transport；`run-once` / `poll` 保持既有 smoke test，不會真的出紙。
+  - Staging Supabase 已推送 `20260605140000_print_job_payload_snapshot_worker_receipt.sql`，Vercel staging `https://board-reborn-staging.vercel.app` 已重新部署到包含 immutable print snapshot 與 Pi raw USB transport 的版本。
+  - Raspberry Pi `172.20.10.4` 上的 `boards-reborn-printer-worker.service` 已同步最新 `~/printer-worker` 程式碼並重啟成功；啟動 log 已確認 `serve` mode 使用 `/dev/usb/lp0`、startup claim 與 Realtime subscription 正常。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
   - Frontend strategy 已記錄於 [frontend.md](frontend.md)。
   - Supabase Database types 已產生於 `types/database.types.ts`。
@@ -138,6 +140,8 @@
 - Pi transport decision：正式 Pi worker 直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，不使用 macOS printer queue name。
 - Print snapshot payload：`work_order_label` 現在會建立 immutable print snapshot payload，包含 `templateVersion: 1`、`paperOrderNo`、`barcodeValue`、`customerNameAscii`、`maskedPhone` 與 ASCII-safe `boardType`。
 - Worker raw USB transport：`printer-worker serve` 現在會直接把 ESC/POS raw bytes 寫到 `/dev/usb/lp0`，並在成功/失敗後回報既有 `succeed` / `fail` API。
+- Staging deployment refresh：GitHub `main` 已推送最新列印整合變更；Supabase staging 已套用 print snapshot migration，Vercel staging 已重新部署並更新穩定 alias。
+- Pi service refresh：Raspberry Pi 上 `boards-reborn-printer-worker.service` 已同步最新 worker 程式並重啟，啟動後已重新訂閱 `printing:worker-wakeup`。
 - Local preview asset fix：`pnpm build` 現在會自動修正 Nitro build output 的 public asset link，避免 `pnpm preview` / `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
 
 ## 目前焦點
@@ -149,8 +153,8 @@
 
 ## 下一步
 
-- 在 Pi 上用 repo 內 `printer-worker serve` 驗證 web 建工單 -> claim -> print -> succeed 的正式路徑。
-- 在 Raspberry Pi 套用 systemd service / env file，驗證開機自啟、異常重啟與 `SIGTERM` 收尾。
+- 用 web 建工單或手動建立 print job，驗證 staging -> Pi `serve` -> `/dev/usb/lp0` -> printed/succeed 的正式自動出紙路徑。
+- 確認 Raspberry Pi 開機自啟、異常重啟與 `SIGTERM` 收尾在最新 worker 版本下仍正常。
 - 在 local / staging 建立第一台 `print_devices` seed / 手動 provisioning 流程，驗證 `PRINT_WORKER_TOKEN` + `deviceKey` + `SUPABASE_ANON_KEY`。
 - 規劃 `locked` / `printing` stale job recovery。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
