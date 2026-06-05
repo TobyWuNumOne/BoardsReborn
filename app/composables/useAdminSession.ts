@@ -8,6 +8,12 @@ import { mapAdminSessionStatusCode } from '~/utils/admin-session';
 
 type RequestFetch = <T>(request: string, options?: Record<string, unknown>) => Promise<T>;
 
+export interface AdminSignInError {
+  code?: string;
+  message: string;
+  status?: number;
+}
+
 type AdminSessionNuxtApp = ReturnType<typeof useNuxtApp> & {
   _adminSessionPromise?: Promise<AdminSessionSnapshot>;
 };
@@ -44,6 +50,26 @@ const getSessionFetch = (): RequestFetch => {
   }
 
   return $fetch as RequestFetch;
+};
+
+const normalizeSignInError = (error: unknown): AdminSignInError => {
+  if (typeof error !== 'object' || error === null) {
+    return {
+      message: 'Unknown sign-in error.',
+    };
+  }
+
+  const candidate = error as {
+    code?: unknown;
+    message?: unknown;
+    status?: unknown;
+  };
+
+  return {
+    code: typeof candidate.code === 'string' ? candidate.code : undefined,
+    message: typeof candidate.message === 'string' ? candidate.message : 'Unknown sign-in error.',
+    status: typeof candidate.status === 'number' ? candidate.status : undefined,
+  };
 };
 
 const toSnapshot = (
@@ -123,7 +149,11 @@ export const useAdminSession = () => {
       password,
     });
 
-    return error;
+    if (!error) {
+      return null;
+    }
+
+    return normalizeSignInError(error);
   };
 
   const signOut = async () => {

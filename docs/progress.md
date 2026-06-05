@@ -55,7 +55,7 @@
   - Vercel staging project `board-reborn-staging` 已建立並連結 GitHub repo，staging URL 為 `https://board-reborn-staging.vercel.app`，必要 Vercel env 已設定為 encrypted production env for staging project。
   - Staging admin session 首次驗證發現 `authenticated` role 缺少核心 table / view privileges，導致 `/api/admin/session` 查詢 `admin_profiles` 時 Supabase REST 回 `403`; authenticated table grants migration 已推送到 staging，cookie-based admin session API 已重測通過。
   - Staging 第一輪 API smoke test 已建立測試工單 `STG-20260506005302`，並確認 admin session、dashboard、create、resolve、list search、detail、detail edit、status update 與 bulk status 可用；第二輪已將 public lookup 的 repo-side service-role helper 改為 direct `createClient`，推送 `service_role` lookup grants migration 到 staging，並重測 `POST /api/public/work-orders/lookup` 通過 `200/404/422` 路徑。
-  - Repo env 解析已直接相容 Vercel Supabase integration 匯入的 `SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`；既有 `SUPABASE_KEY` / `SUPABASE_SECRET_KEY` alias 仍保留相容。admin session/client SSR 已將 anon key 優先順序調整為先吃 `SUPABASE_ANON_KEY` / `NUXT_PUBLIC_SUPABASE_ANON_KEY`，避免錯吃 `SUPABASE_PUBLISHABLE_KEY` 的 local/demo 值，staging `/api/admin/session` 已恢復為預期的 `401/200/403` 分流，不再回 `500`。
+  - Repo env 解析已直接相容 Vercel Supabase integration 匯入的 `SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`；既有 `SUPABASE_KEY` / `SUPABASE_SECRET_KEY` alias 仍保留相容。admin session/client SSR 已將 anon key 優先順序調整為先吃 `SUPABASE_ANON_KEY` / `NUXT_PUBLIC_SUPABASE_ANON_KEY`，避免錯吃 `SUPABASE_PUBLISHABLE_KEY` 的 local/demo 值；Nuxt 前端 Supabase URL/client key 解析也已調整為優先吃 `NEXT_PUBLIC_*` / `NUXT_PUBLIC_*`，降低 staging 同時存在多組 env 時發生 URL/key 錯配導致登入 `401` 的風險，staging `/api/admin/session` 已恢復為預期的 `401/200/403` 分流，不再回 `500`。
   - 共用 `Card` 元件已從 `ring-1` 改為實體 `border`，修正 Chrome 下 dashboard / admin 卡片外框比 Safari 更不明顯、看起來像少一層框的視覺不一致。
   - Admin auth/session flow 已能區分 anonymous、forbidden、admin 三種狀態；print queue model、admin print-jobs API、print-worker claim/succeed/fail API 與 connectivity worker 已建立，但 Raspberry Pi raw USB 腳本與 production worker transport integration 仍未建立。
 - 本機 HTTP 開發環境已明確關閉 Supabase secure auth cookie，避免 SSR session bootstrap 在 `localhost` / `127.0.0.1` 上反覆 `401`。
@@ -101,6 +101,7 @@
 - Admin work-order status RPC：原子 append `status_history`、同步 `work_orders.current_status`，並維護 ready/delivered/cancelled timestamp。
 - Admin bulk status API：以 `paperOrderNos` 批量更新狀態，回傳 `requestedCount`、`dedupedCount`、`updatedCount`、`skippedCount` 與逐筆結果；未知錯誤時立即停止後續處理。
 - Login / session UI：`/login`、`/admin`、`/forbidden`、admin middleware、admin layout bootstrap 與 logout action。
+- Login 錯誤訊息分流：`/login` 已可區分 `invalid_credentials`、`email_not_confirmed`、`invalid_api_key`、rate limit 等錯誤，不再把所有 Supabase auth 失敗都顯示成帳密錯誤。
 - Local auth cookie hardening：Supabase SSR cookie 依 app URL protocol 決定 `secure`，避免本機 HTTP 開發時瀏覽器拒收 auth cookie。
 - Frontend UI foundation：Tailwind CSS v4、`@tailwindcss/vite`、shadcn-vue primitives、`shadcn-nuxt`、SSR width plugin、Tailwind/shadcn 重整後的 homepage / login / forbidden / admin placeholder。
 - Frontend strategy spec：`docs/frontend.md`，定義 admin route map、layout、data access、form validation、feedback、列表與狀態 badge 規則。

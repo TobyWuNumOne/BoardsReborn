@@ -15,6 +15,26 @@ const form = reactive({
 const isSubmitting = ref(false);
 const errorMessage = ref('');
 
+const mapSignInErrorMessage = (error: { code?: string; message?: string; status?: number }) => {
+  if (error.code === 'invalid_credentials') {
+    return '帳號或密碼錯誤。';
+  }
+
+  if (error.code === 'email_not_confirmed') {
+    return '帳號尚未完成 Email 驗證，請先完成驗證再登入。';
+  }
+
+  if (error.code === 'invalid_api_key' || error.message?.includes('Invalid API key')) {
+    return '登入設定異常（Supabase API key），請聯絡管理員檢查部署環境變數。';
+  }
+
+  if (error.status === 429) {
+    return '登入嘗試次數過多，請稍後再試。';
+  }
+
+  return '登入失敗，請稍後再試。';
+};
+
 const getSubmittedCredential = (
   formElement: HTMLFormElement | null,
   fieldName: 'email' | 'password',
@@ -53,7 +73,7 @@ const handleSubmit = async (event: SubmitEvent) => {
   const error = await adminSession.signInWithPassword(submittedEmail, submittedPassword);
 
   if (error) {
-    errorMessage.value = '登入失敗，請檢查帳號密碼。';
+    errorMessage.value = mapSignInErrorMessage(error);
     isSubmitting.value = false;
     return;
   }
