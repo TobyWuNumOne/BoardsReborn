@@ -47,6 +47,7 @@
   - `printer-worker serve` 已實作 immutable print snapshot renderer 與 raw USB transport；`run-once` / `poll` 保持既有 smoke test，不會真的出紙。
   - 最新 receipt snapshot 已補 `estimatedCompletionDate`、`initialQuoteAmount` 與 `paymentReceived`，第一版實體單據可直接顯示 ETA、初始報價與是否已收款。
   - Receipt renderer 已再縮短條碼尾端 spacing 並下修 barcode height，減少上一張尾端與下一張頂端的留白。
+  - Receipt renderer 已改為雙欄版面，左欄顯示品牌 / Customer / Board / Quote，右欄顯示 Order / Phone / ETA / Paid，條碼置中。
   - Staging Supabase 已推送 `20260605140000_print_job_payload_snapshot_worker_receipt.sql`，Vercel staging `https://board-reborn-staging.vercel.app` 已重新部署到包含 immutable print snapshot 與 Pi raw USB transport 的版本，並已完成 web 建單到 Pi 自動出紙的 end-to-end 驗證。
   - Raspberry Pi `172.20.10.4` 上的 `boards-reborn-printer-worker.service` 已同步最新 `~/printer-worker` 程式碼並重啟成功；`serve` mode 已確認使用 `/dev/usb/lp0`、startup claim、Realtime subscription、實體出紙與成功/失敗回報皆正常。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。

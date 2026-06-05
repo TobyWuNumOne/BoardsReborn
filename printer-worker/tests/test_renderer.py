@@ -28,14 +28,18 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
 
         rendered = render_work_order_receipt(payload)
 
-        self.assertTrue(rendered.startswith(b"\x1B\x40BoardsReborn\nOrder: BR-20260601-001\n"))
-        self.assertIn(b"Customer: Alex\n", rendered)
-        self.assertIn(b"Phone: 0912927265\n", rendered)
-        self.assertIn(b"Board: SURFBOARD\n", rendered)
-        self.assertIn(b"ETA: 2026-06-10\n", rendered)
-        self.assertIn(b"Quote: NT$1200\n", rendered)
-        self.assertIn(b"Paid: YES\n", rendered)
-        self.assertIn(b"\x1D\x48\x02\x1D\x68\x50\x1D\x77\x02\x1D\x6B\x04BR20260601001\x00", rendered)
+        self.assertTrue(rendered.startswith(b"\x1B\x40BoardsReborn"))
+        self.assertIn(b"Order: BR-20260601-001", rendered)
+        self.assertIn(b"Customer: Alex", rendered)
+        self.assertIn(b"Phone: 0912927265", rendered)
+        self.assertIn(b"Board: SURFBOARD", rendered)
+        self.assertIn(b"ETA: 2026-06-10", rendered)
+        self.assertIn(b"Quote: NT$1200", rendered)
+        self.assertIn(b"Paid: YES", rendered)
+        self.assertIn(
+            b"\x1D\x48\x02\x1D\x68\x50\x1D\x77\x02\x1B\x61\x01\x1D\x6B\x04BR20260601001\x00\n\x1B\x61\x00",
+            rendered,
+        )
         self.assertNotIn(b"\n\n\n", rendered)
         self.assertTrue(rendered.endswith(DEFAULT_CUT_COMMAND))
 
@@ -48,12 +52,12 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
 
         rendered = render_work_order_receipt(payload)
 
-        self.assertIn(b"Customer: -\n", rendered)
-        self.assertIn(b"Phone: -\n", rendered)
-        self.assertIn(b"Board: -\n", rendered)
-        self.assertIn(b"ETA: -\n", rendered)
-        self.assertIn(b"Quote: -\n", rendered)
-        self.assertIn(b"Paid: -\n", rendered)
+        self.assertIn(b"Customer: -", rendered)
+        self.assertIn(b"Phone: -", rendered)
+        self.assertIn(b"Board: -", rendered)
+        self.assertIn(b"ETA: -", rendered)
+        self.assertIn(b"Quote: -", rendered)
+        self.assertIn(b"Paid: -", rendered)
 
     def test_keeps_backward_compatibility_for_masked_phone_payloads(self) -> None:
         payload = {
@@ -64,7 +68,7 @@ class RenderWorkOrderReceiptTest(unittest.TestCase):
 
         rendered = render_work_order_receipt(payload)
 
-        self.assertIn(b"Phone: ****7265\n", rendered)
+        self.assertIn(b"Phone: ****7265", rendered)
 
     def test_fails_for_missing_paper_order_number(self) -> None:
         with self.assertRaises(PrintPayloadError):

@@ -7,6 +7,8 @@ import re
 BARCODE_PATTERN = re.compile(r"^[A-Z0-9]{4,32}$")
 DEFAULT_CUT_COMMAND = b"\x1D\x56\x42\x05"
 BARCODE_HEIGHT = b"\x50"
+RECEIPT_TEXT_WIDTH = 42
+RECEIPT_COLUMN_GAP = 2
 
 
 class PrintPayloadError(Exception):
@@ -61,6 +63,17 @@ def _optional_boolean(payload: dict[str, Any], key: str) -> bool | None:
     return None
 
 
+def _two_column_line(left: str, right: str) -> str:
+    left_text = left.strip()
+    right_text = right.strip()
+    available_padding = RECEIPT_TEXT_WIDTH - len(left_text) - len(right_text)
+
+    if available_padding >= RECEIPT_COLUMN_GAP:
+        return left_text + (" " * available_padding) + right_text
+
+    return f"{left_text}{' ' * RECEIPT_COLUMN_GAP}{right_text}"
+
+
 def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
     paper_order_no = _required_string(payload, "paperOrderNo")
     barcode_value = _required_string(payload, "barcodeValue")
@@ -79,15 +92,14 @@ def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
     initial_quote_amount = _optional_integer(payload, "initialQuoteAmount")
     payment_received = _optional_boolean(payload, "paymentReceived")
 
+    quote_display = f"NT${initial_quote_amount}" if initial_quote_amount is not None else "-"
+    paid_display = "YES" if payment_received is True else "NO" if payment_received is False else "-"
+
     text_lines = [
-        "BoardsReborn",
-        f"Order: {paper_order_no}",
-        f"Customer: {customer_name}",
-        f"Phone: {customer_phone}",
-        f"Board: {board_type}",
-        f"ETA: {estimated_completion_date}",
-        f"Quote: {'NT$' + str(initial_quote_amount) if initial_quote_amount is not None else '-'}",
-        f"Paid: {'YES' if payment_received is True else 'NO' if payment_received is False else '-'}",
+        _two_column_line("BoardsReborn", f"Order: {paper_order_no}"),
+        _two_column_line(f"Customer: {customer_name}", f"Phone: {customer_phone}"),
+        _two_column_line(f"Board: {board_type}", f"ETA: {estimated_completion_date}"),
+        _two_column_line(f"Quote: {quote_display}", f"Paid: {paid_display}"),
     ]
 
     try:
@@ -104,10 +116,12 @@ def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
             b"\x1D\x48\x02",
             b"\x1D\x68" + BARCODE_HEIGHT,
             b"\x1D\x77\x02",
+            b"\x1B\x61\x01",
             b"\x1D\x6B\x04",
             barcode_bytes,
             b"\x00",
             b"\n",
+            b"\x1B\x61\x00",
             DEFAULT_CUT_COMMAND,
         ]
     )

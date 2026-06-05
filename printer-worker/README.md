@@ -113,15 +113,10 @@ Worker 不會自行 normalize customer name、phone、board type 或 work order 
 
 第一版固定輸出：
 
-- `BoardsReborn`
-- `Order: <paperOrderNo>`
-- `Customer: <customerNameAscii | ->`
-- `Phone: <customerPhone | ->`
-- `Board: <boardType | ->`
-- `ETA: <estimatedCompletionDate | ->`
-- `Quote: <NT$initialQuoteAmount | ->`
-- `Paid: <YES | NO | ->`
-- 1D barcode using `barcodeValue`
+- two-column layout:
+  - left: `BoardsReborn` / `Customer` / `Board` / `Quote`
+  - right: `Order` / `Phone` / `ETA` / `Paid`
+- centered 1D barcode using `barcodeValue`
 - reduced feed lines with tighter barcode tail spacing
 - cut command `\x1D\x56\x42\x05`
 
