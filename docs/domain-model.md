@@ -71,6 +71,8 @@
 | `board_serial_label`             | `varchar(80)`        | nullable，板上貼紙或人工標記                          |
 | `intake_date`                    | `date`               | required                                              |
 | `damage_description`             | `text`               | nullable，可描述示意圖標記內容                        |
+| `repair_count`                   | `smallint`           | nullable；`null` 表示未確認或無標記，不允許 `0`       |
+| `repair_count_source`            | `repair_count_source`| required，`auto` 或 `manual`                         |
 | `estimated_completion_date`      | `date`               | nullable，老闆檢查後填寫，可修改                      |
 | `current_status`                 | `work_order_status`  | required，latest status cache，不可取代 history       |
 | `payment_received`               | `boolean`            | required，default `false`                             |
@@ -98,6 +100,10 @@
 
 付款第一版只記錄 `payment_received` 與 `payment_received_at`。`payment_received_at` 由 Nuxt API 維護：`payment_received` 改為 `true` 時寫入時間，改回 `false` 時清空。第一版不建立付款明細、收據、退款或付款方式資料表。
 
+`repair_count_source = auto` 時，`repair_count` 由目前有效 `work_order_repair_marks` 數量推導；若沒有任何 mark，視為 `null`。`manual` 時允許和 mark 數量不同，但仍保留 mark 本身，供管理端與顧客查詢頁顯示。
+
+掃碼頁第一版的「新增備註」不建立獨立 note table，而是透過 server-side quick-note endpoint 將內容附加到 `internal_note` 尾端；這是現場快速記錄工具，不是完整備註系統。
+
 建議 index：
 
 - `work_orders(paper_order_no)`
@@ -107,6 +113,28 @@
 - `work_orders(estimated_completion_date)`
 - `work_orders(intake_date)`
 - `work_orders(notified_at)` partial index for 尚未取件且已通知的工單
+
+### `work_order_repair_marks`
+
+| 欄位           | 型別                     | 規則                                                  |
+| -------------- | ------------------------ | ----------------------------------------------------- |
+| `id`           | `uuid`                   | Primary key                                           |
+| `work_order_id`| `uuid`                   | required，references `work_orders.id`，`on delete cascade` |
+| `template_key` | `varchar(80)`            | required，例如 `SURFBOARD:front:v1`                   |
+| `board_side`   | `repair_mark_board_side` | required，`front` / `back`                            |
+| `x_ratio`      | `numeric(6,5)`           | required，0 到 1                                      |
+| `y_ratio`      | `numeric(6,5)`           | required，0 到 1                                      |
+| `width_ratio`  | `numeric(6,5)`           | required，> 0 且 <= 1                                 |
+| `height_ratio` | `numeric(6,5)`           | required，> 0 且 <= 1                                 |
+| `sort_order`   | `integer`                | required，>= 0，控制顯示編號順序                      |
+| `created_at`   | `timestamptz`            | required，default `now()`                             |
+| `updated_at`   | `timestamptz`            | required，default `now()`                             |
+
+第一版 repair mark 代表「本次要維修的位置」，不是一般 damage audit。資料以 normalized 比例儲存，不保存 Konva stage JSON 或像素位置，讓不同裝置大小下仍能重建同一個標記。
+
+建議 index：
+
+- `work_order_repair_marks(work_order_id, sort_order asc)`
 
 ### `status_history`
 

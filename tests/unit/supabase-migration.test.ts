@@ -76,6 +76,10 @@ const printJobEtaQuotePaymentSnapshotMigration = readFileSync(
   ),
   'utf8',
 );
+const repairMarksMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260609120000_work_order_repair_marks.sql'),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -268,6 +272,32 @@ describe('initial Supabase migration', () => {
     );
     expect(printingPhase2RealtimeEventsMigration).toContain(
       'grant execute on function public.emit_printing_realtime_event(jsonb, text, text, boolean) to service_role',
+    );
+  });
+
+  it('adds structured repair marks, repair count fields, and grants', () => {
+    expect(repairMarksMigration).toContain(
+      "create type public.repair_count_source as enum ('auto', 'manual')",
+    );
+    expect(repairMarksMigration).toContain(
+      "create type public.repair_mark_board_side as enum ('front', 'back')",
+    );
+    expect(repairMarksMigration).toContain('alter table public.work_orders');
+    expect(repairMarksMigration).toContain('add column repair_count smallint');
+    expect(repairMarksMigration).toContain('add column repair_count_source');
+    expect(repairMarksMigration).toContain('create table public.work_order_repair_marks');
+    expect(repairMarksMigration).toContain('on delete cascade');
+    expect(repairMarksMigration).toContain('x_ratio >= 0 and x_ratio <= 1');
+    expect(repairMarksMigration).toContain('width_ratio > 0 and width_ratio <= 1');
+    expect(repairMarksMigration).toContain('alter table public.work_order_repair_marks enable row level security');
+    expect(repairMarksMigration).toContain(
+      'create policy "Authenticated users can manage work order repair marks"',
+    );
+    expect(repairMarksMigration).toContain(
+      'grant select, insert, update, delete on table public.work_order_repair_marks to authenticated',
+    );
+    expect(repairMarksMigration).toContain(
+      'grant select on table public.work_order_repair_marks to service_role',
     );
   });
 

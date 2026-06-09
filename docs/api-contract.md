@@ -20,10 +20,12 @@
 - `implemented` `GET /api/admin/session`：回傳目前 admin session 與最小 profile。
 - `implemented` `GET /api/admin/customers/lookup`：建單時查候選 customer。
 - `implemented` `GET /api/admin/work-orders`：工單列表。
+- `implemented` `GET /api/admin/work-orders/lookup`：掃碼頁單筆工單查詢。
 - `implemented` `GET /api/admin/work-orders/resolve`：用 `paperOrderNo` 解析 internal UUID。
 - `implemented` `POST /api/admin/work-orders`：建立工單。
 - `implemented` `GET /api/admin/work-orders/{id}`：工單詳情。
 - `implemented` `PATCH /api/admin/work-orders/{id}`：更新非狀態欄位。
+- `implemented` `POST /api/admin/work-orders/{id}/quick-note`：附加掃碼頁快速內部備註。
 - `implemented` `POST /api/admin/work-orders/{id}/status`：單筆狀態更新。
 - `implemented` `POST /api/admin/work-orders/bulk-status`：批量狀態更新。
 - `implemented` `GET /api/admin/print-jobs`：查詢列印任務列表。
@@ -219,6 +221,76 @@ API 中的 `board` object 是 `work_orders` 上的板子快照欄位組合，不
 
 Admin 單筆 detail / update / status endpoint 使用 `work_orders.id` 作為 internal resource identity。現場掃碼或人工輸入時，前端應先用 `paperOrderNo` 呼叫 resolve endpoint 取得 UUID，再呼叫 UUID-based endpoint。
 
+### `GET /api/admin/work-orders/lookup`
+
+掃碼查詢頁專用的單筆 read model。第一版 `code` 先只接受 `paper_order_no`，但 query 名稱保留未來擴充條碼或 QR payload 的空間。
+
+Query example：
+
+```text
+/api/admin/work-orders/lookup?code=BR20260601001
+```
+
+Response：`200`
+
+```json
+{
+  "data": {
+    "summary": {
+      "id": "b1be8b4e-bd70-4b8a-8d45-1bde198c90a4",
+      "paperOrderNo": "BR20260601001",
+      "status": "READY_FOR_PICKUP",
+      "receivedAt": "2026-06-01T06:30:00.000Z",
+      "estimatedCompletedAt": "2026-06-10",
+      "lastUpdatedAt": "2026-06-08T07:20:00.000Z",
+      "daysInShop": 8,
+      "isOverdue": false,
+      "paymentReceived": false
+    },
+    "customer": {
+      "name": "王小明",
+      "phone": "0912345678"
+    },
+    "board": {
+      "type": "SURFBOARD",
+      "boardLengthClass": "SHORTBOARD",
+      "brand": "Channel Islands",
+      "sizeLabel": "6'2",
+      "color": "BLUE",
+      "serialLabel": "Blue rail ding",
+      "damageDescription": "右側板身破損"
+    },
+    "pricing": {
+      "initialQuoteAmount": 2500,
+      "additionalAmount": 500,
+      "finalAmount": 3000
+    },
+    "notes": {
+      "publicNote": "完工後會通知",
+      "internalNote": "靠近後場層架",
+      "pickupNote": "取件前先確認尾舵"
+    },
+    "recentHistory": [
+      {
+        "id": "d925e4a7-e524-4f58-8e87-2b9cc1bb20fd",
+        "fromStatus": "REPAIRING",
+        "toStatus": "READY_FOR_PICKUP",
+        "changedAt": "2026-06-08T07:20:00.000Z",
+        "note": "已完成，等待取件"
+      }
+    ],
+    "availableActions": ["mark_paid", "mark_delivered", "add_note", "open_detail"],
+    "availableStatusTransitions": []
+  }
+}
+```
+
+規則：
+
+- 查無工單回 `404 NOT_FOUND`
+- `availableActions` 與 `availableStatusTransitions` 由 server 依目前狀態決定
+- `recentHistory` 第一版只回最近 3 筆
+
 ### `GET /api/admin/work-orders`
 
 查詢工單列表。
@@ -367,10 +439,23 @@ Request：
     "intakeDate": "2026-04-20",
     "damageDescription": "鼻頭裂傷，疑似進水",
     "estimatedCompletionDate": "2026-04-26",
+    "repairCount": 2,
+    "repairCountSource": "auto",
     "paymentReceived": true,
     "publicNote": "已收件，等待檢查",
     "internalNote": "老闆需確認是否除濕"
   },
+  "repairMarks": [
+    {
+      "boardSide": "front",
+      "templateKey": "SURFBOARD:front:v1",
+      "xRatio": 0.45,
+      "yRatio": 0.28,
+      "widthRatio": 0.18,
+      "heightRatio": 0.12,
+      "sortOrder": 0
+    }
+  ],
   "quoteItems": [
     {
       "itemType": "INITIAL",
@@ -404,6 +489,12 @@ Request：
   "quoteItems": []
 }
 ```
+
+`repairCount` / `repairCountSource` 規則：
+
+- `repairCountSource = auto`：若有 `repairMarks`，server 以 mark 數量為準；若沒有 mark，`repairCount` 可省略
+- `repairCountSource = manual`：`repairCount` 必填且必須 >= 1
+- `repairMarks[*].templateKey` 必須匹配目前 `board.boardType` 與 `boardSide`，例如 `SURFBOARD:front:v1`
 
 Response：`201`
 
@@ -449,6 +540,21 @@ Response：
     },
     "intakeDate": "2026-04-20",
     "damageDescription": "鼻頭裂傷，疑似進水",
+    "repairCount": 2,
+    "repairCountSource": "auto",
+    "repairMarkCount": 2,
+    "repairMarks": [
+      {
+        "id": "2e9c6ad4-1e84-43ee-bdb7-87b9afc2cc8e",
+        "boardSide": "front",
+        "templateKey": "SURFBOARD:front:v1",
+        "xRatio": 0.45,
+        "yRatio": 0.28,
+        "widthRatio": 0.18,
+        "heightRatio": 0.12,
+        "sortOrder": 0
+      }
+    ],
     "estimatedCompletionDate": "2026-04-26",
     "paymentReceived": true,
     "paymentReceivedAt": "2026-04-20T08:00:00.000Z",
@@ -506,6 +612,9 @@ Response：
 - `estimatedCompletionDate`
 - `damageDescription`
 - `paymentReceived`
+- `repairCount`
+- `repairCountSource`
+- `repairMarks`
 - `publicNote`
 - `internalNote`
 - `pickupNote`
@@ -518,12 +627,27 @@ Request：
   "estimatedCompletionDate": "2026-04-28",
   "damageDescription": "鼻頭裂傷，拆開後確認範圍更大",
   "paymentReceived": true,
+  "repairCount": 3,
+  "repairCountSource": "manual",
+  "repairMarks": [
+    {
+      "boardSide": "front",
+      "templateKey": "SURFBOARD:front:v1",
+      "xRatio": 0.45,
+      "yRatio": 0.28,
+      "widthRatio": 0.18,
+      "heightRatio": 0.12,
+      "sortOrder": 0
+    }
+  ],
   "publicNote": "維修中，預估完成日已更新",
   "internalNote": "已與顧客確認追加費用"
 }
 ```
 
 `paymentReceived` 由 `false` 改為 `true` 時，Nuxt API 應同步寫入 `paymentReceivedAt`。由 `true` 改回 `false` 時，Nuxt API 應清空 `paymentReceivedAt`。第一版不提供付款明細、付款方式、收據或退款流程。
+
+`repairMarks` 採整組覆蓋；server 會先驗證 template 與 board type 是否一致，再替換現有 mark set。第一版不保存 repair mark 歷史版本。
 
 Response：
 
@@ -535,6 +659,36 @@ Response：
   }
 }
 ```
+
+### `POST /api/admin/work-orders/{id}/quick-note`
+
+掃碼頁快速內部備註。這支 endpoint 只接受單一 `note` 欄位，並將內容附加到 `work_orders.internal_note` 尾端，不覆蓋既有內容。
+
+Request：
+
+```json
+{
+  "note": "客人下午五點後再來取"
+}
+```
+
+Response：`201`
+
+```json
+{
+  "data": {
+    "id": "b1be8b4e-bd70-4b8a-8d45-1bde198c90a4",
+    "internalNote": "靠近後場層架\n客人下午五點後再來取",
+    "updatedAt": "2026-06-09T08:30:00.000Z"
+  }
+}
+```
+
+規則：
+
+- 空字串或缺少 `note` 回 `422 VALIDATION_ERROR`
+- 未知欄位必須拒絕
+- 若附加內容與現有某一行完全相同，server 保留現有內容，不重複追加
 
 ### `POST /api/admin/work-orders/{id}/status`
 
@@ -1329,12 +1483,28 @@ Response：
 {
   "data": {
     "paperOrderNo": "BR-2026-0001",
+    "boardType": "SURFBOARD",
     "currentStatus": "REPAIRING",
     "statusLabel": "維修中",
     "estimatedCompletionDate": "2026-04-26",
     "initialQuoteAmount": 500,
     "publicNote": "維修中，預估下週完成",
     "lastUpdatedAt": "2026-04-20T09:30:00.000Z",
+    "repairCount": 2,
+    "repairCountSource": "auto",
+    "repairMarkCount": 2,
+    "repairMarks": [
+      {
+        "id": "2e9c6ad4-1e84-43ee-bdb7-87b9afc2cc8e",
+        "boardSide": "front",
+        "templateKey": "SURFBOARD:front:v1",
+        "xRatio": 0.45,
+        "yRatio": 0.28,
+        "widthRatio": 0.18,
+        "heightRatio": 0.12,
+        "sortOrder": 0
+      }
+    ],
     "progress": {
       "kind": "timeline",
       "currentStepKey": "REPAIRING",
@@ -1356,6 +1526,7 @@ Request rules：
 - `phone` 必須是可正規化為台灣手機的完整號碼。
 - 只接受 `paperOrderNo` 與 `phone` 兩個欄位；未知欄位回 `422 VALIDATION_ERROR`。
 - `lastUpdatedAt` 固定等於 `work_orders.updated_at`。
+- `repairMarks` 為只讀資料，供 `/repair-status` 顯示正面 / 背面示意圖；顧客端不可編輯。
 
 `progress` 是 discriminated union：
 

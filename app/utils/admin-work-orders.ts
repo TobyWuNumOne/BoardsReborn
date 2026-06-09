@@ -1,6 +1,7 @@
 import type { LocationQuery, LocationQueryRaw } from 'vue-router';
 import { z } from 'zod';
 import type { Database } from '../../types/database.types';
+import type { RepairCountSource, RepairMark } from './repair-marks';
 
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 type BoardType = Database['public']['Enums']['board_type'];
@@ -102,6 +103,10 @@ export interface AdminWorkOrderDetailItem {
   paymentReceivedAt: string | null;
   pickupInfo: AdminWorkOrderPickupInfo;
   publicNote: string | null;
+  repairCount: number | null;
+  repairCountSource: RepairCountSource;
+  repairMarkCount: number;
+  repairMarks: RepairMark[];
   quoteItems: AdminWorkOrderQuoteItem[];
   quoteTotalAmount: number | null;
   statusHistory: AdminWorkOrderStatusHistoryItem[];
@@ -109,6 +114,73 @@ export interface AdminWorkOrderDetailItem {
 
 export interface AdminWorkOrderDetailResponse {
   data: AdminWorkOrderDetailItem;
+}
+
+export type AdminWorkOrderScanAction =
+  | 'add_note'
+  | 'mark_delivered'
+  | 'mark_paid'
+  | 'open_detail'
+  | 'update_status';
+
+export interface AdminWorkOrderScanHistoryItem {
+  changedAt: string;
+  fromStatus: WorkOrderStatus | null;
+  id: string;
+  note: string | null;
+  toStatus: WorkOrderStatus;
+}
+
+export interface AdminWorkOrderScanLookupData {
+  availableActions: AdminWorkOrderScanAction[];
+  availableStatusTransitions: WorkOrderStatus[];
+  board: {
+    boardLengthClass: BoardLengthClass | null;
+    brand: string | null;
+    color: string | null;
+    damageDescription: string | null;
+    serialLabel: string | null;
+    sizeLabel: string | null;
+    type: BoardType | null;
+  };
+  customer: {
+    name: string | null;
+    phone: string | null;
+  };
+  notes: {
+    internalNote: string | null;
+    pickupNote: string | null;
+    publicNote: string | null;
+  };
+  pricing: {
+    additionalAmount: number | null;
+    finalAmount: number | null;
+    initialQuoteAmount: number | null;
+  };
+  recentHistory: AdminWorkOrderScanHistoryItem[];
+  summary: {
+    daysInShop: number | null;
+    estimatedCompletedAt: string | null;
+    id: string;
+    isOverdue: boolean;
+    lastUpdatedAt: string;
+    paperOrderNo: string;
+    paymentReceived: boolean;
+    receivedAt: string | null;
+    status: WorkOrderStatus;
+  };
+}
+
+export interface AdminWorkOrderScanLookupResponse {
+  data: AdminWorkOrderScanLookupData;
+}
+
+export interface AdminWorkOrderScanQuickNoteResponse {
+  data: {
+    id: string;
+    internalNote: string | null;
+    updatedAt: string;
+  };
 }
 
 export interface AdminWorkOrderResolveItem {
@@ -167,6 +239,9 @@ export interface AdminWorkOrderEditFormState {
   paymentReceived: boolean;
   pickupNote: string;
   publicNote: string;
+  repairCount: string;
+  repairCountSource: RepairCountSource;
+  repairMarks: RepairMark[];
   storageFeeWarningAfterDays: string;
 }
 
@@ -183,6 +258,9 @@ export interface AdminWorkOrderEditNormalizedSnapshot {
   paymentReceived: boolean;
   pickupNote: string | null;
   publicNote: string | null;
+  repairCount: string;
+  repairCountSource: RepairCountSource;
+  repairMarks: RepairMark[];
   storageFeeWarningAfterDays: string;
 }
 
@@ -216,6 +294,9 @@ export const ADMIN_WORK_ORDER_EDITABLE_FIELDS = [
   'estimatedCompletionDate',
   'damageDescription',
   'paymentReceived',
+  'repairCount',
+  'repairCountSource',
+  'repairMarks',
   'publicNote',
   'internalNote',
   'pickupNote',
@@ -266,6 +347,9 @@ export type AdminWorkOrderPatchPayload = Partial<{
   paymentReceived: boolean;
   pickupNote: string | null;
   publicNote: string | null;
+  repairCount: number | null;
+  repairCountSource: RepairCountSource;
+  repairMarks: RepairMark[];
   storageFeeWarningAfterDays: number;
 }>;
 
@@ -552,6 +636,23 @@ export const getWorkOrderStatusMeta = (status: WorkOrderStatus | null) =>
 export const getWorkOrderStatusLabel = (status: WorkOrderStatus | null) =>
   getWorkOrderStatusMeta(status)?.label ?? '—';
 
+export const getAdminWorkOrderScanActionLabel = (action: AdminWorkOrderScanAction) => {
+  switch (action) {
+    case 'add_note':
+      return '新增備註';
+    case 'mark_delivered':
+      return '標記已交件';
+    case 'mark_paid':
+      return '標記已付款';
+    case 'open_detail':
+      return '開啟完整工單';
+    case 'update_status':
+      return '更新狀態';
+    default:
+      return action;
+  }
+};
+
 export const getBoardTypeLabel = (boardType: BoardType | null) =>
   boardType ? BOARD_TYPE_LABELS[boardType] : '—';
 
@@ -632,6 +733,9 @@ export const createEmptyAdminWorkOrderEditFormState = (): AdminWorkOrderEditForm
   paymentReceived: false,
   pickupNote: '',
   publicNote: '',
+  repairCount: '',
+  repairCountSource: 'auto',
+  repairMarks: [],
   storageFeeWarningAfterDays: '',
 });
 
@@ -650,6 +754,9 @@ export const createAdminWorkOrderEditFormState = (
   paymentReceived: detail.paymentReceived === true,
   pickupNote: detail.pickupInfo.pickupNote ?? '',
   publicNote: detail.publicNote ?? '',
+  repairCount: detail.repairCount === null ? '' : String(detail.repairCount),
+  repairCountSource: detail.repairCountSource ?? 'auto',
+  repairMarks: (detail.repairMarks ?? []).map((mark) => ({ ...mark })),
   storageFeeWarningAfterDays:
     detail.pickupInfo.storageFeeWarningAfterDays === null
       ? ''
@@ -665,6 +772,9 @@ export const normalizeAdminWorkOrderEditFormState = (
   paymentReceived: formState.paymentReceived,
   pickupNote: normalizeNullableText(formState.pickupNote),
   publicNote: normalizeNullableText(formState.publicNote),
+  repairCount: formState.repairCount.trim(),
+  repairCountSource: formState.repairCountSource,
+  repairMarks: formState.repairMarks.map((mark) => ({ ...mark })),
   storageFeeWarningAfterDays: normalizeStorageFeeWarningInput(formState.storageFeeWarningAfterDays),
 });
 
@@ -672,7 +782,11 @@ export const getAdminWorkOrderEditDirtyFields = (
   baseline: AdminWorkOrderEditNormalizedSnapshot,
   current: AdminWorkOrderEditNormalizedSnapshot,
 ): AdminWorkOrderEditableField[] =>
-  ADMIN_WORK_ORDER_EDITABLE_FIELDS.filter((field) => baseline[field] !== current[field]);
+  ADMIN_WORK_ORDER_EDITABLE_FIELDS.filter((field) =>
+    field === 'repairMarks'
+      ? JSON.stringify(baseline.repairMarks) !== JSON.stringify(current.repairMarks)
+      : baseline[field] !== current[field],
+  );
 
 export const buildAdminWorkOrderEditPatchPayload = (
   baseline: AdminWorkOrderEditNormalizedSnapshot,
@@ -703,6 +817,26 @@ export const buildAdminWorkOrderEditPatchPayload = (
 
     if (field === 'paymentReceived') {
       payload.paymentReceived = current.paymentReceived;
+      continue;
+    }
+
+    if (field === 'repairCount') {
+      if (current.repairCount !== '' && !/^\d+$/.test(current.repairCount)) {
+        fieldErrors.repairCount = ['請輸入正整數。'];
+        continue;
+      }
+
+      payload.repairCount = current.repairCount === '' ? null : Number.parseInt(current.repairCount, 10);
+      continue;
+    }
+
+    if (field === 'repairCountSource') {
+      payload.repairCountSource = current.repairCountSource;
+      continue;
+    }
+
+    if (field === 'repairMarks') {
+      payload.repairMarks = current.repairMarks.map((mark) => ({ ...mark }));
       continue;
     }
 
@@ -742,6 +876,11 @@ export const buildAdminWorkOrderEditPatchPayload = (
   }
 
   const parsedPayload = editPayloadSchema.safeParse(payload);
+
+  if (current.repairCountSource === 'manual' && !payload.repairCount && current.repairCount === '') {
+    fieldErrors.repairCount ??= [];
+    fieldErrors.repairCount.push('手動模式需要填寫維修處數。');
+  }
 
   if (!parsedPayload.success) {
     for (const issue of parsedPayload.error.issues) {

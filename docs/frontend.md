@@ -11,9 +11,11 @@
 - `/admin` 已接上 dashboard live data，第一版顯示處理中工單 breakdown、管理 summary 與 quick entries。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
 - `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation。
-- `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API，並已補 tablet-first F8A/F8B 快捷輸入與 sticky 必填摘要。
+- `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API，並已補 tablet-first F8A/F8B 快捷輸入、sticky 必填摘要，以及 Konva repair marks modal。
 - `/admin/work-orders/bulk-status` 已實作第一版批量狀態頁，採 preview 搜尋、共享狀態與依狀態分組的快捷操作。
-- `/repair-status` 已實作顧客查進度頁，採同頁查詢表單與結果切換。
+- `/admin/scan` 已實作第一版掃碼查詢頁，支援單張工單 lookup、付款 / 交件 / 狀態更新 / 快速備註與完整工單導頁。
+- `/repair-status` 已實作顧客查進度頁，採同頁查詢表單與結果切換，並支援只讀 repair marks 示意圖。
+- repair marks 的編輯與只讀預覽已統一 responsive 規則：`>1024px` 同時顯示正反面，`<=1024px` 改成單面切換；Konva stage 會跟著外層卡片可用空間縮放，不再依賴固定可視像素尺寸。
 - 目前 admin 前端頁面大多屬第一版雛形：已建立主要流程、資訊架構與操作方向，但欄位編排、文案、資訊層級、互動回饋與 mode 細節不視為最終定稿，預期會在與甲方討論後進入第二版調整。
 
 ## Styling Strategy
@@ -35,6 +37,7 @@
 - `/admin/work-orders`
 - `/admin/work-orders/new`
 - `/admin/work-orders/bulk-status`
+- `/admin/scan`
 - `/admin/work-orders/[id]`
 - `/admin/printing`
 - `/admin/printing/workers`
@@ -85,6 +88,7 @@
   - progress timeline / cancelled state
   - 預估完成日
   - 初始報價
+  - 只讀 repair marks 示意圖與維修處數
   - 公開備註
   - 最近更新時間
 - public progress 由 server 回傳，不由前端自行推導。
@@ -141,6 +145,13 @@
 - Supabase client 在前端只用於 auth session / email-password sign-in / sign-out。
 - 工單條碼與現場輸入以 `paper_order_no` 為主；需要 UUID-based detail/update/status endpoint 時，前端先呼叫 resolve endpoint 取得 `work_orders.id`。
 
+掃碼頁使用：
+
+- `GET /api/admin/work-orders/lookup`
+- `PATCH /api/admin/work-orders/{id}`
+- `POST /api/admin/work-orders/{id}/status`
+- `POST /api/admin/work-orders/{id}/quick-note`
+
 列印中心與 Worker 管理使用：
 
 - `GET /api/admin/print-jobs`
@@ -153,6 +164,9 @@
 
 - 表單驗證使用 Zod。
 - 表單狀態第一版手寫管理，不導入 vee-validate 或其他表單框架。
+- Konva / vue-konva 只在 `ClientOnly` 內使用，並透過 client-only Nuxt plugin 註冊，避免 SSR 嘗試存取 canvas / window。
+- repair marks 的板面容器以卡片可用空間為準，persisted mark 仍維持 normalized ratio；前端只改當下渲染尺寸，不改資料格式。
+- repair marks 響應式規則固定為：`>1024px` 雙面並排，`<=1024px` 單面切換。
 - 每個 form page 至少定義：
   - idle
   - dirty
@@ -223,6 +237,7 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 報價資訊
   - 取件資訊
   - 狀態歷史
+- detail 的只讀 `受損位置` 預覽需獨立使用一整列，不與 `板子資訊` 共用同一排寬度，避免平板寬度下雙面預覽被擠壓裁切。
 - detail header 若顯示板型摘要，需一併顯示衝浪板長度分類摘要。
 - F5B 的 edit mode 規則：
   - 單一整頁表單與單一 Save / Reset
@@ -287,6 +302,24 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - trim
 - preview 區只保留掃碼後核對狀態所需的工單資料，不顯示列印摘要或列印操作。
 - recent batch result 區只顯示 updated / skipped 摘要與狀態結果，不顯示列印摘要。
+
+## Scan Page
+
+- `/admin/scan` 是獨立的現場單張工單工具頁，不是 detail page 的 mode，也不取代列表或批量頁。
+- 頁面頂部固定一個長駐搜尋欄，placeholder 固定為 `掃描或輸入工單號`。
+- keyboard wedge 規則：
+  - 掃碼頁：`Enter` 代表立即查詢
+  - 批量頁：`Enter` 代表分隔不同單號，不直接送出整批查詢
+  - 工單列表頁：`Enter` 可作為一般搜尋送出
+- 掃碼頁查詢完成後，input 需自動全選，方便下一次掃描直接覆蓋。
+- 掃碼頁成功操作後，應重新 fetch 同一筆 lookup payload，讓主卡片、付款狀態與快速操作依最新 server 狀態更新。
+- 第一版快速操作只做：
+  - 標記已付款
+  - 標記已交件
+  - 更新狀態
+  - 新增備註
+  - 開啟完整工單
+- 第一版不在掃碼頁內完成照片上傳或追加費用，這些仍導去完整工單頁。
 
 ## Printing Center
 

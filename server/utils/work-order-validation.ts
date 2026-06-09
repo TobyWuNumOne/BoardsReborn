@@ -16,6 +16,8 @@ export const WORK_ORDER_LIST_SORT_FIELDS = [
 
 const BOARD_TYPES = ['SURFBOARD', 'SUP', 'SNOWBOARD'] as const;
 const BOARD_LENGTH_CLASSES = ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'] as const;
+const REPAIR_COUNT_SOURCES = ['auto', 'manual'] as const;
+const REPAIR_MARK_BOARD_SIDES = ['front', 'back'] as const;
 const QUOTE_ITEM_TYPES = ['INITIAL', 'ADDITIONAL', 'ADJUSTMENT'] as const;
 const WORK_ORDER_STATUSES = [
   'RECEIVED',
@@ -30,6 +32,9 @@ const PATCH_ALLOWED_FIELDS = [
   'estimatedCompletionDate',
   'damageDescription',
   'paymentReceived',
+  'repairCount',
+  'repairCountSource',
+  'repairMarks',
   'publicNote',
   'internalNote',
   'pickupNote',
@@ -38,6 +43,8 @@ const PATCH_ALLOWED_FIELDS = [
 
 const BULK_STATUS_ALLOWED_FIELDS = ['paperOrderNos', 'status', 'note'] as const;
 const PUBLIC_WORK_ORDER_LOOKUP_ALLOWED_FIELDS = ['paperOrderNo', 'phone'] as const;
+const ADMIN_WORK_ORDER_SCAN_LOOKUP_ALLOWED_QUERY_FIELDS = ['code'] as const;
+const ADMIN_WORK_ORDER_SCAN_QUICK_NOTE_ALLOWED_FIELDS = ['note'] as const;
 const STATUS_TRANSITION_ALLOWED_FIELDS = ['status', 'note', 'internalNote'] as const;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -46,6 +53,8 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export type BoardType = Database['public']['Enums']['board_type'];
 export type BoardLengthClass = Database['public']['Enums']['board_length_class'];
 export type QuoteItemType = Database['public']['Enums']['quote_item_type'];
+export type RepairCountSource = Database['public']['Enums']['repair_count_source'];
+export type RepairMarkBoardSide = Database['public']['Enums']['repair_mark_board_side'];
 export type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 export type WorkOrderListSortField = (typeof WORK_ORDER_LIST_SORT_FIELDS)[number];
 
@@ -55,6 +64,10 @@ export interface CustomerLookupQuery {
 
 export interface PaperOrderResolveQuery {
   paperOrderNo: string;
+}
+
+export interface AdminWorkOrderScanLookupQuery {
+  code: string;
 }
 
 export interface PublicWorkOrderLookupInput {
@@ -102,6 +115,15 @@ export interface CreateWorkOrderInput {
     description: string;
     itemType: QuoteItemType;
   }>;
+  repairMarks: Array<{
+    boardSide: RepairMarkBoardSide;
+    heightRatio: number;
+    sortOrder: number;
+    templateKey: string;
+    widthRatio: number;
+    xRatio: number;
+    yRatio: number;
+  }>;
   workOrder: {
     damageDescription?: string | null;
     estimatedCompletionDate?: string | null;
@@ -110,6 +132,8 @@ export interface CreateWorkOrderInput {
     paperOrderNo: string;
     paymentReceived: boolean;
     publicNote?: string | null;
+    repairCount?: number | null;
+    repairCountSource?: RepairCountSource;
   };
 }
 
@@ -120,6 +144,17 @@ export interface PatchWorkOrderInput {
   paymentReceived?: boolean;
   pickupNote?: string | null;
   publicNote?: string | null;
+  repairCount?: number | null;
+  repairCountSource?: RepairCountSource;
+  repairMarks?: Array<{
+    boardSide: RepairMarkBoardSide;
+    heightRatio: number;
+    sortOrder: number;
+    templateKey: string;
+    widthRatio: number;
+    xRatio: number;
+    yRatio: number;
+  }>;
   storageFeeWarningAfterDays?: number;
 }
 
@@ -135,6 +170,10 @@ export interface StatusTransitionInput {
   internalNote?: string | null;
   note?: string | null;
   status: WorkOrderStatus;
+}
+
+export interface AdminWorkOrderScanQuickNoteInput {
+  note: string;
 }
 
 type ErrorCollector = FieldErrors;
@@ -357,6 +396,49 @@ const parseInteger = (
   return value;
 };
 
+const parseNullablePositiveInteger = (
+  value: unknown,
+  field: string,
+  errors: ErrorCollector,
+): number | null | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  return parsePositiveInteger(value, field, errors);
+};
+
+const parseRatio = (
+  value: unknown,
+  field: string,
+  errors: ErrorCollector,
+  options: { allowZero?: boolean } = {},
+): number | undefined => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    addError(errors, field, 'Must be a number.');
+    return undefined;
+  }
+
+  const lowerBoundValid = options.allowZero ? value >= 0 : value > 0;
+
+  if (!lowerBoundValid || value > 1) {
+    addError(
+      errors,
+      field,
+      options.allowZero
+        ? 'Must be between 0 and 1.'
+        : 'Must be greater than 0 and less than or equal to 1.',
+    );
+    return undefined;
+  }
+
+  return value;
+};
+
 const parseEnum = <Value extends string>(
   value: unknown,
   field: string,
@@ -387,6 +469,85 @@ const parseUuidValue = (
   }
 
   return value;
+};
+
+const parseRepairMarkArray = (
+  value: unknown,
+  field: string,
+  boardType: BoardType | null,
+  errors: ErrorCollector,
+) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    addError(errors, field, 'Must be an array.');
+    return undefined;
+  }
+
+  return value
+    .map((entry, index) => {
+      const entryField = `${field}.${index}`;
+
+      if (!isRecord(entry)) {
+        addError(errors, entryField, 'Must be an object.');
+        return {
+          boardSide: 'front' as RepairMarkBoardSide,
+          heightRatio: 0.1,
+          sortOrder: index,
+          templateKey: '',
+          widthRatio: 0.1,
+          xRatio: 0.5,
+          yRatio: 0.5,
+        };
+      }
+
+      return {
+        boardSide:
+          parseEnum(
+            entry.boardSide,
+            `${entryField}.boardSide`,
+            REPAIR_MARK_BOARD_SIDES,
+            errors,
+          ) ?? 'front',
+        heightRatio:
+          parseRatio(entry.heightRatio, `${entryField}.heightRatio`, errors) ?? 0.1,
+        sortOrder: parseInteger(entry.sortOrder, `${entryField}.sortOrder`, errors) ?? index,
+        templateKey:
+          parseRequiredString(entry.templateKey, `${entryField}.templateKey`, errors, {
+            maxLength: 80,
+            minLength: 3,
+          }) ?? '',
+        widthRatio:
+          parseRatio(entry.widthRatio, `${entryField}.widthRatio`, errors) ?? 0.1,
+        xRatio:
+          parseRatio(entry.xRatio, `${entryField}.xRatio`, errors, { allowZero: true }) ?? 0.5,
+        yRatio:
+          parseRatio(entry.yRatio, `${entryField}.yRatio`, errors, { allowZero: true }) ?? 0.5,
+      };
+    })
+    .map((mark, index) => {
+      if (!boardType) {
+        return mark;
+      }
+
+      const expectedTemplate = `${boardType}:${mark.boardSide}:v1`;
+
+      if (mark.templateKey !== expectedTemplate) {
+        addError(
+          errors,
+          `${field}.${index}.templateKey`,
+          `Must match ${expectedTemplate}.`,
+        );
+      }
+
+      if (mark.sortOrder < 0) {
+        addError(errors, `${field}.${index}.sortOrder`, 'Must be greater than or equal to 0.');
+      }
+
+      return mark;
+    });
 };
 
 export const parseUuid = (value: unknown, field: string): string => {
@@ -424,6 +585,33 @@ export const parsePaperOrderResolveQuery = (
   assertNoErrors(errors);
 
   return { paperOrderNo: paperOrderNo as string };
+};
+
+export const parseAdminWorkOrderScanLookupQuery = (
+  query: Record<string, unknown>,
+): AdminWorkOrderScanLookupQuery => {
+  const errors: ErrorCollector = {};
+  const unknownFields = Object.keys(query).filter(
+    (field) =>
+      !ADMIN_WORK_ORDER_SCAN_LOOKUP_ALLOWED_QUERY_FIELDS.includes(
+        field as (typeof ADMIN_WORK_ORDER_SCAN_LOOKUP_ALLOWED_QUERY_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const codeValue = getSingleQueryValue(query, 'code', errors);
+  const code = codeValue === undefined ? undefined : parsePaperOrderNoValue(codeValue, 'code', errors);
+
+  if (codeValue === undefined) {
+    addError(errors, 'code', 'Is required.');
+  }
+
+  assertNoErrors(errors);
+
+  return { code: code as string };
 };
 
 export const parseCustomerLookupQuery = (query: Record<string, unknown>): CustomerLookupQuery => {
@@ -599,10 +787,12 @@ export const parseCreateWorkOrderBody = (body: unknown): CreateWorkOrderInput =>
     },
     customerMode: customerMode ?? 'create',
     quoteItems: [],
+    repairMarks: [],
     workOrder: {
       intakeDate: '',
       paperOrderNo: '',
       paymentReceived: false,
+      repairCountSource: 'auto',
     },
   };
 
@@ -705,7 +895,27 @@ export const parseCreateWorkOrderBody = (body: unknown): CreateWorkOrderInput =>
           defaultValue: false,
         }) ?? false,
       publicNote: parseOptionalString(workOrder.publicNote, 'workOrder.publicNote', errors),
+      repairCount: parseNullablePositiveInteger(
+        workOrder.repairCount,
+        'workOrder.repairCount',
+        errors,
+      ),
+      repairCountSource:
+        workOrder.repairCountSource === undefined
+          ? undefined
+          : parseEnum(
+              workOrder.repairCountSource,
+              'workOrder.repairCountSource',
+              REPAIR_COUNT_SOURCES,
+              errors,
+            ),
     };
+  }
+
+  if (hasOwn(body, 'repairMarks')) {
+    parsedInput.repairMarks =
+      parseRepairMarkArray(body.repairMarks, 'repairMarks', parsedInput.board.boardType, errors) ??
+      [];
   }
 
   if (body.quoteItems !== undefined) {
@@ -744,6 +954,25 @@ export const parseCreateWorkOrderBody = (body: unknown): CreateWorkOrderInput =>
         addError(errors, 'quoteItems', 'Only one INITIAL quote item is allowed.');
       }
     }
+  }
+
+  if (parsedInput.workOrder.repairCountSource === 'manual') {
+    if (parsedInput.workOrder.repairCount === undefined || parsedInput.workOrder.repairCount === null) {
+      addError(errors, 'workOrder.repairCount', 'Is required when repairCountSource is manual.');
+    }
+  }
+
+  if (
+    parsedInput.workOrder.repairCountSource !== 'manual' &&
+    parsedInput.workOrder.repairCount !== undefined &&
+    parsedInput.workOrder.repairCount !== null &&
+    parsedInput.workOrder.repairCount !== parsedInput.repairMarks.length
+  ) {
+    addError(
+      errors,
+      'workOrder.repairCount',
+      'Must match repairMarks length when repairCountSource is auto.',
+    );
   }
 
   assertNoErrors(errors);
@@ -791,6 +1020,28 @@ export const parsePatchWorkOrderBody = (body: unknown): PatchWorkOrderInput => {
     });
   }
 
+  if (hasOwn(body, 'repairCountSource')) {
+    patch.repairCountSource = parseEnum(
+      body.repairCountSource,
+      'repairCountSource',
+      REPAIR_COUNT_SOURCES,
+      errors,
+    );
+  }
+
+  if (hasOwn(body, 'repairCount')) {
+    patch.repairCount = parseNullablePositiveInteger(body.repairCount, 'repairCount', errors);
+  }
+
+  if (hasOwn(body, 'repairMarks')) {
+    patch.repairMarks = parseRepairMarkArray(
+      body.repairMarks,
+      'repairMarks',
+      null,
+      errors,
+    );
+  }
+
   if (hasOwn(body, 'publicNote')) {
     patch.publicNote = parseOptionalString(body.publicNote, 'publicNote', errors);
   }
@@ -819,6 +1070,10 @@ export const parsePatchWorkOrderBody = (body: unknown): PatchWorkOrderInput => {
 
   if (Object.keys(body).length === 0) {
     addError(errors, 'body', 'At least one update field is required.');
+  }
+
+  if (patch.repairCountSource === 'manual' && patch.repairCount === undefined) {
+    addError(errors, 'repairCount', 'Is required when repairCountSource is manual.');
   }
 
   assertNoErrors(errors);
@@ -931,4 +1186,39 @@ export const parseStatusTransitionBody = (body: unknown): StatusTransitionInput 
   assertNoErrors(errors);
 
   return input;
+};
+
+export const parseAdminWorkOrderScanQuickNoteBody = (
+  body: unknown,
+): AdminWorkOrderScanQuickNoteInput => {
+  const errors: ErrorCollector = {};
+
+  if (!isRecord(body)) {
+    throw new ValidationError({ body: ['Must be a JSON object.'] });
+  }
+
+  const unknownFields = Object.keys(body).filter(
+    (field) =>
+      !ADMIN_WORK_ORDER_SCAN_QUICK_NOTE_ALLOWED_FIELDS.includes(
+        field as (typeof ADMIN_WORK_ORDER_SCAN_QUICK_NOTE_ALLOWED_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const note = hasOwn(body, 'note')
+    ? parseRequiredString(body.note, 'note', errors, { maxLength: 2000 })
+    : undefined;
+
+  if (!hasOwn(body, 'note')) {
+    addError(errors, 'note', 'Is required.');
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    note: note as string,
+  };
 };

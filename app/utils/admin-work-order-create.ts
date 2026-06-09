@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Database } from '../../types/database.types';
 import { normalizeTaiwanMobilePhoneInput } from './phone';
+import type { RepairCountSource, RepairMark } from './repair-marks';
 
 type BoardType = Database['public']['Enums']['board_type'];
 type BoardLengthClass = Database['public']['Enums']['board_length_class'];
@@ -79,6 +80,9 @@ export interface AdminWorkOrderCreateFormState {
   paperOrderNo: string;
   paymentReceived: boolean;
   publicNote: string;
+  repairCount: string;
+  repairCountSource: RepairCountSource;
+  repairMarks: RepairMark[];
   selectedCustomerId: string;
 }
 
@@ -102,6 +106,9 @@ export interface AdminWorkOrderCreateNormalizedSnapshot {
   paperOrderNo: string;
   paymentReceived: boolean;
   publicNote: string;
+  repairCount: string;
+  repairCountSource: RepairCountSource;
+  repairMarks: RepairMark[];
   selectedCustomerId: string;
 }
 
@@ -125,6 +132,7 @@ export interface AdminWorkOrderCreatePayload {
     description: string;
     itemType: 'INITIAL';
   }>;
+  repairMarks?: RepairMark[];
   workOrder: {
     damageDescription: string;
     estimatedCompletionDate: string;
@@ -133,6 +141,8 @@ export interface AdminWorkOrderCreatePayload {
     paperOrderNo: string;
     paymentReceived: boolean;
     publicNote?: string | null;
+    repairCount?: number | null;
+    repairCountSource?: RepairCountSource;
   };
 }
 
@@ -242,6 +252,9 @@ const createFormSchema = z
     paperOrderNo: z.string(),
     paymentReceived: z.boolean(),
     publicNote: z.string(),
+    repairCount: z.string(),
+    repairCountSource: z.enum(['auto', 'manual']),
+    repairMarks: z.array(z.any()),
     selectedCustomerId: z.string(),
   })
   .superRefine((value, ctx) => {
@@ -375,6 +388,30 @@ const createFormSchema = z
           path: ['initialQuoteAmount'],
         });
       }
+    }
+
+    if (value.repairCount && !/^\d+$/.test(value.repairCount)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '維修處數必須是正整數。',
+        path: ['repairCount'],
+      });
+    }
+
+    if (value.repairCount && /^\d+$/.test(value.repairCount) && Number.parseInt(value.repairCount, 10) < 1) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '維修處數必須大於 0。',
+        path: ['repairCount'],
+      });
+    }
+
+    if (value.repairCountSource === 'manual' && !value.repairCount) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '手動模式需要填寫維修處數。',
+        path: ['repairCount'],
+      });
     }
   });
 
@@ -526,6 +563,9 @@ export const createAdminWorkOrderCreateInitialFormState = (
   paperOrderNo: '',
   paymentReceived: false,
   publicNote: '',
+  repairCount: '',
+  repairCountSource: 'auto',
+  repairMarks: [],
   selectedCustomerId: '',
 });
 
@@ -551,6 +591,9 @@ export const normalizeAdminWorkOrderCreateFormState = (
   paperOrderNo: trimValue(formState.paperOrderNo),
   paymentReceived: formState.paymentReceived,
   publicNote: trimValue(formState.publicNote),
+  repairCount: trimValue(formState.repairCount),
+  repairCountSource: formState.repairCountSource,
+  repairMarks: formState.repairMarks.map((mark) => ({ ...mark })),
   selectedCustomerId: trimValue(formState.selectedCustomerId),
 });
 
@@ -616,6 +659,21 @@ export const buildAdminWorkOrderCreatePayload = (
       paymentReceived: parsedForm.data.paymentReceived,
     },
   };
+
+  if (parsedForm.data.repairMarks.length > 0) {
+    payload.repairMarks = parsedForm.data.repairMarks.map((mark: RepairMark) => ({ ...mark }));
+  }
+
+  if (parsedForm.data.repairCountSource === 'manual') {
+    payload.workOrder.repairCount =
+      parsedForm.data.repairCount === ''
+        ? null
+        : Number.parseInt(parsedForm.data.repairCount, 10);
+    payload.workOrder.repairCountSource = 'manual';
+  } else if (parsedForm.data.repairMarks.length > 0) {
+    payload.workOrder.repairCount = parsedForm.data.repairMarks.length;
+    payload.workOrder.repairCountSource = 'auto';
+  }
 
   if (parsedForm.data.customerModeDecision === 'create') {
     payload.customer = {

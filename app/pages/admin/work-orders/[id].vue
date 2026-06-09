@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { parseDate } from '@internationalized/date';
-import { CalendarIcon } from 'lucide-vue-next';
+import { CalendarIcon, MapPinnedIcon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import type { AdminPrintSummaryItem, AdminPrintSummaryResponse } from '~/utils/admin-printing';
+import type { RepairCountSource, RepairMark } from '~/utils/repair-marks';
 import {
   createEmptyAdminPrintSummary,
   getAdminPrintActionLabel,
@@ -46,7 +47,10 @@ import {
   normalizeAdminWorkOrderEditFormState,
 } from '~/utils/admin-work-orders';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
+import { deriveRepairCount, getRepairMarkSurfaceLabel, summarizeRepairMarks } from '~/utils/repair-marks';
 import PrintJobStatusBadge from '~/components/printing/PrintJobStatusBadge.vue';
+import RepairMarksEditorDialog from '~/components/work-orders/RepairMarksEditorDialog.vue';
+import RepairMarksSurfaceGallery from '~/components/work-orders/RepairMarksSurfaceGallery.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 import { Textarea } from '~/components/ui/textarea';
 
@@ -118,6 +122,7 @@ const lastSyncedWorkOrderId = ref<string | null>(null);
 const shouldSyncEditFormOnNextRefresh = ref(false);
 const isSubmittingEditForm = ref(false);
 const editEstimatedDatePopoverOpen = ref(false);
+const repairMarksDialogOpen = ref(false);
 const clientEditFieldErrors = ref<Record<string, string[]>>({});
 const submitEditApiError = ref<ApiErrorEnvelope | null>(null);
 const workForm = reactive<AdminWorkOrderWorkFormState>(createEmptyAdminWorkOrderWorkFormState());
@@ -419,6 +424,16 @@ const canSubmitWorkForm = computed(
 const currentStatusMeta = computed(() =>
   detail.value?.currentStatus ? getWorkOrderStatusMeta(detail.value.currentStatus) : null,
 );
+const detailRepairMarksSummary = computed(() =>
+  detail.value ? summarizeRepairMarks(detail.value.repairMarks) : { backCount: 0, frontCount: 0, totalCount: 0 },
+);
+const editRepairCountMismatch = computed(() => {
+  if (editForm.repairCountSource !== 'manual' || !editForm.repairCount) {
+    return false;
+  }
+
+  return Number.parseInt(editForm.repairCount, 10) !== editForm.repairMarks.length;
+});
 
 const headerTitle = computed(
   () => detail.value?.paperOrderNo ?? routeWorkOrderId.value ?? '工單詳情',
@@ -707,6 +722,32 @@ const handleEditFieldInput = () => {
 
 const handlePaymentReceivedChange = (nextValue: boolean | 'indeterminate') => {
   editForm.paymentReceived = nextValue === true;
+  clearEditFeedback();
+};
+
+const openRepairMarksDialog = () => {
+  if (!detail.value?.board.boardType) {
+    return;
+  }
+
+  repairMarksDialogOpen.value = true;
+  clearEditFeedback();
+};
+
+const handleRepairMarksSave = (payload: {
+  repairCount: string;
+  repairCountSource: RepairCountSource;
+  repairMarks: RepairMark[];
+}) => {
+  editForm.repairMarks = payload.repairMarks;
+  editForm.repairCountSource = payload.repairCountSource;
+  editForm.repairCount =
+    payload.repairCountSource === 'auto'
+      ? (() => {
+          const derivedCount = deriveRepairCount(payload.repairMarks);
+          return derivedCount === null ? '' : String(derivedCount);
+        })()
+      : payload.repairCount;
   clearEditFeedback();
 };
 
@@ -1460,6 +1501,33 @@ if (import.meta.client) {
                 <FieldError :errors="editFieldErrors.damageDescription" />
               </Field>
 
+              <Field :data-invalid="editFieldErrors.repairCount?.length ? 'true' : undefined">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div class="space-y-1">
+                    <FieldLabel>受損位置標記</FieldLabel>
+                    <FieldDescription>
+                      已標記 {{ editForm.repairMarks.length }} 處，可開啟 Konva 面板調整。
+                    </FieldDescription>
+                  </div>
+                  <Button type="button" variant="outline" @click="openRepairMarksDialog">
+                    <MapPinnedIcon class="size-4" />
+                    受損位置
+                  </Button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <Badge variant="outline">來源：{{ editForm.repairCountSource === 'auto' ? '自動' : '手動' }}</Badge>
+                  <Badge variant="outline">維修處數：{{ editForm.repairCount || '—' }}</Badge>
+                </div>
+                <FieldError :errors="editFieldErrors.repairCount" />
+              </Field>
+
+              <Alert v-if="editRepairCountMismatch">
+                <AlertTitle>維修處數已手動調整</AlertTitle>
+                <AlertDescription>
+                  已標記 {{ editForm.repairMarks.length }} 處，但維修處數手動設定為 {{ editForm.repairCount }} 處。
+                </AlertDescription>
+              </Alert>
+
               <Field :data-invalid="editFieldErrors.publicNote?.length ? 'true' : undefined">
                 <FieldLabel for="edit-public-note">公開備註</FieldLabel>
                 <Textarea
@@ -1535,39 +1603,65 @@ if (import.meta.client) {
         </Card>
       </div>
 
-      <div v-else class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>板子資訊</CardTitle>
-            <CardDescription>工單建立時保留的板子快照欄位。</CardDescription>
-          </CardHeader>
-          <CardContent class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div v-for="field in boardFields" :key="field.label" class="space-y-1">
-              <p class="text-sm text-muted-foreground">{{ field.label }}</p>
-              <p class="text-sm font-medium">{{ field.value }}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>取件資訊</CardTitle>
-            <CardDescription>第一版 pickup 資料來自 `work_orders` inline 欄位。</CardDescription>
-          </CardHeader>
-          <CardContent class="space-y-6">
-            <div class="grid gap-4 sm:grid-cols-2">
-              <div v-for="field in pickupFields" :key="field.label" class="space-y-1">
+      <div v-else class="space-y-4">
+        <div class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          <Card>
+            <CardHeader>
+              <CardTitle>板子資訊</CardTitle>
+              <CardDescription>工單建立時保留的板子快照欄位。</CardDescription>
+            </CardHeader>
+            <CardContent class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div v-for="field in boardFields" :key="field.label" class="space-y-1">
                 <p class="text-sm text-muted-foreground">{{ field.label }}</p>
                 <p class="text-sm font-medium">{{ field.value }}</p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>取件資訊</CardTitle>
+              <CardDescription>第一版 pickup 資料來自 `work_orders` inline 欄位。</CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-6">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div v-for="field in pickupFields" :key="field.label" class="space-y-1">
+                  <p class="text-sm text-muted-foreground">{{ field.label }}</p>
+                  <p class="text-sm font-medium">{{ field.value }}</p>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-sm text-muted-foreground">取件備註</p>
+                <p class="rounded-lg border bg-muted/20 px-3 py-2 text-sm leading-6">
+                  {{ formatNullableText(detail.pickupInfo.pickupNote) }}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>受損位置</CardTitle>
+            <CardDescription>只讀顯示 repair marks 與維修處數摘要。</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="flex flex-wrap gap-2">
+              <Badge variant="outline">正面 {{ detailRepairMarksSummary.frontCount }} 處</Badge>
+              <Badge variant="outline">背面 {{ detailRepairMarksSummary.backCount }} 處</Badge>
+              <Badge variant="outline">維修處數 {{ detail.repairCount ?? '—' }}</Badge>
             </div>
 
-            <div class="space-y-2">
-              <p class="text-sm text-muted-foreground">取件備註</p>
-              <p class="rounded-lg border bg-muted/20 px-3 py-2 text-sm leading-6">
-                {{ formatNullableText(detail.pickupInfo.pickupNote) }}
-              </p>
-            </div>
+            <RepairMarksSurfaceGallery
+              :board-type="detail.board.boardType || 'SURFBOARD'"
+              :canvas-height="760"
+              :canvas-width="500"
+              dual-surface-min-height-class="min-h-[24rem] xl:min-h-[34rem]"
+              :marks="detail.repairMarks"
+              single-surface-min-height-class="min-h-[30rem] xl:min-h-[38rem]"
+              surface-gap-class="gap-4"
+            />
           </CardContent>
         </Card>
       </div>
@@ -1659,6 +1753,16 @@ if (import.meta.client) {
           <p v-else class="text-sm text-muted-foreground">尚無狀態歷史。</p>
         </CardContent>
       </Card>
+
+      <RepairMarksEditorDialog
+        v-if="detailMode === 'edit' && detail?.board.boardType"
+        v-model:open="repairMarksDialogOpen"
+        :board-type="detail.board.boardType"
+        :repair-count="editForm.repairCount"
+        :repair-count-source="editForm.repairCountSource"
+        :repair-marks="editForm.repairMarks"
+        @save="handleRepairMarksSave"
+      />
     </template>
   </div>
 </template>

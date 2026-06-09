@@ -3,17 +3,22 @@ import { InternalServerError, NotFoundError, ValidationError } from '../../serve
 import { normalizeTaiwanMobilePhone } from '../../server/utils/phone';
 import { throwMappedSupabaseError } from '../../server/utils/supabase-errors';
 import {
+  appendAdminWorkOrderScanQuickNote,
   bulkAdminWorkOrderStatus,
   buildWorkOrderPatchUpdates,
   getAdminDashboardSummary,
+  getAdminWorkOrderScanAvailableActions,
   getStaleReceivedDays,
   getTaipeiDayRange,
+  mapScanRecentHistory,
   mapStatusTransitionResult,
   mapWorkOrderListRow,
   mapWorkOrderResolveRow,
   resolveAdminWorkOrderByPaperOrderNo,
 } from '../../server/utils/work-orders';
 import {
+  parseAdminWorkOrderScanLookupQuery,
+  parseAdminWorkOrderScanQuickNoteBody,
   parseBulkStatusBody,
   WORK_ORDER_LIST_SORT_FIELDS,
   parseCreateWorkOrderBody,
@@ -91,6 +96,61 @@ const createBulkStatusClient = ({
       rpc(_name: string, args: Record<string, unknown>) {
         calls.rpcArgs.push(args);
         return Promise.resolve(rpcResolver(args));
+      },
+    },
+  };
+};
+
+const createQuickNoteClient = ({
+  selectResult,
+  updateResult,
+}: {
+  selectResult: { data: unknown; error: unknown };
+  updateResult: { data: unknown; error: unknown };
+}) => {
+  const calls = {
+    selectCalls: [] as Array<{ filters: Array<{ column: string; value: string }>; table: string }>,
+    updatePayloads: [] as unknown[],
+  };
+
+  const createSelectQuery = (table: string, filters: Array<{ column: string; value: string }> = []) => ({
+    eq(column: string, value: string) {
+      return createSelectQuery(table, [...filters, { column, value }]);
+    },
+    maybeSingle() {
+      calls.selectCalls.push({ filters, table });
+      return Promise.resolve(selectResult);
+    },
+    select() {
+      return createSelectQuery(table, filters);
+    },
+  });
+
+  const createUpdateQuery = (table: string, payload: unknown, filters: Array<{ column: string; value: string }> = []) => ({
+    eq(column: string, value: string) {
+      return createUpdateQuery(table, payload, [...filters, { column, value }]);
+    },
+    select() {
+      return createUpdateQuery(table, payload, filters);
+    },
+    single() {
+      calls.updatePayloads.push({ filters, payload, table });
+      return Promise.resolve(updateResult);
+    },
+  });
+
+  return {
+    calls,
+    client: {
+      from(table: string) {
+        return {
+          select() {
+            return createSelectQuery(table);
+          },
+          update(payload: unknown) {
+            return createUpdateQuery(table, payload);
+          },
+        };
       },
     },
   };
@@ -251,6 +311,17 @@ describe('work order API validation', () => {
     );
     expectValidationField(
       () => parsePaperOrderResolveQuery({ paperOrderNo: 'A'.repeat(51) }),
+      'paperOrderNo',
+    );
+  });
+
+  it('validates scan lookup query and rejects unsupported fields', () => {
+    expect(parseAdminWorkOrderScanLookupQuery({ code: '  BR-2026-0001  ' })).toEqual({
+      code: 'BR-2026-0001',
+    });
+    expectValidationField(() => parseAdminWorkOrderScanLookupQuery({}), 'code');
+    expectValidationField(
+      () => parseAdminWorkOrderScanLookupQuery({ code: 'BR-2026-0001', paperOrderNo: 'extra' }),
       'paperOrderNo',
     );
   });
@@ -419,6 +490,17 @@ describe('work order API validation', () => {
     expectValidationField(
       () => parsePatchWorkOrderBody({ currentStatus: 'REPAIRING' }),
       'currentStatus',
+    );
+  });
+
+  it('validates scan quick note payloads', () => {
+    expect(parseAdminWorkOrderScanQuickNoteBody({ note: '  現場備註  ' })).toEqual({
+      note: '現場備註',
+    });
+    expectValidationField(() => parseAdminWorkOrderScanQuickNoteBody({}), 'note');
+    expectValidationField(
+      () => parseAdminWorkOrderScanQuickNoteBody({ note: 'ok', other: true }),
+      'other',
     );
   });
 
@@ -666,6 +748,126 @@ describe('work order API validation', () => {
         paperOrderNo: 'BR-2026-0001',
         readyForPickupAt: '2026-04-22T10:01:00.000Z',
         updatedAt: '2026-04-22T10:01:00.000Z',
+      },
+    });
+  });
+
+  it('derives scan-page actions from the current status', () => {
+    expect(getAdminWorkOrderScanAvailableActions('RECEIVED')).toEqual([
+      'update_status',
+      'add_note',
+      'open_detail',
+    ]);
+    expect(getAdminWorkOrderScanAvailableActions('READY_FOR_PICKUP')).toEqual([
+      'mark_paid',
+      'mark_delivered',
+      'add_note',
+      'open_detail',
+    ]);
+    expect(getAdminWorkOrderScanAvailableActions('DELIVERED')).toEqual(['open_detail']);
+  });
+
+  it('maps recent scan history with from/to statuses and reverse chronological order', () => {
+    expect(
+      mapScanRecentHistory([
+        {
+          changed_at: '2026-06-01T10:00:00.000Z',
+          id: 'history-1',
+          note: null,
+          status: 'RECEIVED',
+        },
+        {
+          changed_at: '2026-06-05T10:00:00.000Z',
+          id: 'history-2',
+          note: '開始除濕',
+          status: 'DRYING',
+        },
+        {
+          changed_at: '2026-06-06T10:00:00.000Z',
+          id: 'history-3',
+          note: '進入維修',
+          status: 'REPAIRING',
+        },
+        {
+          changed_at: '2026-06-08T10:00:00.000Z',
+          id: 'history-4',
+          note: '待客取件',
+          status: 'READY_FOR_PICKUP',
+        },
+      ]),
+    ).toEqual([
+      {
+        changedAt: '2026-06-08T10:00:00.000Z',
+        fromStatus: 'REPAIRING',
+        id: 'history-4',
+        note: '待客取件',
+        toStatus: 'READY_FOR_PICKUP',
+      },
+      {
+        changedAt: '2026-06-06T10:00:00.000Z',
+        fromStatus: 'DRYING',
+        id: 'history-3',
+        note: '進入維修',
+        toStatus: 'REPAIRING',
+      },
+      {
+        changedAt: '2026-06-05T10:00:00.000Z',
+        fromStatus: 'RECEIVED',
+        id: 'history-2',
+        note: '開始除濕',
+        toStatus: 'DRYING',
+      },
+    ]);
+  });
+
+  it('appends scan quick notes without overwriting existing internal notes', async () => {
+    const { calls, client } = createQuickNoteClient({
+      selectResult: {
+        data: {
+          id: 'work-order-id',
+          internal_note: '原始備註',
+          updated_at: '2026-06-09T12:00:00.000Z',
+        },
+        error: null,
+      },
+      updateResult: {
+        data: {
+          id: 'work-order-id',
+          internal_note: '原始備註\n新增現場備註',
+          updated_at: '2026-06-09T12:05:00.000Z',
+        },
+        error: null,
+      },
+    });
+
+    const result = await appendAdminWorkOrderScanQuickNote(
+      client as Parameters<typeof appendAdminWorkOrderScanQuickNote>[0],
+      'work-order-id',
+      {
+        note: '新增現場備註',
+      },
+    );
+
+    expect(calls.selectCalls).toEqual([
+      {
+        filters: [{ column: 'id', value: 'work-order-id' }],
+        table: 'work_orders',
+      },
+    ]);
+    expect(calls.updatePayloads).toEqual([
+      {
+        filters: [{ column: 'id', value: 'work-order-id' }],
+        payload: {
+          internal_note: '原始備註\n新增現場備註',
+        },
+        table: 'work_orders',
+      },
+    ]);
+    expect(result).toEqual({
+      data: {
+        id: 'work-order-id',
+        internalNote: '原始備註\n新增現場備註',
+        updatedAt: '2026-06-09T12:05:00.000Z',
       },
     });
   });

@@ -14,6 +14,8 @@ import {
   formatPublicDate,
   formatPublicDateTime,
 } from '~/utils/public-work-order-lookup';
+import RepairMarksSurfaceGallery from '~/components/work-orders/RepairMarksSurfaceGallery.vue';
+import { getRepairMarkSurfaceLabel } from '~/utils/repair-marks';
 
 type RequestFetch = <T>(request: string, options?: Record<string, unknown>) => Promise<T>;
 
@@ -299,6 +301,28 @@ const lookupPublicWorkOrder = async () => {
               <p class="text-sm text-muted-foreground">初始報價</p>
               <p class="text-base font-medium">{{ formatPublicCurrency(result.initialQuoteAmount) }}</p>
             </div>
+          </div>
+
+          <div class="space-y-3 rounded-lg border bg-background p-4">
+            <div class="flex flex-wrap gap-2">
+              <Badge variant="outline">
+                {{ getRepairMarkSurfaceLabel(result.boardType, 'front') }} {{ result.repairMarks.filter((mark) => mark.boardSide === 'front').length }} 處
+              </Badge>
+              <Badge variant="outline">
+                {{ getRepairMarkSurfaceLabel(result.boardType, 'back') }} {{ result.repairMarks.filter((mark) => mark.boardSide === 'back').length }} 處
+              </Badge>
+              <Badge variant="outline">維修處數 {{ result.repairCount ?? '—' }}</Badge>
+            </div>
+
+            <RepairMarksSurfaceGallery
+              :board-type="result.boardType"
+              :canvas-height="760"
+              :canvas-width="500"
+              dual-surface-min-height-class="min-h-[20rem] xl:min-h-[28rem]"
+              :marks="result.repairMarks"
+              single-surface-min-height-class="min-h-[28rem] xl:min-h-[34rem]"
+              surface-gap-class="gap-4"
+            />
           </div>
 
           <div class="space-y-2 rounded-lg border bg-background p-4">

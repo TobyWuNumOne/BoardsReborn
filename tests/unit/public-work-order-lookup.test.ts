@@ -30,9 +30,11 @@ const createMockEvent = (requestHeaders: Record<string, string | undefined> = {}
   }) as unknown as H3Event;
 
 const createPublicLookupClient = ({
+  repairMarks,
   quoteItem,
   workOrder,
 }: {
+  repairMarks: { data: unknown; error: unknown };
   quoteItem: { data: unknown; error: unknown };
   workOrder: { data: unknown; error: unknown };
 }) => {
@@ -58,6 +60,17 @@ const createPublicLookupClient = ({
       return quoteQuery;
     },
   };
+  const repairMarksQuery = {
+    eq() {
+      return repairMarksQuery;
+    },
+    order() {
+      return Promise.resolve(repairMarks);
+    },
+    select() {
+      return repairMarksQuery;
+    },
+  };
 
   return {
     client: {
@@ -68,6 +81,10 @@ const createPublicLookupClient = ({
 
         if (table === 'quote_items') {
           return quoteQuery;
+        }
+
+        if (table === 'work_order_repair_marks') {
+          return repairMarksQuery;
         }
 
         throw new Error(`Unexpected table ${table}`);
@@ -142,6 +159,24 @@ describe('public work-order lookup', () => {
 
   it('returns only public fields and compares the normalized full phone on the server', async () => {
     const { client } = createPublicLookupClient({
+      repairMarks: {
+        data: [
+          {
+            board_side: 'front',
+            created_at: '2026-04-29T09:00:00.000Z',
+            height_ratio: 0.12,
+            id: 'mark-1',
+            sort_order: 0,
+            template_key: 'SURFBOARD:front:v1',
+            updated_at: '2026-04-29T09:00:00.000Z',
+            width_ratio: 0.16,
+            work_order_id: 'work-order-1',
+            x_ratio: 0.45,
+            y_ratio: 0.32,
+          },
+        ],
+        error: null,
+      },
       quoteItem: {
         data: { amount: 2500 },
         error: null,
@@ -155,6 +190,8 @@ describe('public work-order lookup', () => {
           id: 'work-order-1',
           paper_order_no: 'BR-2026-0001',
           public_note: '目前已進入維修流程',
+          repair_count: 1,
+          repair_count_source: 'auto',
           updated_at: '2026-04-30T10:00:00.000Z',
         },
         error: null,
@@ -168,6 +205,7 @@ describe('public work-order lookup', () => {
       }),
     ).resolves.toEqual({
       data: {
+        boardType: 'SURFBOARD',
         currentStatus: 'REPAIRING',
         estimatedCompletionDate: '2026-05-10',
         initialQuoteAmount: 2500,
@@ -185,6 +223,21 @@ describe('public work-order lookup', () => {
           ],
         },
         publicNote: '目前已進入維修流程',
+        repairCount: 1,
+        repairCountSource: 'auto',
+        repairMarkCount: 1,
+        repairMarks: [
+          {
+            boardSide: 'front',
+            heightRatio: 0.12,
+            id: 'mark-1',
+            sortOrder: 0,
+            templateKey: 'SURFBOARD:front:v1',
+            widthRatio: 0.16,
+            xRatio: 0.45,
+            yRatio: 0.32,
+          },
+        ],
         statusLabel: '維修中',
       },
     });
@@ -192,6 +245,10 @@ describe('public work-order lookup', () => {
 
   it('returns the same not found response when the phone does not match', async () => {
     const { client } = createPublicLookupClient({
+      repairMarks: {
+        data: [],
+        error: null,
+      },
       quoteItem: {
         data: null,
         error: null,
@@ -205,6 +262,8 @@ describe('public work-order lookup', () => {
           id: 'work-order-1',
           paper_order_no: 'BR-2026-0001',
           public_note: null,
+          repair_count: null,
+          repair_count_source: 'auto',
           updated_at: '2026-04-30T10:00:00.000Z',
         },
         error: null,

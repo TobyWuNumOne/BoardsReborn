@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import type { Database } from '../../types/database.types';
 import { normalizeTaiwanMobilePhoneInput } from './phone';
+import type { RepairCountSource, RepairMark } from './repair-marks';
 
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
+type BoardType = Database['public']['Enums']['board_type'];
 
 export type PublicProgressStepState = 'current' | 'done' | 'upcoming';
 export type PublicProgressStepKey =
@@ -33,6 +35,7 @@ export type PublicWorkOrderLookupProgress =
 
 export interface PublicWorkOrderLookupResponse {
   data: {
+    boardType: BoardType;
     currentStatus: WorkOrderStatus;
     estimatedCompletionDate: string | null;
     initialQuoteAmount: number | null;
@@ -40,6 +43,10 @@ export interface PublicWorkOrderLookupResponse {
     paperOrderNo: string;
     progress: PublicWorkOrderLookupProgress;
     publicNote: string | null;
+    repairCount: number | null;
+    repairCountSource: RepairCountSource;
+    repairMarkCount: number;
+    repairMarks: RepairMark[];
     statusLabel: string;
   };
 }

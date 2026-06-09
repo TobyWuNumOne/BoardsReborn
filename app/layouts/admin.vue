@@ -6,6 +6,7 @@ import {
   LogOutIcon,
   PlusSquareIcon,
   PrinterIcon,
+  ScanLineIcon,
 } from 'lucide-vue-next';
 
 const adminSession = useAdminSession();
@@ -15,30 +16,43 @@ await adminSession.refreshAdminSession();
 
 const displayName = computed(() => adminSession.profile.value?.displayName || 'Admin');
 
-const createNavItem = {
-  description: '直接進入現場建單流程',
-  icon: PlusSquareIcon,
-  label: '新增工單',
-  to: '/admin/work-orders/new',
-};
-
 const navItems = [
-  {
+{
     label: '首頁',
     to: '/admin',
     icon: HomeIcon,
     enabled: true,
   },
   {
-    label: '工單列表',
-    to: '/admin/work-orders',
-    icon: ClipboardListIcon,
+    description: '直接進入現場建單流程',
+    featured: true,
+    icon: PlusSquareIcon,
+    label: '新增工單',
+    to: '/admin/work-orders/new',
     enabled: true,
   },
   {
-    label: '批量狀態',
+    label: '批量作業設定',
+    description: '快速更新多筆訂單狀態',
+    featured: true,
     to: '/admin/work-orders/bulk-status',
     icon: Layers3Icon,
+    enabled: true,
+  },
+  {
+    label: '掃碼查詢',
+    description: '掃描單張板子快速查詢與操作',
+    featured: true,
+    to: '/admin/scan',
+    icon: ScanLineIcon,
+    enabled: true,
+  },
+  {
+    label: '工單列表',
+    description: '查看所有工單的詳細資訊',
+    featured: true,
+    to: '/admin/work-orders',
+    icon: ClipboardListIcon,
     enabled: true,
   },
   {
@@ -87,46 +101,38 @@ const handleLogout = async () => {
           </div>
           <div class="min-w-0">
             <p class="truncate text-sm font-medium">BoardsReborn</p>
-            <p class="truncate text-xs text-muted-foreground">Admin workspace</p>
+            <p class="truncate text-xs text-muted-foreground">工單管理系統</p>
           </div>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>選單</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  as-child
-                  variant="outline"
-                  :is-active="route.path === createNavItem.to"
-                  :tooltip="createNavItem.label"
-                  class="h-16 items-start bg-sidebar-primary/10 px-3 py-3 hover:bg-sidebar-primary/15 data-active:bg-sidebar-primary/20"
-                >
-                  <NuxtLink :to="createNavItem.to">
-                    <component :is="createNavItem.icon" class="mt-0.5" />
-                    <div class="min-w-0">
-                      <p class="truncate text-sm font-medium">{{ createNavItem.label }}</p>
-                      <p class="mt-1 truncate text-xs text-sidebar-foreground/70">
-                        {{ createNavItem.description }}
-                      </p>
-                    </div>
-                  </NuxtLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
               <SidebarMenuItem v-for="item in navItems" :key="item.to">
                 <SidebarMenuButton
                   v-if="item.enabled"
                   as-child
+                  :variant="item.featured ? 'outline' : 'default'"
                   :is-active="route.path === item.to || route.path.startsWith(`${item.to}/`)"
                   :tooltip="item.label"
+                  :class="
+                    item.featured
+                      ? 'h-16 items-start bg-sidebar-primary/10 px-3 py-3 hover:bg-sidebar-primary/15 data-active:bg-sidebar-primary/20'
+                      : undefined
+                  "
                 >
                   <NuxtLink :to="item.to">
-                    <component :is="item.icon" />
-                    <span>{{ item.label }}</span>
+                    <component :is="item.icon" :class="item.featured ? 'mt-0.5' : undefined" />
+                    <div v-if="item.featured" class="min-w-0">
+                      <p class="truncate text-sm font-medium">{{ item.label }}</p>
+                      <p class="mt-1 truncate text-xs text-sidebar-foreground/70">
+                        {{ item.description }}
+                      </p>
+                    </div>
+                    <span v-else>{{ item.label }}</span>
                   </NuxtLink>
                 </SidebarMenuButton>
 

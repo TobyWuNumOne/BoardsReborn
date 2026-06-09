@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { parseDate } from '@internationalized/date';
 import { useEventListener } from '@vueuse/core';
-import { ArrowLeftIcon, CalendarIcon, SearchIcon, TriangleAlertIcon } from 'lucide-vue-next';
+import { ArrowLeftIcon, CalendarIcon, MapPinnedIcon, SearchIcon, TriangleAlertIcon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
+import type { RepairCountSource, RepairMark } from '~/utils/repair-marks';
 import type { ApiErrorEnvelope } from '~/utils/admin-work-orders';
 import type {
   AdminCustomerLookupCandidate,
@@ -51,6 +52,8 @@ import {
 } from '~/utils/admin-work-order-create-tablet';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
 import { normalizeTaiwanMobilePhoneInput } from '~/utils/phone';
+import { deriveRepairCount } from '~/utils/repair-marks';
+import RepairMarksEditorDialog from '~/components/work-orders/RepairMarksEditorDialog.vue';
 import { cn } from '@/lib/utils';
 
 type RequestFetch = <T>(request: string, options?: Record<string, unknown>) => Promise<T>;
@@ -91,6 +94,7 @@ const lastLookupPhone = ref<string | null>(null);
 const unsavedGuardEnabled = ref(true);
 const intakeDatePopoverOpen = ref(false);
 const estimatedDatePopoverOpen = ref(false);
+const repairMarksDialogOpen = ref(false);
 
 const currentSnapshot = computed(() => normalizeAdminWorkOrderCreateFormState(form));
 const hasUnsavedChanges = computed(
@@ -117,6 +121,14 @@ const showPaymentWithoutQuoteWarning = computed(
 const isLookupLoading = computed(() => lookupStatus.value === 'loading');
 const boardSizeQuickOptions = computed(() => getBoardSizeQuickOptions(form.boardLengthClass));
 const requiredFieldSummary = computed(() => getRequiredFieldSummary(form));
+const repairMarksCount = computed(() => form.repairMarks.length);
+const showRepairCountMismatch = computed(() => {
+  if (form.repairCountSource !== 'manual' || !form.repairCount) {
+    return false;
+  }
+
+  return Number.parseInt(form.repairCount, 10) !== repairMarksCount.value;
+});
 const missingRequiredFieldText = computed(() =>
   requiredFieldSummary.value.missingLabels.length > 0
     ? `尚未完成：${requiredFieldSummary.value.missingLabels.join('、')}`
@@ -414,14 +426,35 @@ const submitCreateForm = async () => {
 };
 
 const handleBoardTypeChange = (value: unknown) => {
-  form.boardType =
+  const previousBoardType = form.boardType;
+  const nextBoardType =
     typeof value === 'string' &&
     ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS.some((option) => option.value === value)
       ? (value as typeof form.boardType)
       : '';
 
+  if (
+    form.repairMarks.length > 0 &&
+    form.boardType &&
+    nextBoardType &&
+    form.boardType !== nextBoardType &&
+    import.meta.client &&
+    !window.confirm('變更板型會清除既有受損位置標記，確定要繼續嗎？')
+  ) {
+    return;
+  }
+
+  form.boardType =
+    nextBoardType;
+
   if (form.boardType !== 'SURFBOARD') {
     form.boardLengthClass = '';
+  }
+
+  if (previousBoardType && previousBoardType !== nextBoardType) {
+    form.repairMarks = [];
+    form.repairCount = '';
+    form.repairCountSource = 'auto';
   }
 
   clearFieldError('boardType');
@@ -500,12 +533,19 @@ const appendDamageDescriptionChip = (value: string) => {
 
 const setRepairSpotQuickValue = (value: number | 'many') => {
   form.damageDescription = setRepairSpotCount(form.damageDescription, value);
+  form.repairCountSource = 'manual';
+  form.repairCount = value === 'many' ? '' : String(value);
   clearFieldError('damageDescription');
+  clearFieldError('repairCount');
 };
 
 const adjustRepairSpotQuickValue = (deltaCount: number) => {
   form.damageDescription = adjustRepairSpotCount(form.damageDescription, deltaCount);
+  const currentCount = Number.parseInt(form.repairCount || '0', 10);
+  form.repairCountSource = 'manual';
+  form.repairCount = String(Math.max(1, currentCount + deltaCount));
   clearFieldError('damageDescription');
+  clearFieldError('repairCount');
 };
 
 const appendPublicNoteChip = (value: string) => {
@@ -518,6 +558,32 @@ const appendInternalNoteChip = (value: string) => {
 
 const togglePaymentReceived = () => {
   form.paymentReceived = !form.paymentReceived;
+};
+
+const openRepairMarksDialog = () => {
+  if (!form.boardType) {
+    toast.info('請先選擇板型。');
+    return;
+  }
+
+  repairMarksDialogOpen.value = true;
+};
+
+const handleRepairMarksSave = (payload: {
+  repairCount: string;
+  repairCountSource: RepairCountSource;
+  repairMarks: RepairMark[];
+}) => {
+  form.repairMarks = payload.repairMarks;
+  form.repairCountSource = payload.repairCountSource;
+  form.repairCount =
+    payload.repairCountSource === 'auto'
+      ? (() => {
+          const derivedCount = deriveRepairCount(payload.repairMarks);
+          return derivedCount === null ? '' : String(derivedCount);
+        })()
+      : payload.repairCount;
+  clearFieldError('repairCount');
 };
 
 watch(
@@ -972,9 +1038,32 @@ if (import.meta.client) {
       <Card>
         <CardHeader>
           <CardTitle>3. 損傷與照片</CardTitle>
-          <CardDescription>先用常見損傷與維修處數量快速描述，必要時再手動補充。</CardDescription>
+          <CardDescription>先圈選維修位置，再用文字補充傷況。</CardDescription>
         </CardHeader>
         <CardContent class="space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-4 py-3">
+            <div class="space-y-1">
+              <p class="text-sm font-medium">受損位置標記</p>
+              <p class="text-sm text-muted-foreground">
+                已標記 {{ repairMarksCount }} 處
+                <span v-if="form.repairCountSource === 'manual' && form.repairCount">
+                  ，維修處數 {{ form.repairCount }}
+                </span>
+              </p>
+            </div>
+            <Button type="button" variant="outline" class="h-11" @click="openRepairMarksDialog">
+              <MapPinnedIcon class="size-4" />
+              受損位置
+            </Button>
+          </div>
+
+          <Alert v-if="showRepairCountMismatch">
+            <AlertTitle>維修處數已手動調整</AlertTitle>
+            <AlertDescription>
+              已標記 {{ repairMarksCount }} 處，但維修處數手動設定為 {{ form.repairCount }} 處。
+            </AlertDescription>
+          </Alert>
+
           <Field>
             <FieldLabel>常用損傷</FieldLabel>
             <div class="flex flex-wrap gap-2">
@@ -1021,6 +1110,8 @@ if (import.meta.client) {
                 +1
               </Button>
             </div>
+            <FieldDescription>可用於沒有圈選完整標記時的快速手動調整。</FieldDescription>
+            <FieldError :errors="mergedFieldErrors.repairCount" />
           </Field>
 
           <Field>
@@ -1292,5 +1383,15 @@ if (import.meta.client) {
         </div>
       </div>
     </form>
+
+    <RepairMarksEditorDialog
+      v-if="form.boardType"
+      v-model:open="repairMarksDialogOpen"
+      :board-type="form.boardType"
+      :repair-count="form.repairCount"
+      :repair-count-source="form.repairCountSource"
+      :repair-marks="form.repairMarks"
+      @save="handleRepairMarksSave"
+    />
   </div>
 </template>

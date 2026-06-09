@@ -380,6 +380,8 @@ export type Database = {
           picked_up_at: string | null
           pickup_note: string | null
           public_note: string | null
+          repair_count: number | null
+          repair_count_source: Database["public"]["Enums"]["repair_count_source"]
           ready_for_pickup_at: string | null
           storage_fee_warning_after_days: number
           updated_at: string
@@ -412,6 +414,8 @@ export type Database = {
           picked_up_at?: string | null
           pickup_note?: string | null
           public_note?: string | null
+          repair_count?: number | null
+          repair_count_source?: Database["public"]["Enums"]["repair_count_source"]
           ready_for_pickup_at?: string | null
           storage_fee_warning_after_days?: number
           updated_at?: string
@@ -444,6 +448,8 @@ export type Database = {
           picked_up_at?: string | null
           pickup_note?: string | null
           public_note?: string | null
+          repair_count?: number | null
+          repair_count_source?: Database["public"]["Enums"]["repair_count_source"]
           ready_for_pickup_at?: string | null
           storage_fee_warning_after_days?: number
           updated_at?: string
@@ -454,6 +460,63 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_order_repair_marks: {
+        Row: {
+          board_side: Database["public"]["Enums"]["repair_mark_board_side"]
+          created_at: string
+          height_ratio: number
+          id: string
+          sort_order: number
+          template_key: string
+          updated_at: string
+          width_ratio: number
+          work_order_id: string
+          x_ratio: number
+          y_ratio: number
+        }
+        Insert: {
+          board_side: Database["public"]["Enums"]["repair_mark_board_side"]
+          created_at?: string
+          height_ratio: number
+          id?: string
+          sort_order: number
+          template_key: string
+          updated_at?: string
+          width_ratio: number
+          work_order_id: string
+          x_ratio: number
+          y_ratio: number
+        }
+        Update: {
+          board_side?: Database["public"]["Enums"]["repair_mark_board_side"]
+          created_at?: string
+          height_ratio?: number
+          id?: string
+          sort_order?: number
+          template_key?: string
+          updated_at?: string
+          width_ratio?: number
+          work_order_id?: string
+          x_ratio?: number
+          y_ratio?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_repair_marks_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "admin_work_order_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_repair_marks_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -674,6 +737,8 @@ export type Database = {
         | "cancelled"
       print_job_type: "work_order_label"
       quote_item_type: "INITIAL" | "ADDITIONAL" | "ADJUSTMENT"
+      repair_count_source: "auto" | "manual"
+      repair_mark_board_side: "front" | "back"
       work_order_status:
         | "RECEIVED"
         | "DRYING"
