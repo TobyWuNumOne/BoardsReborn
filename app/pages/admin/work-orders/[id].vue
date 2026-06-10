@@ -47,7 +47,7 @@ import {
   normalizeAdminWorkOrderEditFormState,
 } from '~/utils/admin-work-orders';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
-import { deriveRepairCount, getRepairMarkSurfaceLabel, summarizeRepairMarks } from '~/utils/repair-marks';
+import { deriveRepairCount, summarizeRepairMarks } from '~/utils/repair-marks';
 import PrintJobStatusBadge from '~/components/printing/PrintJobStatusBadge.vue';
 import RepairMarksEditorDialog from '~/components/work-orders/RepairMarksEditorDialog.vue';
 import RepairMarksSurfaceGallery from '~/components/work-orders/RepairMarksSurfaceGallery.vue';

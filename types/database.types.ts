@@ -645,6 +645,7 @@ export type Database = {
           picked_up_at: string | null
           quote_total_amount: number | null
           ready_for_pickup_at: string | null
+          repair_count: number | null
           storage_fee_warning_after_days: number | null
           updated_at: string | null
         }

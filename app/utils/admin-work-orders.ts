@@ -33,6 +33,7 @@ export interface AdminWorkOrderListItem {
   intakeDate: string | null;
   lastUpdatedAt: string | null;
   paperOrderNo: string | null;
+  repairCount: number | null;
   paymentReceived: boolean | null;
   paymentReceivedAt: string | null;
   quoteTotalAmount: number | null;

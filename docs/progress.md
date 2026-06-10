@@ -78,7 +78,7 @@
 - Admin work-order API：done。Create/list/detail/update/status/resolve/bulk-status、customer lookup 與 `GET /api/admin/print-summaries` 已建立；建工單後 best-effort print enqueue 已接上。
 - Auth 與管理端流程：done。Admin gate helper、session endpoint、login/logout UI、admin middleware 與 session bootstrap 已建立。
 - Frontend strategy / UI foundation：done。Tailwind CSS v4、shadcn-vue primitives、admin shell、dashboard summary 與 frontend rules 已建立。
-- Admin work-order list UI：done。`/admin/work-orders` 已接上 list API、URL query state、table/card list 與 detail 導頁。
+- Admin work-order list UI：done。`/admin/work-orders` 已接上 list API、URL query state、全尺寸 table（窄螢幕 overflow-x）、維修數量顯示與 detail 導頁。
 - Admin work-order detail UI：done。`/admin/work-orders/[id]` 已接上 detail API、`view/edit/work` mode、列印摘要卡與 repair marks 顯示 / 編輯；完整列印操作仍以 `/admin/printing` 為中心。
 - Admin work-order create UI：done。`/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價、tablet-first F8A/F8B 快捷操作、Konva repair marks modal 與成功導向 detail。
 - Admin bulk status UI：done。`/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作、批量結果摘要與頁頂成功提示；此頁不再顯示列印摘要。
@@ -111,7 +111,7 @@
 - Local auth cookie hardening：Supabase SSR cookie 依 app URL protocol 決定 `secure`，避免本機 HTTP 開發時瀏覽器拒收 auth cookie。
 - Frontend UI foundation：Tailwind CSS v4、`@tailwindcss/vite`、shadcn-vue primitives、`shadcn-nuxt`、SSR width plugin、Tailwind/shadcn 重整後的 homepage / login / forbidden / admin placeholder。
 - Frontend strategy spec：`docs/frontend.md`，定義 admin route map、layout、data access、form validation、feedback、列表與狀態 badge 規則。
-- Admin work-order list UI：URL query canonicalization middleware、read-only 工單列表、提醒 badges、桌機 table / 手機 card list 與 detail placeholder route。
+- Admin work-order list UI：URL query canonicalization middleware、read-only 工單列表、提醒 badges、全尺寸 table（窄螢幕 overflow-x）、維修數量欄位與 detail route。
 - Admin work-order list rendering fix：改為顯式 import `work-orders` 目錄下的列表與 badge 元件，排除 Nuxt auto-import 前綴不符造成「總數正確但列表不顯示」的回歸。
 - Admin work-order detail UI：單一路由 detail page、`mode=view|edit|work` query canonicalization、detail data keyed only by id、view mode 只讀區塊、edit mode PATCH 表單、work mode 狀態更新卡與 404/422 分流已建立。
 - Work-order detail 列印摘要：detail 頁已新增列印狀態卡、`created=1` 頂部成功提示、`前往列印中心` deep link 與單筆 `建立列印任務 / 建立補印`。

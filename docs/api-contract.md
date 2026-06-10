@@ -346,6 +346,7 @@ Response：
       "currentStatus": "REPAIRING",
       "intakeDate": "2026-04-20",
       "estimatedCompletionDate": "2026-04-26",
+      "repairCount": 2,
       "flags": {
         "overdueEstimatedCompletion": false,
         "pickupOverdue": false,

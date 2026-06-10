@@ -2,10 +2,8 @@
 import type { AdminWorkOrderListItem } from '~/utils/admin-work-orders';
 import {
   formatAdminDate,
-  formatAdminDateTime,
   getBoardLengthClassLabel,
   getBoardTypeLabel,
-  getAdminWorkOrderDetailPath,
 } from '~/utils/admin-work-orders';
 import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
 import WorkOrderFlagBadges from '~/components/work-orders/WorkOrderFlagBadges.vue';
@@ -29,23 +27,22 @@ const emitView = (id: string | null) => {
 </script>
 
 <template>
-  <div class="hidden overflow-hidden rounded-lg border bg-card xl:block">
+  <div class="overflow-x-auto rounded-lg border bg-card">
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead class="w-[9.5rem]">工單號</TableHead>
-          <TableHead class="w-[8rem]">狀態</TableHead>
-          <TableHead class="min-w-[11rem]">顧客</TableHead>
-          <TableHead class="w-[9rem]">板型</TableHead>
-          <TableHead class="w-[8rem]">預估完成日</TableHead>
-          <TableHead class="min-w-[14rem]">提醒</TableHead>
-          <TableHead class="w-[9rem]">最近更新</TableHead>
-          <TableHead class="w-[8rem] text-right">操作</TableHead>
+          <TableHead class="w-38">工單號</TableHead>
+          <TableHead class="w-22 text-center">維修數量</TableHead>
+          <TableHead class="w-32">狀態</TableHead>
+          <TableHead class="min-w-44">顧客</TableHead>
+          <TableHead class="w-36">板型</TableHead>
+          <TableHead class="w-32">收件時間</TableHead>
+          <TableHead class="min-w-56">提醒</TableHead>
         </TableRow>
       </TableHeader>
 
       <TableBody>
-        <TableEmpty v-if="items.length === 0" :colspan="8"> 沒有可顯示的工單。 </TableEmpty>
+        <TableEmpty v-if="items.length === 0" :colspan="7"> 沒有可顯示的工單。 </TableEmpty>
 
         <TableRow
           v-for="workOrder in items"
@@ -60,6 +57,9 @@ const emitView = (id: string | null) => {
           @keydown.space.prevent="emitView(workOrder.id)"
         >
           <TableCell class="font-medium">{{ workOrder.paperOrderNo ?? '—' }}</TableCell>
+          <TableCell class="text-center">
+            {{ workOrder.repairCount ?? '—' }}
+          </TableCell>
           <TableCell>
             <WorkOrderStatusBadge :status="workOrder.currentStatus" />
           </TableCell>
@@ -84,23 +84,9 @@ const emitView = (id: string | null) => {
               <WorkOrderBoardColorSwatch :color="workOrder.board.color" />
             </div>
           </TableCell>
-          <TableCell>{{ formatAdminDate(workOrder.estimatedCompletionDate) }}</TableCell>
+          <TableCell>{{ formatAdminDate(workOrder.intakeDate) }}</TableCell>
           <TableCell>
             <WorkOrderFlagBadges :flags="workOrder.flags" />
-          </TableCell>
-          <TableCell>{{ formatAdminDateTime(workOrder.lastUpdatedAt) }}</TableCell>
-          <TableCell class="text-right">
-            <Button
-              v-if="workOrder.id"
-              as-child
-              size="sm"
-              type="button"
-              variant="outline"
-              @click.stop
-            >
-              <NuxtLink :to="getAdminWorkOrderDetailPath(workOrder.id)">查看詳情</NuxtLink>
-            </Button>
-            <span v-else class="text-sm text-muted-foreground">—</span>
           </TableCell>
         </TableRow>
       </TableBody>

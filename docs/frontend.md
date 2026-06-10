@@ -190,34 +190,22 @@
 
 ## Work Order List
 
-- Desktop（`xl` 起）使用原生 table。
-- Tablet / mobile（`<xl`）使用 card list，不把完整 table 硬塞進較窄 viewport。
+- 全尺寸都使用原生 table；窄螢幕以水平 overflow-x 捲動承載固定欄位，不再另外維護 mobile card list。
 - 第一版不導入 TanStack Table；等排序、欄位控制、批量選取或虛擬列表需求明確後再評估。
 
-Desktop / tablet table 欄位：
+Table 欄位順序：
 
 - 工單號
+- 維修數量
 - 狀態
 - 顧客
 - 板型
-- 預估完成日
+- 收件時間
 - 提醒
-- 最近更新
-- 操作
 
 板型欄位顯示 `板型 / 長度分類 / 尺寸標記 / 顏色`。顏色用小方框加文字 label 呈現；標準值 `WHITE / BLACK / BLUE / RED / YELLOW / GREEN / GRAY` 顯示固定 swatch，自訂值顯示中性描邊方框與原始文字。legacy `boardLengthClass = null` 或無顏色時顯示 `—`。
 
-Mobile card 欄位：
-
-- 工單號
-- 狀態 badge
-- 顧客 / 電話
-- 板型
-- 預估完成日
-- 提醒 badges
-- 最近更新
-
-Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFBOARD` 或 legacy null，長度分類顯示 `—`。
+`收件時間` 使用 `intakeDate`，`維修數量` 使用 `repairCount`；legacy null 顯示 `—`。整列仍可點擊進入工單詳情，不在列表中另放查看詳情按鈕。
 
 ## Work Order Detail
 

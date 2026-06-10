@@ -94,7 +94,7 @@
 
 `board_length_class` 只對 `SURFBOARD` 使用，值為 `SHORTBOARD`、`MID_LENGTH`、`LONGBOARD`。第一版不從 `board_size_label` 自動推論，由現場人員明確選擇。為保留既有 legacy SURFBOARD 工單不被 migration 阻斷，資料庫使用 board-field scoped trigger 針對新 insert 與 `board_type` / `board_length_class` 變更做檢查：`SURFBOARD` 必須有值，`SUP` / `SNOWBOARD` 必須是 `null`。舊資料若仍為 `null` 可保留，UI 以 `—` 顯示。
 
-`board_color` 目前已進入 admin projection：`admin_work_order_list` 與 admin resolve preview 都會帶出這個欄位，供工單列表與批量狀態頁顯示顏色 swatch。
+`board_color` 目前已進入 admin projection：`admin_work_order_list` 與 admin resolve preview 都會帶出這個欄位，供工單列表與批量狀態頁顯示顏色 swatch。`admin_work_order_list` 也會帶出 `repair_count`，供管理端列表顯示維修數量。
 
 第一版不拆 `pickup_info` table。取件通知、取件時間與待取件提醒欄位直接放在 `work_orders`，降低 MVP schema 複雜度。若未來取件流程變複雜，再以 migration 拆表。
 

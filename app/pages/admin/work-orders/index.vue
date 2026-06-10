@@ -22,7 +22,6 @@ import {
   serializeAdminWorkOrderListQuery,
 } from '~/utils/admin-work-orders';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
-import WorkOrderCardList from '~/components/work-orders/WorkOrderCardList.vue';
 import WorkOrderListTable from '~/components/work-orders/WorkOrderListTable.vue';
 
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
@@ -615,7 +614,6 @@ const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 筆�
 
     <template v-else>
       <WorkOrderListTable :items="response.data" @view="navigateToDetail" />
-      <WorkOrderCardList :items="response.data" @view="navigateToDetail" />
 
       <div class="flex flex-col gap-3">
         <div class="flex items-center justify-between text-sm text-muted-foreground">
