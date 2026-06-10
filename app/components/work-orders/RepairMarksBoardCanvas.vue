@@ -38,6 +38,7 @@ const containerSize = ref({
   width: 0,
 });
 let resizeObserver: ResizeObserver | null = null;
+let resizeFrame: number | null = null;
 
 const surfaceMarks = computed(() =>
   props.marks
@@ -106,21 +107,66 @@ const syncContainerSize = () => {
   };
 };
 
-onMounted(() => {
-  syncContainerSize();
+const teardownResizeObserver = () => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+};
 
-  if (typeof ResizeObserver !== 'undefined' && containerRef.value) {
-    resizeObserver = new ResizeObserver(() => {
-      syncContainerSize();
-    });
-    resizeObserver.observe(containerRef.value);
+const scheduleContainerSync = () => {
+  if (typeof window === 'undefined') {
+    syncContainerSize();
+    return;
   }
+
+  if (resizeFrame !== null) {
+    window.cancelAnimationFrame(resizeFrame);
+  }
+
+  resizeFrame = window.requestAnimationFrame(() => {
+    resizeFrame = null;
+    syncContainerSize();
+  });
+};
+
+const setupResizeObserver = () => {
+  const element = containerRef.value;
+
+  teardownResizeObserver();
+
+  if (!element) {
+    return;
+  }
+
+  scheduleContainerSync();
+
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      scheduleContainerSync();
+    });
+    resizeObserver.observe(element);
+  }
+};
+
+onMounted(() => {
+  setupResizeObserver();
 });
 
 onBeforeUnmount(() => {
-  resizeObserver?.disconnect();
-  resizeObserver = null;
+  teardownResizeObserver();
+
+  if (resizeFrame !== null && typeof window !== 'undefined') {
+    window.cancelAnimationFrame(resizeFrame);
+    resizeFrame = null;
+  }
 });
+
+watch(
+  containerRef,
+  () => {
+    setupResizeObserver();
+  },
+  { flush: 'post' },
+);
 
 watch(
   () => [props.selectedMarkId, props.marks, props.editable, props.boardSide, stageSize.value.width, stageSize.value.height],

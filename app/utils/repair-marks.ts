@@ -31,6 +31,7 @@ export const REPAIR_MARK_DEFAULT_DIAMETER_PX = 60;
 export const REPAIR_MARK_MIN_SIZE_RATIO = 0.06;
 export const REPAIR_MARK_MAX_SIZE_RATIO = 0.55;
 export const REPAIR_MARK_SINGLE_SURFACE_BREAKPOINT_PX = 1024;
+export const REPAIR_MARK_EDITOR_THREE_COLUMN_BREAKPOINT_PX = 1024;
 
 const BOARD_SIDE_LABELS: Record<RepairMarkBoardType, Record<RepairMarkBoardSide, string>> = {
   SNOWBOARD: {
@@ -60,6 +61,9 @@ export const getRepairMarkSurfaceLabel = (
 
 export const shouldUseSingleSurfaceRepairMarksLayout = (viewportWidth: number) =>
   viewportWidth <= REPAIR_MARK_SINGLE_SURFACE_BREAKPOINT_PX;
+
+export const shouldUseThreeColumnRepairMarksEditorLayout = (viewportWidth: number) =>
+  viewportWidth >= REPAIR_MARK_EDITOR_THREE_COLUMN_BREAKPOINT_PX;
 
 export const getVisibleRepairMarkBoardSides = (
   activeBoardSide: RepairMarkBoardSide,

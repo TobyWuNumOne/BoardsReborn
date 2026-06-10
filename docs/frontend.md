@@ -167,6 +167,8 @@
 - Konva / vue-konva 只在 `ClientOnly` 內使用，並透過 client-only Nuxt plugin 註冊，避免 SSR 嘗試存取 canvas / window。
 - repair marks 的板面容器以卡片可用空間為準，persisted mark 仍維持 normalized ratio；前端只改當下渲染尺寸，不改資料格式。
 - repair marks 響應式規則固定為：`>1024px` 雙面並排，`<=1024px` 單面切換。
+- repair marks editor modal 以 iPad 11 吋橫向為優先：`>=1024px` 時設定卡提早進入右側欄，讓 `正面 / 背面 / 設定區` 在 11 吋橫向 87% / 100% 都維持同列；只讀預覽維持既有共享 breakpoint。
+- repair marks editor modal 不再依賴大 `min-h` 撐高卡片；dialog body 改以可視高度內的 `flex/grid` 伸縮為主，避免為了看到 `儲存` 再額外往下捲。
 - 每個 form page 至少定義：
   - idle
   - dirty

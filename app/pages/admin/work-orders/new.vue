@@ -70,6 +70,9 @@ useHead({
 const route = useRoute();
 const adminSession = useAdminSession();
 
+const DEV_REPAIR_MARKS_PREVIEW_QUERY_KEY = 'repairMarksPreview';
+const DEV_REPAIR_MARKS_PREVIEW_BOARD_TYPE_QUERY_KEY = 'previewBoardType';
+
 const getRequestFetch = (): RequestFetch => {
   if (import.meta.server) {
     return useRequestFetch() as RequestFetch;
@@ -134,6 +137,27 @@ const missingRequiredFieldText = computed(() =>
     ? `尚未完成：${requiredFieldSummary.value.missingLabels.join('、')}`
     : '必要欄位已完成',
 );
+
+const isRepairMarksPreviewEnabled = computed(() => {
+  if (!import.meta.client || !import.meta.dev) {
+    return false;
+  }
+
+  const value = route.query[DEV_REPAIR_MARKS_PREVIEW_QUERY_KEY];
+  return value === '1' || value === 'true';
+});
+
+const repairMarksPreviewBoardType = computed(() => {
+  const value = route.query[DEV_REPAIR_MARKS_PREVIEW_BOARD_TYPE_QUERY_KEY];
+
+  if (typeof value !== 'string') {
+    return 'SURFBOARD' as const;
+  }
+
+  return ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS.some((option) => option.value === value)
+    ? (value as (typeof ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS)[number]['value'])
+    : ('SURFBOARD' as const);
+});
 const getSafeCalendarDate = (value: string) => {
   try {
     return parseDate(value);
@@ -257,6 +281,38 @@ const clearUnsavedGuard = () => {
   unsavedGuardEnabled.value = false;
   baselineSnapshot.value = currentSnapshot.value;
 };
+
+const applyRepairMarksPreviewState = async () => {
+  if (!isRepairMarksPreviewEnabled.value) {
+    return;
+  }
+
+  form.boardType = repairMarksPreviewBoardType.value;
+
+  if (form.boardType === 'SURFBOARD' && !form.boardLengthClass) {
+    form.boardLengthClass = 'MID_LENGTH';
+  }
+
+  if (form.repairCountSource === 'auto' && !form.repairCount) {
+    form.repairCount = '';
+  }
+
+  await nextTick();
+  repairMarksDialogOpen.value = true;
+};
+
+if (import.meta.client) {
+  watch(
+    () => [
+      isRepairMarksPreviewEnabled.value,
+      repairMarksPreviewBoardType.value,
+    ],
+    () => {
+      void applyRepairMarksPreviewState();
+    },
+    { immediate: true },
+  );
+}
 
 const confirmDiscardChanges = () => {
   if (!hasUnsavedChanges.value || !import.meta.client) {

@@ -4,6 +4,7 @@ import {
   HomeIcon,
   Layers3Icon,
   LogOutIcon,
+  PlusIcon,
   PlusSquareIcon,
   PrinterIcon,
   ScanLineIcon,
@@ -62,6 +63,28 @@ const navItems = [
     enabled: true,
   },
 ];
+
+const topNavItems = [
+  { label: '首頁', to: '/admin', icon: HomeIcon, exact: true, exclude: [] },
+  {
+    label: '工單列表',
+    to: '/admin/work-orders',
+    icon: ClipboardListIcon,
+    exact: false,
+    exclude: ['/admin/work-orders/bulk-status', '/admin/work-orders/new'],
+  },
+  { label: '批量', to: '/admin/work-orders/bulk-status', icon: Layers3Icon, exact: false, exclude: [] },
+  { label: '掃描', to: '/admin/scan', icon: ScanLineIcon, exact: false, exclude: [] },
+];
+
+const isTopNavActive = (item: { to: string; exact: boolean; exclude: string[] }) => {
+  if (item.exclude.some((prefix) => route.path === prefix || route.path.startsWith(`${prefix}/`))) {
+    return false;
+  }
+  return item.exact
+    ? route.path === item.to
+    : route.path === item.to || route.path.startsWith(`${item.to}/`);
+};
 
 const handleLogout = async () => {
   await adminSession.signOut();
@@ -164,14 +187,37 @@ const handleLogout = async () => {
 
     <SidebarInset>
       <header
-        class="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/75"
+        class="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/75"
       >
         <SidebarTrigger />
         <Separator orientation="vertical" class="h-5" />
-        <div class="min-w-0">
+        <div class="hidden min-w-0 lg:block">
           <p class="truncate text-sm font-medium">BoardsReborn Admin</p>
           <p class="truncate text-xs text-muted-foreground">Session ready</p>
         </div>
+        <div class="flex-1" />
+        <nav class="hidden items-center gap-1 md:flex">
+          <Button
+            v-for="item in topNavItems"
+            :key="item.to"
+            as-child
+            variant="ghost"
+            size="sm"
+            :class="isTopNavActive(item) ? 'bg-accent text-accent-foreground' : ''"
+          >
+            <NuxtLink :to="item.to">
+              <component :is="item.icon" class="size-4" />
+              {{ item.label }}
+            </NuxtLink>
+          </Button>
+        </nav>
+        <Separator orientation="vertical" class="hidden h-5 md:block" />
+        <Button as-child size="sm">
+          <NuxtLink to="/admin/work-orders/new">
+            <PlusIcon class="size-4" />
+            <span class="hidden sm:inline">新增工單</span>
+          </NuxtLink>
+        </Button>
       </header>
 
       <main class="flex-1 p-4 sm:p-6">

@@ -60,8 +60,8 @@ const visibleBoardSides = computed(() =>
 </script>
 
 <template>
-  <div class="space-y-3">
-    <div v-if="isSingleSurfaceLayout" class="flex items-center justify-between gap-3">
+  <div class="flex h-full min-h-0 flex-col gap-3">
+    <div v-if="isSingleSurfaceLayout" class="flex shrink-0 items-center justify-between gap-3">
       <p class="text-sm font-medium text-foreground">板面切換</p>
       <div class="inline-flex rounded-lg border bg-muted/20 p-1">
         <Button
@@ -81,7 +81,7 @@ const visibleBoardSides = computed(() =>
     <div
       :class="
         cn(
-          'grid min-h-0 items-stretch',
+          'grid min-h-0 flex-1 items-stretch',
           surfaceGapClass,
           isSingleSurfaceLayout ? 'grid-cols-1' : 'grid-cols-2',
         )
