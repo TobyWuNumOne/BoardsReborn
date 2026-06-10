@@ -32,11 +32,11 @@ const emitView = (id: string | null) => {
       <TableHeader>
         <TableRow>
           <TableHead class="w-38">工單號</TableHead>
-          <TableHead class="w-22 text-center">維修數量</TableHead>
           <TableHead class="w-32">狀態</TableHead>
-          <TableHead class="min-w-44">顧客</TableHead>
+          <TableHead class="w-22 text-center">維修數量</TableHead>
           <TableHead class="w-36">板型</TableHead>
           <TableHead class="w-32">收件時間</TableHead>
+          <TableHead class="w-28 text-center">收版天數</TableHead>
           <TableHead class="min-w-56">提醒</TableHead>
         </TableRow>
       </TableHeader>
@@ -57,19 +57,11 @@ const emitView = (id: string | null) => {
           @keydown.space.prevent="emitView(workOrder.id)"
         >
           <TableCell class="font-medium">{{ workOrder.paperOrderNo ?? '—' }}</TableCell>
-          <TableCell class="text-center">
-            {{ workOrder.repairCount ?? '—' }}
-          </TableCell>
           <TableCell>
             <WorkOrderStatusBadge :status="workOrder.currentStatus" />
           </TableCell>
-          <TableCell>
-            <div class="flex flex-col gap-0.5">
-              <span class="font-medium">{{ workOrder.customer.name ?? '—' }}</span>
-              <span class="text-sm text-muted-foreground">{{
-                workOrder.customer.phone ?? '—'
-              }}</span>
-            </div>
+          <TableCell class="text-center">
+            {{ workOrder.repairCount ?? '—' }}
           </TableCell>
           <TableCell>
             <div class="flex flex-col gap-0.5">
@@ -85,6 +77,9 @@ const emitView = (id: string | null) => {
             </div>
           </TableCell>
           <TableCell>{{ formatAdminDate(workOrder.intakeDate) }}</TableCell>
+          <TableCell class="text-center">
+            {{ workOrder.daysInShop === null ? '—' : `${workOrder.daysInShop} 天` }}
+          </TableCell>
           <TableCell>
             <WorkOrderFlagBadges :flags="workOrder.flags" />
           </TableCell>

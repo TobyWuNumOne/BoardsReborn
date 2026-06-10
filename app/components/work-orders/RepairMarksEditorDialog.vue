@@ -36,6 +36,9 @@ const draftRepairCountSource = ref<RepairCountSource>('auto');
 const isThreeColumnLayout = useMediaQuery(
   `(min-width: ${REPAIR_MARK_EDITOR_THREE_COLUMN_BREAKPOINT_PX}px)`,
 );
+const isPortraitSingleSurfaceLayout = useMediaQuery(
+  `(max-width: ${REPAIR_MARK_EDITOR_THREE_COLUMN_BREAKPOINT_PX - 1}px) and (orientation: portrait)`,
+);
 
 const syncDraft = () => {
   draftMarks.value = cloneRepairMarks(props.repairMarks);
@@ -104,7 +107,7 @@ const saveDialog = () => {
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="flex h-[min(94dvh,52rem)] w-[min(99vw,84rem)] max-w-[84rem] flex-col overflow-hidden p-0">
+    <DialogContent class="flex h-[99dvh] w-[99vw] max-w-[84rem] flex-col overflow-hidden p-0">
       <DialogHeader>
         <div class="border-b px-5 pb-3 pt-5 sm:px-6 sm:pb-4 sm:pt-6">
           <DialogTitle>受損位置</DialogTitle>
@@ -113,18 +116,24 @@ const saveDialog = () => {
       </DialogHeader>
 
       <div
-        :class="isThreeColumnLayout ? 'overflow-hidden' : 'overflow-y-auto'"
+        :class="
+          isThreeColumnLayout || isPortraitSingleSurfaceLayout
+            ? 'overflow-hidden'
+            : 'overflow-y-auto'
+        "
         class="min-h-0 flex-1 px-3 py-3 sm:px-4 sm:py-4"
       >
         <div
           :class="
             isThreeColumnLayout
-              ? 'grid-cols-[minmax(0,1fr)_15.5rem] xl:grid-cols-[minmax(0,1fr)_16.5rem]'
-              : 'grid-cols-1'
+              ? 'h-full grid-cols-[minmax(0,1fr)_15.5rem] items-stretch xl:grid-cols-[minmax(0,1fr)_16.5rem]'
+              : isPortraitSingleSurfaceLayout
+                ? 'h-full grid-cols-1 grid-rows-[minmax(0,1.08fr)_minmax(0,1fr)] items-stretch'
+              : 'grid-cols-1 content-start'
           "
-          class="grid h-full min-h-0 items-stretch gap-3"
+          class="grid min-h-0 gap-3"
         >
-          <div class="min-h-0">
+          <div :class="isThreeColumnLayout || isPortraitSingleSurfaceLayout ? 'min-h-0' : 'w-full'">
             <RepairMarksSurfaceGallery
               v-model:marks="draftMarks"
               v-model:selected-mark-id="selectedMarkId"
@@ -133,38 +142,70 @@ const saveDialog = () => {
               :canvas-width="540"
               dual-surface-min-height-class="h-full min-h-0"
               editable
-              single-surface-min-height-class="min-h-[28rem] sm:min-h-[34rem]"
+              :single-surface-canvas-wrapper-class="
+                isPortraitSingleSurfaceLayout
+                  ? 'mx-auto h-full min-h-0 w-full max-w-[24.5rem] sm:max-w-[25rem]'
+                  : ''
+              "
+              :single-surface-gallery-class="isPortraitSingleSurfaceLayout ? 'gap-4' : ''"
+              :single-surface-min-height-class="
+                isPortraitSingleSurfaceLayout ? 'h-full min-h-0' : 'min-h-[25rem] sm:min-h-[29rem]'
+              "
               surface-gap-class="gap-3"
             />
           </div>
 
-          <Card class="flex h-full min-h-0 flex-col">
-            <CardHeader class="space-y-1 pb-2">
+          <Card
+            :class="
+              isThreeColumnLayout || isPortraitSingleSurfaceLayout
+                ? 'flex h-full min-h-0 flex-col'
+                : 'flex flex-col'
+            "
+          >
+            <CardHeader :class="isPortraitSingleSurfaceLayout ? 'space-y-0.5 px-3 pb-1 pt-3' : 'space-y-1 pb-2'">
               <CardTitle class="text-base">標記設定</CardTitle>
-              <CardDescription class="text-xs leading-5">
+              <CardDescription
+                v-if="!isPortraitSingleSurfaceLayout"
+                class="text-xs leading-5"
+              >
                 手動模式可讓維修處數與圈選數不同。
               </CardDescription>
             </CardHeader>
-            <CardContent class="flex h-full min-h-0 flex-col overflow-hidden pt-0">
-              <div class="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-                <div class="space-y-2 rounded-2xl border bg-muted/20 p-3">
-                  <div class="flex flex-wrap gap-2 text-sm font-medium text-foreground">
+            <CardContent
+              :class="
+                isThreeColumnLayout || isPortraitSingleSurfaceLayout
+                  ? 'flex h-full min-h-0 flex-col overflow-hidden pt-0'
+                  : 'flex flex-col pt-0'
+              "
+            >
+              <div
+                :class="
+                  isThreeColumnLayout
+                    ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1'
+                    : isPortraitSingleSurfaceLayout
+                      ? 'min-h-0 flex-1 space-y-1.5 overflow-hidden'
+                    : 'space-y-3'
+                "
+              >
+                <div :class="isPortraitSingleSurfaceLayout ? 'space-y-1 rounded-2xl border bg-muted/20 p-2' : 'space-y-2 rounded-2xl border bg-muted/20 p-3'">
+                  <div :class="isPortraitSingleSurfaceLayout ? 'flex flex-wrap gap-x-2 gap-y-1 text-xs font-medium text-foreground' : 'flex flex-wrap gap-2 text-sm font-medium text-foreground'">
                     <span>正面 {{ summary.frontCount }} 處</span>
                     <span>背面 {{ summary.backCount }} 處</span>
                     <span>共 {{ summary.totalCount }} 處</span>
                   </div>
-                  <p class="text-xs leading-5 text-muted-foreground">
+                  <p :class="isPortraitSingleSurfaceLayout ? 'text-[10px] leading-3.5 text-muted-foreground' : 'text-xs leading-5 text-muted-foreground'">
                     點板面空白處新增。點既有圈選可拖曳或縮放。
                   </p>
                 </div>
 
-                <div class="space-y-3">
+                <div :class="isPortraitSingleSurfaceLayout ? 'space-y-2' : 'space-y-3'">
                   <Field>
                     <FieldLabel>維修處數來源</FieldLabel>
-                    <div class="flex gap-2">
+                    <div :class="isPortraitSingleSurfaceLayout ? 'flex gap-1.5' : 'flex gap-2'">
                       <Button
                         type="button"
                         :variant="draftRepairCountSource === 'auto' ? 'default' : 'outline'"
+                        :size="isPortraitSingleSurfaceLayout ? 'sm' : 'default'"
                         @click="draftRepairCountSource = 'auto'"
                       >
                         自動
@@ -172,6 +213,7 @@ const saveDialog = () => {
                       <Button
                         type="button"
                         :variant="draftRepairCountSource === 'manual' ? 'default' : 'outline'"
+                        :size="isPortraitSingleSurfaceLayout ? 'sm' : 'default'"
                         @click="draftRepairCountSource = 'manual'"
                       >
                         手動
@@ -192,7 +234,7 @@ const saveDialog = () => {
 
                   <Field>
                     <FieldLabel>選取中的標記</FieldLabel>
-                    <div class="flex flex-wrap gap-2">
+                    <div :class="isPortraitSingleSurfaceLayout ? 'flex flex-wrap gap-1.5' : 'flex flex-wrap gap-2'">
                       <Button
                         type="button"
                         variant="outline"
@@ -224,14 +266,14 @@ const saveDialog = () => {
                         刪除
                       </Button>
                     </div>
-                    <FieldDescription class="text-xs leading-5">
+                    <FieldDescription :class="isPortraitSingleSurfaceLayout ? 'text-[11px] leading-4' : 'text-xs leading-5'">
                       若要調整橢圓度，可直接拖曳圈選框控制點。
                     </FieldDescription>
                   </Field>
                 </div>
               </div>
 
-              <div class="mt-3 flex shrink-0 justify-end gap-2 border-t pt-3">
+              <div :class="isPortraitSingleSurfaceLayout ? 'mt-2 flex shrink-0 justify-end gap-2 border-t pt-2' : 'mt-3 flex shrink-0 justify-end gap-2 border-t pt-3'">
                 <Button type="button" size="sm" variant="outline" @click="closeDialog">取消</Button>
                 <Button type="button" size="sm" @click="saveDialog">儲存</Button>
               </div>

@@ -433,6 +433,7 @@ export const mapWorkOrderListRow = (row: AdminWorkOrderListRow, now = new Date()
     phone: row.customer_phone,
   },
   estimatedCompletionDate: row.estimated_completion_date,
+  daysInShop: calculateDaysInShop(row.intake_date, now),
   flags: {
     overdueEstimatedCompletion: row.is_overdue_estimated_completion ?? false,
     pickupOverdue: row.is_pickup_overdue ?? false,

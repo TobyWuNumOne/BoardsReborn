@@ -16,6 +16,7 @@
 - `/admin/scan` 已實作第一版掃碼查詢頁，支援單張工單 lookup、付款 / 交件 / 狀態更新 / 快速備註與完整工單導頁。
 - `/repair-status` 已實作顧客查進度頁，採同頁查詢表單與結果切換，並支援只讀 repair marks 示意圖。
 - repair marks 的編輯與只讀預覽已統一 responsive 規則：`>1024px` 同時顯示正反面，`<=1024px` 改成單面切換；Konva stage 會跟著外層卡片可用空間縮放，不再依賴固定可視像素尺寸。
+- repair marks editor modal 現在額外區分直向 editor 版型：直向時維持單面切換，但把單面標記區置中放在上方，設定卡與儲存/取消放到下方，避免畫布高度把設定區擠出可視範圍。
 - 目前 admin 前端頁面大多屬第一版雛形：已建立主要流程、資訊架構與操作方向，但欄位編排、文案、資訊層級、互動回饋與 mode 細節不視為最終定稿，預期會在與甲方討論後進入第二版調整。
 
 ## Styling Strategy
@@ -169,6 +170,7 @@
 - repair marks 響應式規則固定為：`>1024px` 雙面並排，`<=1024px` 單面切換。
 - repair marks editor modal 以 iPad 11 吋橫向為優先：`>=1024px` 時設定卡提早進入右側欄，讓 `正面 / 背面 / 設定區` 在 11 吋橫向 87% / 100% 都維持同列；只讀預覽維持既有共享 breakpoint。
 - repair marks editor modal 不再依賴大 `min-h` 撐高卡片；dialog body 改以可視高度內的 `flex/grid` 伸縮為主，避免為了看到 `儲存` 再額外往下捲。
+- repair marks editor modal 在直向單面模式下，會限制單面畫布卡片寬度並置中，讓設定卡自然排在下方，而不是讓單面畫布直接吃滿 modal 寬度造成高度失控；同時 dialog 高度會盡量貼近全螢幕，並以固定上下分區 + 壓縮設定區內容的方式，優先確保同一畫面內看得到 `儲存`，必要時可省略直向專用的次要說明文。
 - 每個 form page 至少定義：
   - idle
   - dirty
@@ -196,16 +198,16 @@
 Table 欄位順序：
 
 - 工單號
-- 維修數量
 - 狀態
-- 顧客
+- 維修數量
 - 板型
 - 收件時間
+- 收版天數
 - 提醒
 
 板型欄位顯示 `板型 / 長度分類 / 尺寸標記 / 顏色`。顏色用小方框加文字 label 呈現；標準值 `WHITE / BLACK / BLUE / RED / YELLOW / GREEN / GRAY` 顯示固定 swatch，自訂值顯示中性描邊方框與原始文字。legacy `boardLengthClass = null` 或無顏色時顯示 `—`。
 
-`收件時間` 使用 `intakeDate`，`維修數量` 使用 `repairCount`；legacy null 顯示 `—`。整列仍可點擊進入工單詳情，不在列表中另放查看詳情按鈕。
+`收件時間` 使用 `intakeDate`，`收版天數` 使用 list API 回傳的 `daysInShop`，`維修數量` 使用 `repairCount`；legacy null 顯示 `—`。整列仍可點擊進入工單詳情，不在列表中另放查看詳情按鈕。
 
 ## Work Order Detail
 

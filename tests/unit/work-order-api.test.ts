@@ -632,6 +632,7 @@ describe('work order API validation', () => {
           picked_up_at: null,
           quote_total_amount: 700,
           ready_for_pickup_at: null,
+          repair_count: 2,
           storage_fee_warning_after_days: 14,
           updated_at: '2026-04-20T08:30:00.000Z',
         },
@@ -645,6 +646,7 @@ describe('work order API validation', () => {
         sizeLabel: "6'2",
       },
       customer: { id: 'customer-id', name: '王小明', phone: '0912345678' },
+      daysInShop: 8,
       flags: {
         overdueEstimatedCompletion: false,
         pickupOverdue: false,
@@ -652,6 +654,7 @@ describe('work order API validation', () => {
       },
       paperOrderNo: 'BR-2026-0001',
       quoteTotalAmount: 700,
+      repairCount: 2,
     });
   });
 

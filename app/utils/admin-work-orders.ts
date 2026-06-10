@@ -27,6 +27,7 @@ export interface AdminWorkOrderListItem {
     name: string | null;
     phone: string | null;
   };
+  daysInShop: number | null;
   estimatedCompletionDate: string | null;
   flags: WorkOrderListFlags;
   id: string | null;

@@ -25,7 +25,7 @@
   - `board_color` 已加入 `admin_work_order_list` projection 與 admin resolve preview；工單列表與 bulk status preview 會顯示顏色 swatch + label。
   - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、repair marks 示意圖、公開備註與最近更新時間。
   - `work_orders` 現在已新增 `repair_count` / `repair_count_source`，並新增 `work_order_repair_marks` 結構化標記表；create/detail/patch/public lookup contract 已同步支援，且建單前必須先解析出非空 `repairCount`。
-  - repair marks 的編輯與只讀預覽已統一 responsive 規則：`>1024px` 顯示正反面，`<=1024px` 改成單面切換；Konva stage 會跟著外層卡片可用空間縮放，`SURFBOARD` / `SUP` 共用同一套瘦長輪廓，`SNOWBOARD` 保持獨立輪廓；其中 editor modal 已再調整為 iPad 11 吋橫向優先，`>=1024px` 時固定維持 `正面 / 背面 / 設定區` 同列，且不再需要為了看到 `儲存` 額外下捲。
+  - repair marks 的編輯與只讀預覽已統一 responsive 規則：`>1024px` 顯示正反面，`<=1024px` 改成單面切換；Konva stage 會跟著外層卡片可用空間縮放，`SURFBOARD` / `SUP` 共用同一套瘦長輪廓，`SNOWBOARD` 保持獨立輪廓；其中 editor modal 已再調整為 iPad 11 吋橫向優先，`>=1024px` 時固定維持 `正面 / 背面 / 設定區` 同列，且不再需要為了看到 `儲存` 額外下捲；直向 editor 則改成單面切換在上、設定卡在下的堆疊版型，並把 modal 高度與單面標記區再往上放大。
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作、sticky 必填摘要，以及顧客手機 10 碼自動查詢與單一候選顧客自動選取；送出錯誤 scroll 與建立成功後 next actions 區塊尚待下一輪，但導頁後頂部成功提示已補上。
   - admin mobile sidebar 已支援左緣拖拉開啟與左拖關閉，保留既有 trigger / close button 作為備援。
@@ -78,7 +78,7 @@
 - Admin work-order API：done。Create/list/detail/update/status/resolve/bulk-status、customer lookup 與 `GET /api/admin/print-summaries` 已建立；建工單後 best-effort print enqueue 已接上。
 - Auth 與管理端流程：done。Admin gate helper、session endpoint、login/logout UI、admin middleware 與 session bootstrap 已建立。
 - Frontend strategy / UI foundation：done。Tailwind CSS v4、shadcn-vue primitives、admin shell、dashboard summary 與 frontend rules 已建立。
-- Admin work-order list UI：done。`/admin/work-orders` 已接上 list API、URL query state、全尺寸 table（窄螢幕 overflow-x）、維修數量顯示與 detail 導頁。
+- Admin work-order list UI：done。`/admin/work-orders` 已接上 list API、URL query state、全尺寸 table（窄螢幕 overflow-x）、維修數量 / 收版天數顯示與 detail 導頁。
 - Admin work-order detail UI：done。`/admin/work-orders/[id]` 已接上 detail API、`view/edit/work` mode、列印摘要卡與 repair marks 顯示 / 編輯；完整列印操作仍以 `/admin/printing` 為中心。
 - Admin work-order create UI：done。`/admin/work-orders/new` 已接上 lookup-first 建單流程、日期預設、初始報價、tablet-first F8A/F8B 快捷操作、Konva repair marks modal 與成功導向 detail。
 - Admin bulk status UI：done。`/admin/work-orders/bulk-status` 已接上 preview 搜尋、共享狀態更新、分組快捷操作、批量結果摘要與頁頂成功提示；此頁不再顯示列印摘要。
@@ -111,7 +111,7 @@
 - Local auth cookie hardening：Supabase SSR cookie 依 app URL protocol 決定 `secure`，避免本機 HTTP 開發時瀏覽器拒收 auth cookie。
 - Frontend UI foundation：Tailwind CSS v4、`@tailwindcss/vite`、shadcn-vue primitives、`shadcn-nuxt`、SSR width plugin、Tailwind/shadcn 重整後的 homepage / login / forbidden / admin placeholder。
 - Frontend strategy spec：`docs/frontend.md`，定義 admin route map、layout、data access、form validation、feedback、列表與狀態 badge 規則。
-- Admin work-order list UI：URL query canonicalization middleware、read-only 工單列表、提醒 badges、全尺寸 table（窄螢幕 overflow-x）、維修數量欄位與 detail route。
+- Admin work-order list UI：URL query canonicalization middleware、read-only 工單列表、提醒 badges、全尺寸 table（窄螢幕 overflow-x）、維修數量 / 收版天數欄位與 detail route。
 - Admin work-order list rendering fix：改為顯式 import `work-orders` 目錄下的列表與 badge 元件，排除 Nuxt auto-import 前綴不符造成「總數正確但列表不顯示」的回歸。
 - Admin work-order detail UI：單一路由 detail page、`mode=view|edit|work` query canonicalization、detail data keyed only by id、view mode 只讀區塊、edit mode PATCH 表單、work mode 狀態更新卡與 404/422 分流已建立。
 - Work-order detail 列印摘要：detail 頁已新增列印狀態卡、`created=1` 頂部成功提示、`前往列印中心` deep link 與單筆 `建立列印任務 / 建立補印`。

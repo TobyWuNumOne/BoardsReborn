@@ -19,6 +19,8 @@ const props = withDefaults(
     editable?: boolean;
     marks: RepairMark[];
     selectedMarkId?: string | null;
+    singleSurfaceCanvasWrapperClass?: string;
+    singleSurfaceGalleryClass?: string;
     singleSurfaceMinHeightClass?: string;
     surfaceGapClass?: string;
   }>(),
@@ -28,6 +30,8 @@ const props = withDefaults(
     dualSurfaceMinHeightClass: 'min-h-[32rem] xl:min-h-[44rem]',
     editable: false,
     selectedMarkId: null,
+    singleSurfaceCanvasWrapperClass: '',
+    singleSurfaceGalleryClass: '',
     singleSurfaceMinHeightClass: 'min-h-[44rem] xl:min-h-[52rem]',
     surfaceGapClass: 'gap-4',
   },
@@ -60,7 +64,7 @@ const visibleBoardSides = computed(() =>
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col gap-3">
+  <div :class="cn('flex h-full min-h-0 flex-col gap-3', isSingleSurfaceLayout && singleSurfaceGalleryClass)">
     <div v-if="isSingleSurfaceLayout" class="flex shrink-0 items-center justify-between gap-3">
       <p class="text-sm font-medium text-foreground">板面切換</p>
       <div class="inline-flex rounded-lg border bg-muted/20 p-1">
@@ -94,6 +98,7 @@ const visibleBoardSides = computed(() =>
           cn(
             'flex min-h-0 h-full',
             isSingleSurfaceLayout ? singleSurfaceMinHeightClass : dualSurfaceMinHeightClass,
+            isSingleSurfaceLayout && singleSurfaceCanvasWrapperClass,
           )
         "
       >
