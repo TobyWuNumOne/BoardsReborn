@@ -170,10 +170,23 @@ const intakeCalendarValue = computed({
   },
 });
 
-const mergedFieldErrors = computed<Record<string, string[]>>(() => ({
-  ...(submitApiError.value?.error.fieldErrors ?? {}),
-  ...clientFieldErrors.value,
-}));
+const mergedFieldErrors = computed<Record<string, string[]>>(() => {
+  const nextErrors: Record<string, string[]> = {
+    ...clientFieldErrors.value,
+  };
+
+  for (const [field, messages] of Object.entries(submitApiError.value?.error.fieldErrors ?? {})) {
+    nextErrors[field] = messages;
+
+    const alias = field.split('.').at(-1);
+
+    if (alias && !(alias in nextErrors)) {
+      nextErrors[alias] = messages;
+    }
+  }
+
+  return nextErrors;
+});
 const formAlertMessages = computed(() => {
   const messages: string[] = [];
 

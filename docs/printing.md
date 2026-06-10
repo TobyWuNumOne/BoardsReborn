@@ -83,29 +83,30 @@ Admin UI / Work-order create
 
 ```json
 {
-  "templateVersion": 1,
-  "paperOrderNo": "BR-2026-0001",
-  "barcodeValue": "BR20260001",
-  "customerNameAscii": "ALEX",
+  "templateVersion": 2,
+  "paperOrderNo": "260001",
+  "displayOrderNumber": "260001",
+  "barcodeValue": "260001",
+  "intakeDate": "2026-06-05",
   "customerPhone": "0912927265",
-  "boardType": "SURFBOARD",
-  "estimatedCompletionDate": "2026-06-10",
-  "initialQuoteAmount": 1200,
-  "paymentReceived": true
+  "paymentReceived": true,
+  "repairCount": 6
 }
 ```
 
 規則：
 
 - `job_type` 仍維持 `work_order_label`
-- worker 只消費 snapshot，不可自行 normalize customer name、phone、board type 或 work order number
-- server enqueue 端負責生成 `barcodeValue`、`customerNameAscii`、`customerPhone`、ASCII-safe `boardType`，以及列印用的 `estimatedCompletionDate`、`initialQuoteAmount`、`paymentReceived` snapshot
+- worker 只消費 snapshot，不可自行推導 repair count，也不可自行 normalize phone 或 work order number
+- server enqueue 端負責生成 `displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived` 與 `repairCount` snapshot
 
 ## 建單與補印規則
 
 - 建立工單後，server 會 **best-effort** 自動建立第一筆 `pending` `print_job`。
+- 建立工單前，server 必須先確認可解析出非空 `repairCount`；若缺少則整體 create 回 `422`。
 - 自動 enqueue 失敗不可讓工單建立失敗。
 - Admin 可手動建立新的 `print_job` 作為補印或重印。
+- 若目標工單 `repairCount` 為 `null`，建立 `work_order_label` 必須回 `422 VALIDATION_ERROR`。
 - 補印與重印都必須新增新任務，不覆蓋舊任務。
 - `attempt_count` 在 worker fail 時累加；manual retry 只重排任務，不重置計數。
 

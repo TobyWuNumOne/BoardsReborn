@@ -81,6 +81,24 @@ export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
 
   if (
     error.code === '23514' &&
+    includesErrorText(error, 'Print repair count is required')
+  ) {
+    throw new ValidationError({
+      workOrderId: ['Repair count is required before creating a work order label print job.'],
+    });
+  }
+
+  if (
+    error.code === '23514' &&
+    includesErrorText(error, 'Print phone value is invalid')
+  ) {
+    throw new ValidationError({
+      body: ['Print phone value is invalid.'],
+    });
+  }
+
+  if (
+    error.code === '23514' &&
     includesErrorText(error, 'Print job is not locked by this device')
   ) {
     throw new ConflictError('Print job is not locked by this device.');

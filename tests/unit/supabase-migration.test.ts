@@ -80,6 +80,13 @@ const repairMarksMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260609120000_work_order_repair_marks.sql'),
   'utf8',
 );
+const workOrderLabelRepairCountSnapshotMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260609224500_work_order_label_repair_count_snapshot.sql',
+  ),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -349,5 +356,17 @@ describe('initial Supabase migration', () => {
     expect(printJobEtaQuotePaymentSnapshotMigration).toContain(
       "'paymentReceived', v_work_order.payment_received",
     );
+  });
+
+  it('replaces work-order label snapshots with the repair-count-aware payload', () => {
+    expect(workOrderLabelRepairCountSnapshotMigration).toContain(
+      "raise exception 'Print repair count is required'",
+    );
+    expect(workOrderLabelRepairCountSnapshotMigration).toContain("'templateVersion', 2");
+    expect(workOrderLabelRepairCountSnapshotMigration).toContain("'displayOrderNumber'");
+    expect(workOrderLabelRepairCountSnapshotMigration).toContain("'intakeDate'");
+    expect(workOrderLabelRepairCountSnapshotMigration).toContain("'customerPhone'");
+    expect(workOrderLabelRepairCountSnapshotMigration).toContain("'paymentReceived'");
+    expect(workOrderLabelRepairCountSnapshotMigration).toContain("'repairCount'");
   });
 });

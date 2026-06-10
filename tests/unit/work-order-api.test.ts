@@ -335,6 +335,17 @@ describe('work order API validation', () => {
       },
       customer: { name: '王小明', phone: '0912-345-678' },
       customerMode: 'create',
+      repairMarks: [
+        {
+          boardSide: 'front',
+          heightRatio: 0.1,
+          sortOrder: 0,
+          templateKey: 'SURFBOARD:front:v1',
+          widthRatio: 0.1,
+          xRatio: 0.4,
+          yRatio: 0.3,
+        },
+      ],
       quoteItems: [],
       workOrder: {
         intakeDate: '2026-04-20',
@@ -353,10 +364,14 @@ describe('work order API validation', () => {
       workOrder: {
         intakeDate: '2026-04-20',
         paperOrderNo: 'BR-2026-0002',
+        repairCount: 2,
+        repairCountSource: 'manual',
       },
     });
 
     expect(reuseInput.customerId).toBe('4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2');
+    expect(reuseInput.workOrder.repairCount).toBe(2);
+    expect(reuseInput.workOrder.repairCountSource).toBe('manual');
     expectValidationField(
       () =>
         parseCreateWorkOrderBody({
@@ -369,6 +384,25 @@ describe('work order API validation', () => {
           },
         }),
       'customer',
+    );
+  });
+
+  it('requires a resolved repair count before creating a work order', () => {
+    expectValidationField(
+      () =>
+        parseCreateWorkOrderBody({
+          board: {
+            boardLengthClass: 'SHORTBOARD',
+            boardType: 'SURFBOARD',
+          },
+          customer: { name: '王小明', phone: '0912345678' },
+          customerMode: 'create',
+          workOrder: {
+            intakeDate: '2026-04-20',
+            paperOrderNo: 'BR-2026-0102',
+          },
+        }),
+      'workOrder.repairCount',
     );
   });
 

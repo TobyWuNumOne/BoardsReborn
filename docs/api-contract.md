@@ -484,7 +484,9 @@ Request：
   },
   "workOrder": {
     "paperOrderNo": "BR-2026-0001",
-    "intakeDate": "2026-04-20"
+    "intakeDate": "2026-04-20",
+    "repairCount": 2,
+    "repairCountSource": "manual"
   },
   "quoteItems": []
 }
@@ -492,7 +494,8 @@ Request：
 
 `repairCount` / `repairCountSource` 規則：
 
-- `repairCountSource = auto`：若有 `repairMarks`，server 以 mark 數量為準；若沒有 mark，`repairCount` 可省略
+- `POST /api/admin/work-orders` 必須能解析出最終 `repairCount`；若最終值為 `null` 或缺少，回 `422 VALIDATION_ERROR`，`fieldErrors.workOrder.repairCount`
+- `repairCountSource = auto`：建立工單時至少要有一筆 `repairMarks`；server 以 mark 數量為準，不接受「auto 但沒有 mark」的 create payload
 - `repairCountSource = manual`：`repairCount` 必填且必須 >= 1
 - `repairMarks[*].templateKey` 必須匹配目前 `board.boardType` 與 `boardSide`，例如 `SURFBOARD:front:v1`
 
@@ -510,7 +513,7 @@ Response：`201`
 }
 ```
 
-建立工單成功後，server 會 best-effort 建立第一筆 `print_jobs`。若 enqueue 失敗，工單仍然建立成功；列印流程失敗不可影響工單主資料建立成功。
+建立工單前，server 必須先確認可解析出非空 `repairCount`，因為第一筆 `work_order_label` 需要完整 print-ready snapshot。若 `repairCount` 缺少，整體建單回 `422 VALIDATION_ERROR`。除這個前置條件外，建工單成功後仍會 best-effort 建立第一筆 `print_jobs`；其他 enqueue 失敗不回滾工單主資料。
 
 ### `GET /api/admin/work-orders/{id}`
 
@@ -898,6 +901,8 @@ Response：`201`
 
 補印必須新增新的 `print_jobs` 記錄，不可覆蓋舊任務。
 
+若目標工單目前 `repairCount` 為 `null` 或缺失，建立 `work_order_label` 回 `422 VALIDATION_ERROR`。第一版回傳 `fieldErrors.workOrderId`，表示該工單尚未具備可列印的維修處數快照。
+
 ### `POST /api/admin/print-jobs/{id}/retry`
 
 將失敗任務重新排入佇列。此 endpoint 使用管理端 Supabase Auth session。
@@ -1212,15 +1217,14 @@ Response：
       "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
       "jobType": "work_order_label",
       "payload": {
-        "templateVersion": 1,
-        "paperOrderNo": "BR-2026-0001",
-        "barcodeValue": "BR20260001",
-        "customerNameAscii": "ALEX",
+        "templateVersion": 2,
+        "paperOrderNo": "260001",
+        "displayOrderNumber": "260001",
+        "barcodeValue": "260001",
+        "intakeDate": "2026-06-05",
         "customerPhone": "0912927265",
-        "boardType": "SURFBOARD",
-        "estimatedCompletionDate": "2026-06-10",
-        "initialQuoteAmount": 1200,
-        "paymentReceived": true
+        "paymentReceived": true,
+        "repairCount": 6
       },
       "attemptCount": 0,
       "maxAttempts": 3,

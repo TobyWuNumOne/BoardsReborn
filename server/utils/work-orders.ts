@@ -980,6 +980,19 @@ export const createAdminWorkOrder = async (
   input: CreateWorkOrderInput,
   userId: string,
 ) => {
+  const repairMarks = input.repairMarks ?? [];
+  const normalizedRepairCount = normalizeRepairCount(
+    input.workOrder.repairCount ?? null,
+    input.workOrder.repairCountSource ?? 'auto',
+    repairMarks.length,
+  );
+
+  if (normalizedRepairCount === null) {
+    throw new ValidationError({
+      'workOrder.repairCount': ['Is required before creating a work order label.'],
+    });
+  }
+
   const { data, error } = await supabase.rpc('create_admin_work_order', {
     p_board: toJsonObject(input.board),
     p_created_by_user_id: userId,
@@ -995,30 +1008,19 @@ export const createAdminWorkOrder = async (
   }
 
   const result = assertCreateResult(data);
-  const repairMarks = input.repairMarks ?? [];
-  const normalizedRepairCount = normalizeRepairCount(
-    input.workOrder.repairCount ?? null,
-    input.workOrder.repairCountSource ?? 'auto',
-    repairMarks.length,
-  );
+  const { error: updateError } = await supabase
+    .from('work_orders')
+    .update({
+      repair_count: normalizedRepairCount,
+      repair_count_source: input.workOrder.repairCountSource ?? 'auto',
+    })
+    .eq('id', result.id);
 
-  if (
-    repairMarks.length > 0 ||
-    normalizedRepairCount !== null ||
-    input.workOrder.repairCountSource === 'manual'
-  ) {
-    const { error: updateError } = await supabase
-      .from('work_orders')
-      .update({
-        repair_count: normalizedRepairCount,
-        repair_count_source: input.workOrder.repairCountSource ?? 'auto',
-      })
-      .eq('id', result.id);
+  if (updateError) {
+    throwMappedSupabaseError(updateError);
+  }
 
-    if (updateError) {
-      throwMappedSupabaseError(updateError);
-    }
-
+  if (repairMarks.length > 0) {
     await replaceRepairMarks(supabase, result.id, repairMarks);
   }
 

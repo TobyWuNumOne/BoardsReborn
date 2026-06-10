@@ -79,9 +79,10 @@ describe('admin work-order create tablet helpers', () => {
     const formState = createAdminWorkOrderCreateInitialFormState('2026-05-11');
     let summary = getRequiredFieldSummary(formState);
 
-    expect(summary.total).toBe(8);
+    expect(summary.total).toBe(9);
     expect(summary.missingLabels).toContain('工單號碼');
     expect(summary.missingLabels).toContain('顧客查詢');
+    expect(summary.missingLabels).toContain('維修處數');
 
     formState.paperOrderNo = '1001';
     formState.customerPhone = '0912345678';
@@ -90,13 +91,15 @@ describe('admin work-order create tablet helpers', () => {
     formState.boardType = 'SURFBOARD';
     formState.boardLengthClass = 'SHORTBOARD';
     formState.damageDescription = '鼻頭傷';
+    formState.repairCount = '2';
+    formState.repairCountSource = 'manual';
 
     summary = getRequiredFieldSummary(formState);
 
     expect(summary).toEqual({
-      completed: 9,
+      completed: 10,
       missingLabels: [],
-      total: 9,
+      total: 10,
     });
   });
 });

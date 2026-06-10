@@ -15,71 +15,73 @@ from renderer import DEFAULT_CUT_COMMAND, PrintPayloadError, render_work_order_r
 class RenderWorkOrderReceiptTest(unittest.TestCase):
     def test_renders_expected_receipt_bytes(self) -> None:
         payload = {
-            "barcodeValue": "BR20260601001",
-            "boardType": "SURFBOARD",
-            "customerNameAscii": "Alex",
+            "barcodeValue": "123456",
             "customerPhone": "0912927265",
-            "estimatedCompletionDate": "2026-06-10",
-            "initialQuoteAmount": 1200,
-            "paperOrderNo": "BR-20260601-001",
+            "displayOrderNumber": "123456",
+            "intakeDate": "2026-06-05",
+            "paperOrderNo": "260001",
             "paymentReceived": True,
-            "templateVersion": 1,
+            "repairCount": 6,
+            "templateVersion": 2,
         }
 
         rendered = render_work_order_receipt(payload)
 
-        self.assertTrue(rendered.startswith(b"\x1B\x40BoardsReborn"))
-        self.assertIn(b"Order: BR-20260601-001", rendered)
-        self.assertIn(b"Customer: Alex", rendered)
-        self.assertIn(b"Phone: 0912927265", rendered)
-        self.assertIn(b"Board: SURFBOARD", rendered)
-        self.assertIn(b"ETA: 2026-06-10", rendered)
-        self.assertIn(b"Quote: NT$1200", rendered)
+        self.assertTrue(rendered.startswith(b"\x1B\x40\x1D\x21\x11"))
+        self.assertIn(b"In: 2026-06-05", rendered)
+        self.assertIn(b"Tel: 0912927265", rendered)
         self.assertIn(b"Paid: YES", rendered)
         self.assertIn(
-            b"\x1D\x48\x02\x1D\x68\x50\x1D\x77\x02\x1B\x61\x01\x1D\x6B\x04BR20260601001\x00\n\x1B\x61\x00",
+            b"\x1B\x61\x01\x1B\x56\x02\x1D\x21\x22123456\x1B\x56\x00\x1D\x21\x11(\x1B\x56\x02\x1D\x21\x226\x1B\x56\x00\x1D\x21\x11)",
+            rendered,
+        )
+        self.assertIn(
+            b"\x1D\x48\x00\x1D\x68\x40\x1D\x77\x02\x1D\x6B\x04123456\x00\x1B\x61\x00",
             rendered,
         )
         self.assertNotIn(b"\n\n\n", rendered)
         self.assertTrue(rendered.endswith(DEFAULT_CUT_COMMAND))
 
-    def test_uses_fallbacks_for_optional_fields(self) -> None:
-        payload = {
-            "barcodeValue": "BR20260601001",
-            "paperOrderNo": "BR-20260601-001",
-            "templateVersion": 1,
-        }
-
-        rendered = render_work_order_receipt(payload)
-
-        self.assertIn(b"Customer: -", rendered)
-        self.assertIn(b"Phone: -", rendered)
-        self.assertIn(b"Board: -", rendered)
-        self.assertIn(b"ETA: -", rendered)
-        self.assertIn(b"Quote: -", rendered)
-        self.assertIn(b"Paid: -", rendered)
-
-    def test_keeps_backward_compatibility_for_masked_phone_payloads(self) -> None:
-        payload = {
-            "barcodeValue": "BR20260601001",
-            "maskedPhone": "****7265",
-            "paperOrderNo": "BR-20260601-001",
-        }
-
-        rendered = render_work_order_receipt(payload)
-
-        self.assertIn(b"Phone: ****7265", rendered)
-
     def test_fails_for_missing_paper_order_number(self) -> None:
         with self.assertRaises(PrintPayloadError):
-            render_work_order_receipt({"barcodeValue": "BR20260601001"})
+            render_work_order_receipt(
+                {
+                    "barcodeValue": "123456",
+                    "customerPhone": "0912927265",
+                    "displayOrderNumber": "123456",
+                    "intakeDate": "2026-06-05",
+                    "paymentReceived": True,
+                    "repairCount": 6,
+                    "templateVersion": 2,
+                }
+            )
 
     def test_fails_for_invalid_barcode_value(self) -> None:
         with self.assertRaises(PrintPayloadError):
             render_work_order_receipt(
                 {
                     "barcodeValue": "br-2026-0001",
-                    "paperOrderNo": "BR-20260601-001",
+                    "customerPhone": "0912927265",
+                    "displayOrderNumber": "123456",
+                    "intakeDate": "2026-06-05",
+                    "paperOrderNo": "260001",
+                    "paymentReceived": True,
+                    "repairCount": 6,
+                    "templateVersion": 2,
+                }
+            )
+
+    def test_fails_for_missing_repair_count(self) -> None:
+        with self.assertRaises(PrintPayloadError):
+            render_work_order_receipt(
+                {
+                    "barcodeValue": "123456",
+                    "customerPhone": "0912927265",
+                    "displayOrderNumber": "123456",
+                    "intakeDate": "2026-06-05",
+                    "paperOrderNo": "260001",
+                    "paymentReceived": True,
+                    "templateVersion": 2,
                 }
             )
 

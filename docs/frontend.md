@@ -279,6 +279,10 @@ Mobile card 也需顯示衝浪板長度分類與顏色 swatch；若為非 `SURFB
   - 手機號碼變更後必須清空 lookup 結果與 reuse/create 決策
 - `estimatedCompletionDate` 預設由 `intakeDate` 計算，第一版規則為固定下週日；在使用者手動改過前，`intakeDate` 改變時可自動重算。
 - 初始報價可留空；若有填金額，送單筆 `INITIAL` quote item。
+- 建單頁必須在送出前解析出非空 `repairCount`：
+  - `auto` 模式：至少一筆 repair mark
+  - `manual` 模式：必填正整數維修處數
+- create API 若回 `workOrder.repairCount` 這類巢狀欄位錯誤，前端需映射回 `repairCount` inline error。
 - `paymentReceived = true` 且未填初始報價時只顯示 warning，不阻擋提交。
 - 建立成功後：
   - 清除 unsaved-change guard

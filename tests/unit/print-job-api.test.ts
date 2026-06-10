@@ -273,12 +273,14 @@ describe('print job services', () => {
               lockedAt: '2026-05-21T00:01:00.000Z',
               maxAttempts: 3,
               payload: {
-                barcodeValue: 'BR20260001',
-                boardType: 'SURFBOARD',
+                barcodeValue: '260001',
                 customerPhone: '0912927265',
-                customerNameAscii: 'Alex',
-                paperOrderNo: 'BR-2026-0001',
-                templateVersion: 1,
+                displayOrderNumber: '260001',
+                intakeDate: '2026-05-21',
+                paperOrderNo: '260001',
+                paymentReceived: false,
+                repairCount: 2,
+                templateVersion: 2,
               },
               workOrderId: 'work-order-1',
             },
@@ -737,6 +739,25 @@ describe('work order print job enqueue', () => {
   it('best-effort enqueues the initial print job after work order creation', async () => {
     const calls: Array<{ args: Record<string, unknown>; name: string }> = [];
     const client = {
+      from(table: string) {
+        if (table !== 'work_orders') {
+          throw new Error(`Unexpected table ${table}`);
+        }
+
+        return {
+          update(payload: Record<string, unknown>) {
+            return {
+              eq(column: string, value: string) {
+                calls.push({
+                  args: { column, payload, value },
+                  name: 'work_orders.update',
+                });
+                return Promise.resolve({ error: null });
+              },
+            };
+          },
+        };
+      },
       rpc(name: string, args: Record<string, unknown>) {
         calls.push({ args, name });
 
@@ -787,6 +808,8 @@ describe('work order print job enqueue', () => {
             intakeDate: '2026-05-21',
             paperOrderNo: 'BR-2026-0001',
             paymentReceived: false,
+            repairCount: 2,
+            repairCountSource: 'manual',
           },
         },
         'user-1',
@@ -803,6 +826,7 @@ describe('work order print job enqueue', () => {
 
     expect(calls.map((call) => call.name)).toEqual([
       'create_admin_work_order',
+      'work_orders.update',
       'create_admin_print_job',
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
@@ -813,6 +837,21 @@ describe('work order print job enqueue', () => {
   it('does not fail work order creation when initial print job enqueue fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const client = {
+      from(table: string) {
+        if (table !== 'work_orders') {
+          throw new Error(`Unexpected table ${table}`);
+        }
+
+        return {
+          update() {
+            return {
+              eq() {
+                return Promise.resolve({ error: null });
+              },
+            };
+          },
+        };
+      },
       rpc(name: string) {
         if (name === 'create_admin_work_order') {
           return Promise.resolve({
@@ -855,6 +894,8 @@ describe('work order print job enqueue', () => {
             intakeDate: '2026-05-21',
             paperOrderNo: 'BR-2026-0001',
             paymentReceived: false,
+            repairCount: 2,
+            repairCountSource: 'manual',
           },
         },
         'user-1',
@@ -870,5 +911,34 @@ describe('work order print job enqueue', () => {
     });
 
     expect(consoleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps missing repair count print enqueue failures to a validation error', async () => {
+    const client = {
+      rpc() {
+        return Promise.resolve({
+          data: null,
+          error: {
+            code: '23514',
+            message: 'Print repair count is required',
+          },
+        });
+      },
+    };
+
+    await expect(
+      createAdminPrintJob(
+        client as never,
+        {
+          jobType: 'work_order_label',
+          workOrderId: 'work-order-1',
+        },
+        'user-1',
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        workOrderId: ['Repair count is required before creating a work order label print job.'],
+      },
+    });
   });
 });

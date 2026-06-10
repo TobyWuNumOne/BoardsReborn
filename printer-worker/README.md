@@ -99,25 +99,25 @@ python worker.py serve
 
 - `templateVersion`
 - `paperOrderNo`
+- `displayOrderNumber`
 - `barcodeValue`
-- `customerNameAscii`
+- `intakeDate`
 - `customerPhone`
-- `boardType`
-- `estimatedCompletionDate`
-- `initialQuoteAmount`
 - `paymentReceived`
+- `repairCount`
 
-Worker 不會自行 normalize customer name、phone、board type 或 work order number。
+Worker 不會自行推導 repair count，也不會自行 normalize phone 或 work order number。
 
 ## Receipt template
 
 第一版固定輸出：
 
-- two-column layout:
-  - left: `BoardsReborn` / `Customer` / `Board` / `Quote`
-  - right: `Order` / `Phone` / `ETA` / `Paid`
+- centered 2x `In: YYYY-MM-DD`
+- `Tel: ...` / `Paid: YES|NO` 同行
+- rotated large `displayOrderNumber`
+- non-rotated parentheses + rotated `repairCount`
 - centered 1D barcode using `barcodeValue`
-- reduced feed lines with tighter barcode tail spacing
+- barcode height `0x40`
 - cut command `\x1D\x56\x42\x05`
 
 ## 預期輸出
@@ -128,14 +128,14 @@ Worker 不會自行 normalize customer name、phone、board type 或 work order 
 Claimed print job
 - id: ...
 - jobType: work_order_label
-- paperOrderNo: BR-2026-0001
-- barcodeValue: BR20260001
-- customerNameAscii: ALEX
+- paperOrderNo: 260001
+- templateVersion: 2
+- displayOrderNumber: 260001
+- barcodeValue: 260001
+- intakeDate: 2026-06-05
 - customerPhone: 0912927265
-- boardType: SURFBOARD
-- estimatedCompletionDate: 2026-06-10
-- initialQuoteAmount: 1200
 - paymentReceived: true
+- repairCount: 6
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```
 
@@ -145,13 +145,14 @@ Reported success -> status=printed attemptCount=0 printedAt=...
 Claimed print job
 - id: ...
 - jobType: work_order_label
-- paperOrderNo: BR-2026-0001
-- barcodeValue: BR20260001
+- paperOrderNo: 260001
+- templateVersion: 2
+- displayOrderNumber: 260001
+- barcodeValue: 260001
+- intakeDate: 2026-06-05
 - customerPhone: 0912927265
-- boardType: SURFBOARD
-- estimatedCompletionDate: 2026-06-10
-- initialQuoteAmount: 1200
 - paymentReceived: true
+- repairCount: 6
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```
 

@@ -6,7 +6,7 @@ import re
 
 BARCODE_PATTERN = re.compile(r"^[A-Z0-9]{4,32}$")
 DEFAULT_CUT_COMMAND = b"\x1D\x56\x42\x05"
-BARCODE_HEIGHT = b"\x50"
+BARCODE_HEIGHT = b"\x40"
 RECEIPT_TEXT_WIDTH = 42
 RECEIPT_COLUMN_GAP = 2
 
@@ -34,33 +34,51 @@ def _optional_string(payload: dict[str, Any], key: str, fallback: str) -> str:
     return trimmed or fallback
 
 
-def _optional_integer(payload: dict[str, Any], key: str) -> int | None:
+def _required_integer(payload: dict[str, Any], key: str) -> int:
     value = payload.get(key)
 
     if isinstance(value, bool) or value is None:
-        return None
+        raise PrintPayloadError(f"Missing required {key} in print job payload.")
 
     if isinstance(value, int):
-        return value
-
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-
-    if isinstance(value, str):
+        integer_value = value
+    elif isinstance(value, float) and value.is_integer():
+        integer_value = int(value)
+    elif isinstance(value, str):
         trimmed = value.strip()
         if trimmed and re.fullmatch(r"-?\d+", trimmed):
-            return int(trimmed)
+            integer_value = int(trimmed)
+        else:
+            raise PrintPayloadError(f"Missing required {key} in print job payload.")
+    else:
+        raise PrintPayloadError(f"Missing required {key} in print job payload.")
 
-    return None
+    if integer_value < 1:
+        raise PrintPayloadError(f"Invalid {key} in print job payload.")
+
+    return integer_value
 
 
-def _optional_boolean(payload: dict[str, Any], key: str) -> bool | None:
+def _required_boolean(payload: dict[str, Any], key: str) -> bool:
     value = payload.get(key)
 
     if isinstance(value, bool):
         return value
 
-    return None
+    raise PrintPayloadError(f"Missing required {key} in print job payload.")
+
+
+def _required_ascii_bytes(payload: dict[str, Any], key: str) -> bytes:
+    try:
+        return _required_string(payload, key).encode("ascii")
+    except UnicodeEncodeError as error:
+        raise PrintPayloadError(str(error)) from error
+
+
+def _center_text(left: str, multiplier: int = 1) -> str:
+    visible_width = len(left) * multiplier
+    padding = max(0, (RECEIPT_TEXT_WIDTH - visible_width) // 2)
+    return (" " * padding) + left
 
 
 def _two_column_line(left: str, right: str) -> str:
@@ -75,53 +93,64 @@ def _two_column_line(left: str, right: str) -> str:
 
 
 def render_work_order_receipt(payload: dict[str, Any]) -> bytes:
-    paper_order_no = _required_string(payload, "paperOrderNo")
+    template_version = _required_integer(payload, "templateVersion")
+    paper_order_no = _required_ascii_bytes(payload, "paperOrderNo")
+    display_order_number = _required_ascii_bytes(payload, "displayOrderNumber")
+    intake_date = _required_ascii_bytes(payload, "intakeDate")
     barcode_value = _required_string(payload, "barcodeValue")
+    customer_phone = _required_ascii_bytes(payload, "customerPhone")
+    repair_count = _required_integer(payload, "repairCount")
+    payment_received = _required_boolean(payload, "paymentReceived")
+
+    if template_version != 2:
+        raise PrintPayloadError("Unsupported templateVersion in print job payload.")
 
     if not BARCODE_PATTERN.fullmatch(barcode_value):
         raise PrintPayloadError("Invalid barcodeValue in print job payload.")
 
-    customer_name = _optional_string(payload, "customerNameAscii", "-")
-    customer_phone = _optional_string(
-        payload,
-        "customerPhone",
-        _optional_string(payload, "maskedPhone", "-"),
-    )
-    board_type = _optional_string(payload, "boardType", "-")
-    estimated_completion_date = _optional_string(payload, "estimatedCompletionDate", "-")
-    initial_quote_amount = _optional_integer(payload, "initialQuoteAmount")
-    payment_received = _optional_boolean(payload, "paymentReceived")
-
-    quote_display = f"NT${initial_quote_amount}" if initial_quote_amount is not None else "-"
-    paid_display = "YES" if payment_received is True else "NO" if payment_received is False else "-"
-
-    text_lines = [
-        _two_column_line("BoardsReborn", f"Order: {paper_order_no}"),
-        _two_column_line(f"Customer: {customer_name}", f"Phone: {customer_phone}"),
-        _two_column_line(f"Board: {board_type}", f"ETA: {estimated_completion_date}"),
-        _two_column_line(f"Quote: {quote_display}", f"Paid: {paid_display}"),
-    ]
-
     try:
-        text_bytes = "\n".join(text_lines).encode("ascii")
         barcode_bytes = barcode_value.encode("ascii")
     except UnicodeEncodeError as error:
         raise PrintPayloadError(str(error)) from error
 
+    paid_display = b"YES" if payment_received else b"NO"
+    date_line = _center_text(f"In: {intake_date.decode('ascii')}", multiplier=2).encode("ascii")
+    phone_paid_line = _two_column_line(
+        f"Tel: {customer_phone.decode('ascii')}",
+        f"Paid: {paid_display.decode('ascii')}",
+    ).encode("ascii")
+    repair_count_bytes = str(repair_count).encode("ascii")
+
     return b"".join(
         [
             b"\x1B\x40",
-            text_bytes,
+            b"\x1D\x21\x11",
+            date_line,
+            b"\x1D\x21\x00\n",
+            phone_paid_line,
             b"\n",
-            b"\x1D\x48\x02",
+            b"\x1B\x61\x01",
+            b"\x1B\x56\x02",
+            b"\x1D\x21\x22",
+            display_order_number,
+            b"\x1B\x56\x00",
+            b"\x1D\x21\x11",
+            b"(",
+            b"\x1B\x56\x02",
+            b"\x1D\x21\x22",
+            repair_count_bytes,
+            b"\x1B\x56\x00",
+            b"\x1D\x21\x11",
+            b")",
+            b"\x1D\x21\x00\n\n",
+            b"\x1D\x48\x00",
             b"\x1D\x68" + BARCODE_HEIGHT,
             b"\x1D\x77\x02",
-            b"\x1B\x61\x01",
             b"\x1D\x6B\x04",
             barcode_bytes,
             b"\x00",
-            b"\n",
             b"\x1B\x61\x00",
+            b"\n",
             DEFAULT_CUT_COMMAND,
         ]
     )

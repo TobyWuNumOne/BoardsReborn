@@ -975,6 +975,21 @@ export const parseCreateWorkOrderBody = (body: unknown): CreateWorkOrderInput =>
     );
   }
 
+  const resolvedRepairCount =
+    parsedInput.workOrder.repairCountSource === 'manual'
+      ? (parsedInput.workOrder.repairCount ?? null)
+      : parsedInput.repairMarks.length > 0
+        ? parsedInput.repairMarks.length
+        : null;
+
+  if (resolvedRepairCount === null) {
+    addError(
+      errors,
+      'workOrder.repairCount',
+      'Is required before creating a work order label.',
+    );
+  }
+
   assertNoErrors(errors);
 
   return parsedInput;

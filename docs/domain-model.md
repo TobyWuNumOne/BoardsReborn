@@ -71,7 +71,7 @@
 | `board_serial_label`             | `varchar(80)`        | nullable，板上貼紙或人工標記                          |
 | `intake_date`                    | `date`               | required                                              |
 | `damage_description`             | `text`               | nullable，可描述示意圖標記內容                        |
-| `repair_count`                   | `smallint`           | nullable；`null` 表示未確認或無標記，不允許 `0`       |
+| `repair_count`                   | `smallint`           | nullable；`null` 表示 legacy / 未確認，不允許 `0`；admin create flow 需在送出前解析成非空值 |
 | `repair_count_source`            | `repair_count_source`| required，`auto` 或 `manual`                         |
 | `estimated_completion_date`      | `date`               | nullable，老闆檢查後填寫，可修改                      |
 | `current_status`                 | `work_order_status`  | required，latest status cache，不可取代 history       |
@@ -233,7 +233,7 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 
 ### `print_jobs`
 
-非同步標籤列印任務。工單主資料建立不依賴列印成功；server 會在建單成功後 best-effort 建立第一筆 `print_jobs`。補印時新增另一筆任務，不覆蓋舊任務。
+非同步標籤列印任務。工單主資料建立不依賴列印成功，但 `work_order_label` 需要完整 print-ready snapshot，因此 admin create flow 必須先確認 `repair_count` 非空。補印時新增另一筆任務，不覆蓋舊任務。
 
 | 欄位                 | 型別               | 規則                                                       |
 | -------------------- | ------------------ | ---------------------------------------------------------- |
@@ -242,7 +242,7 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 | `print_device_id`    | `uuid`             | nullable，references `print_devices.id`                    |
 | `job_type`           | `print_job_type`   | required，第一版固定 `work_order_label`                    |
 | `status`             | `print_job_status` | required，見 `PrintJobStatus`                              |
-| `payload`            | `jsonb`            | required，不可變的列印快照；第一版至少包含 `templateVersion`、`paperOrderNo`、`barcodeValue`、`customerNameAscii`、`customerPhone`、ASCII-safe `boardType` |
+| `payload`            | `jsonb`            | required，不可變的列印快照；目前 `work_order_label` 使用 `templateVersion = 2`，至少包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount` |
 | `attempt_count`      | `smallint`         | required，default `0`                                      |
 | `max_attempts`       | `smallint`         | required，default `3`                                      |
 | `last_error`         | `text`             | nullable，最後一次錯誤原因                                 |
@@ -366,7 +366,9 @@ TypeScript 名稱：`PrintJobType`
 
 ## 列印任務規則
 
-- 建立工單主資料時不要求同步列印成功；server 應在建單成功後 best-effort 建立第一筆 `print_jobs`。
+- admin create flow 必須先解析出非空 `repair_count`；否則不可建立工單。
+- 建立工單主資料時不要求同步列印成功；server 仍應在建單成功後 best-effort 建立第一筆 `print_jobs`。
+- `create_admin_print_job` 若目標工單 `repair_count` 為 `null`，必須拒絕建立 `work_order_label`。
 - 補印時，應新增一筆 `print_jobs`，不可重用舊任務。
 - Print Worker claim 任務時，狀態更新為 `locked`，並設定 `locked_by`、`locked_at`、`print_device_id`。
 - 若 `locked_at` 超過 reclaim timeout，其他 active Worker 可重新 claim 該任務。

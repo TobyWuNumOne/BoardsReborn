@@ -34,6 +34,8 @@ describe('admin work-order create helpers', () => {
     formState.boardBrand = 'Channel Islands';
     formState.damageDescription = '鼻頭裂傷';
     formState.paymentReceived = true;
+    formState.repairCount = '1';
+    formState.repairCountSource = 'manual';
 
     const result = buildAdminWorkOrderCreatePayload(formState);
 
@@ -56,6 +58,8 @@ describe('admin work-order create helpers', () => {
         intakeDate: '2026-04-29',
         paperOrderNo: 'BR-2026-0001',
         paymentReceived: true,
+        repairCount: 1,
+        repairCountSource: 'manual',
       },
     });
   });
@@ -73,6 +77,8 @@ describe('admin work-order create helpers', () => {
     formState.damageDescription = '表面刮傷';
     formState.initialQuoteAmount = '500';
     formState.initialQuoteDescription = ' ';
+    formState.repairCount = '2';
+    formState.repairCountSource = 'manual';
 
     const result = buildAdminWorkOrderCreatePayload(formState);
 
@@ -97,6 +103,8 @@ describe('admin work-order create helpers', () => {
         intakeDate: '2026-04-29',
         paperOrderNo: 'BR-2026-0002',
         paymentReceived: false,
+        repairCount: 2,
+        repairCountSource: 'manual',
       },
     });
 
@@ -149,6 +157,21 @@ describe('admin work-order create helpers', () => {
     expect(selectedClassName).toContain('ring-offset-2');
     expect(selectedClassName).toContain('shadow-[inset_0_0_0_2px_rgba(255,255,255,0.92)]');
     expect(unselectedClassName).not.toContain('ring-slate-950');
+  });
+
+  it('requires repair count before building the create payload', () => {
+    const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
+
+    formState.paperOrderNo = 'BR-2026-0005';
+    formState.customerPhone = '0912345678';
+    formState.customerModeDecision = 'create';
+    formState.customerName = '王小明';
+    formState.boardType = 'SNOWBOARD';
+    formState.damageDescription = '表面刮傷';
+
+    expect(buildAdminWorkOrderCreatePayload(formState).fieldErrors).toMatchObject({
+      repairCount: ['請先標記受損位置，或改用手動輸入維修處數。'],
+    });
   });
 
   it('detects lookup reset need and unsaved draft changes explicitly', () => {

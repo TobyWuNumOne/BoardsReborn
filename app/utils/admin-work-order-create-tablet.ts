@@ -297,6 +297,13 @@ export const getRequiredFieldSummary = (
       complete: DATE_PATTERN.test(trimValue(formState.estimatedCompletionDate)),
       label: '預估完成日',
     },
+    {
+      complete:
+        formState.repairCountSource === 'manual'
+          ? trimValue(formState.repairCount).length > 0
+          : formState.repairMarks.length > 0,
+      label: '維修處數',
+    },
   ];
 
   if (formState.boardType === 'SURFBOARD') {

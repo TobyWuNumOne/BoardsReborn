@@ -24,7 +24,7 @@
   - `board_length_class` 已加入 schema 與 admin create/list/detail；衝浪板建單需選短板 / 中尺寸 / 長板，既有 legacy null 在 UI 顯示為 `—`。
   - `board_color` 已加入 `admin_work_order_list` projection 與 admin resolve preview；工單列表與 bulk status preview 會顯示顏色 swatch + label。
   - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、repair marks 示意圖、公開備註與最近更新時間。
-  - `work_orders` 現在已新增 `repair_count` / `repair_count_source`，並新增 `work_order_repair_marks` 結構化標記表；create/detail/patch/public lookup contract 已同步支援。
+  - `work_orders` 現在已新增 `repair_count` / `repair_count_source`，並新增 `work_order_repair_marks` 結構化標記表；create/detail/patch/public lookup contract 已同步支援，且建單前必須先解析出非空 `repairCount`。
   - repair marks 的編輯與只讀預覽已統一 responsive 規則：`>1024px` 顯示正反面，`<=1024px` 改成單面切換；Konva stage 會跟著外層卡片可用空間縮放，`SURFBOARD` / `SUP` 共用同一套瘦長輪廓，`SNOWBOARD` 保持獨立輪廓。
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作、sticky 必填摘要，以及顧客手機 10 碼自動查詢與單一候選顧客自動選取；送出錯誤 scroll 與建立成功後 next actions 區塊尚待下一輪，但導頁後頂部成功提示已補上。
@@ -47,9 +47,8 @@
   - Pi 端已確認有效 cut command 為 `\x1D\x56\x42\x05`，可靠手動驗證方式為 `printf ... | sudo tee /dev/usb/lp0 > /dev/null`。
   - 已確認 Pi worker 路徑應直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，也不使用 macOS printer queue name。
   - `printer-worker serve` 已實作 immutable print snapshot renderer 與 raw USB transport；`run-once` / `poll` 保持既有 smoke test，不會真的出紙。
-  - 最新 receipt snapshot 已補 `estimatedCompletionDate`、`initialQuoteAmount` 與 `paymentReceived`，第一版實體單據可直接顯示 ETA、初始報價與是否已收款。
-  - Receipt renderer 已再縮短條碼尾端 spacing 並下修 barcode height，減少上一張尾端與下一張頂端的留白。
-  - Receipt renderer 已改為雙欄版面，左欄顯示品牌 / Customer / Board / Quote，右欄顯示 Order / Phone / ETA / Paid，條碼置中。
+  - 最新 receipt snapshot 已改為 `templateVersion: 2`，第一版實體單據改成顯示收件日期、電話 / Paid、大字工單號、維修處數與 1D barcode。
+  - Receipt renderer 已固定 barcode height `0x40`，並直接依 sample ESC/POS bytes 輸出新版版面。
   - Staging Supabase 已推送 `20260605140000_print_job_payload_snapshot_worker_receipt.sql`，Vercel staging `https://board-reborn-staging.vercel.app` 已重新部署到包含 immutable print snapshot 與 Pi raw USB transport 的版本，並已完成 web 建單到 Pi 自動出紙的 end-to-end 驗證。
   - Raspberry Pi `172.20.10.4` 上的 `boards-reborn-printer-worker.service` 已同步最新 `~/printer-worker` 程式碼並重啟成功；`serve` mode 已確認使用 `/dev/usb/lp0`、startup claim、Realtime subscription、實體出紙與成功/失敗回報皆正常。
   - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立，但欄位編排、文案、資訊層級與操作細節仍預期在與甲方討論後進入第二版調整。
@@ -104,7 +103,7 @@
 - Admin customer lookup：`GET /api/admin/customers/lookup`。
 - Admin work-order API：create/list/detail/update/status/resolve/bulk-status。
 - Admin print summary API：`GET /api/admin/print-summaries`，目前供 detail 頁讀取列印摘要 read model。
-- Admin work-order create RPC：原子建立 customer、work_order、第一筆 status_history 與 quote_items；route 會在 RPC 成功後 best-effort enqueue 第一筆 print job。
+- Admin work-order create RPC：原子建立 customer、work_order、第一筆 status_history 與 quote_items；route 會先要求非空 `repairCount`，再於 RPC 成功後 best-effort enqueue 第一筆 print job。
 - Admin work-order status RPC：原子 append `status_history`、同步 `work_orders.current_status`，並維護 ready/delivered/cancelled timestamp。
 - Admin bulk status API：以 `paperOrderNos` 批量更新狀態，回傳 `requestedCount`、`dedupedCount`、`updatedCount`、`skippedCount` 與逐筆結果；未知錯誤時立即停止後續處理。
 - Login / session UI：`/login`、`/admin`、`/forbidden`、admin middleware、admin layout bootstrap 與 logout action。
@@ -136,7 +135,7 @@
 - Print queue model：已新增 `print_devices`、重整 `print_jobs` schema 與 `admin_print_job_list` view，並用 migration 將 legacy print status 映射到 queue status。
 - Print job APIs：已新增 `GET /api/admin/print-jobs`、`POST /api/admin/print-jobs`、`POST /api/admin/print-jobs/{id}/retry`、`POST /api/print-worker/jobs/claim`、`POST /api/print-worker/jobs/{id}/succeed`、`POST /api/print-worker/jobs/{id}/fail`。
 - Print device admin APIs：已新增 `GET /api/admin/print-devices`、`POST /api/admin/print-devices`、`PATCH /api/admin/print-devices/{id}` 與 `DELETE /api/admin/print-devices/{id}`，支援 Worker 列表、建立、名稱 / 位置編輯、啟停與刪除。
-- Work-order create print enqueue：建工單成功後會 best-effort 自動建立第一筆 `work_order_label` print job；enqueue 失敗不回滾工單。
+- Work-order create print enqueue：建工單前必須先確認非空 `repairCount`；create 成功後仍會 best-effort 自動建立第一筆 `work_order_label` print job，其他 enqueue 失敗不回滾工單。
 - Admin printing UI：已新增 `/admin/printing` 與 `/admin/printing/workers`，提供列印紀錄列表、狀態燈、failed retry、Worker 狀態查看、shadcn dialog 建立與輕量管理。
 - Printing admin Realtime sync：database-side Supabase Realtime broadcast 已接上 `print_jobs` / `print_devices`，admin 列印頁面改成 event-driven refetch；fallback sync 只在 visible tab 每 60 秒執行一次。
 - `printer-worker` connectivity worker：已新增 repo 內 Python 子專案，支援 `run-once` / `poll`，可在 local / Raspberry Pi 上驗證 `claim -> succeed/fail` flow。
@@ -147,8 +146,8 @@
 - Raspberry Pi USB raw verification：已確認 Pi 端 `lsusb`、`/dev/usb/lp0`、ASCII、1D barcode、cut command 全部通過；有效 cut command 為 `\x1D\x56\x42\x05`。
 - Printing MVP decision：第一版先不做 QR Code，不處理中文列印；先以 ASCII-only receipt template 印工單號文字與 1D barcode。
 - Pi transport decision：正式 Pi worker 直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，不使用 macOS printer queue name。
-  - Print snapshot payload：`work_order_label` 現在會建立 immutable print snapshot payload，包含 `templateVersion: 1`、`paperOrderNo`、`barcodeValue`、`customerNameAscii`、`customerPhone` 與 ASCII-safe `boardType`。
-  - Print snapshot payload 已擴充 `estimatedCompletionDate`、`initialQuoteAmount` 與 `paymentReceived`，讓 worker 不需額外查 DB 即可印出 ETA、初始報價與收款狀態。
+  - Print snapshot payload：`work_order_label` 現在會建立 `templateVersion: 2` 的 immutable print-ready snapshot，包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived` 與 `repairCount`。
+  - Receipt renderer 已改成新版 ESC/POS 版面：置中的收件日期、電話 / Paid、大字工單號、維修處數括號與 1D barcode，條碼高度固定 `0x40`。
   - Receipt v1 已調整為顯示完整電話，並縮短條碼前後留白，避免單據頭尾多餘空白。
 - Worker raw USB transport：`printer-worker serve` 現在會直接把 ESC/POS raw bytes 寫到 `/dev/usb/lp0`，並在成功/失敗後回報既有 `succeed` / `fail` API。
 - Staging deployment refresh：GitHub `main` 已推送最新列印整合變更；Supabase staging 已套用 print snapshot migration，Vercel staging 已重新部署並更新穩定 alias。
@@ -173,6 +172,7 @@
 - 驗證印表機未連接、USB 裝置路徑失效、網路中斷等錯誤情境下的 fail / retry 與人工補救流程。
 - 連續建立 3-5 筆工單，確認不重複列印、不漏印，並確認 `barcodeValue` 與 `paper_order_no` 的對應在掃碼流程可直接使用。
 - 規劃並文件化 `locked` / `printing` stale job recovery、device provisioning 與 worker 更新流程。
+- 上線前需先 drain 或 discard 舊版 `work_order_label` pending jobs，因新版 worker renderer 不保留舊 payload 相容層。
 - 掃碼硬體尚未到位前，先維持使用者端查單 / 狀態頁最小可用；拿到條碼槍後再驗證 keyboard wedge 掃碼、掃描後 Enter、自動查詢與批量收件場景。
 - 補做 `/admin/scan` 的實機掃碼驗證：不同條碼槍 suffix、未付款交件現場節奏、連續掃描覆蓋輸入框與錯誤掃碼回復流程。
 - 與甲方確認 detail / list / dashboard 的資訊優先序與操作節奏，整理前端第二版調整項目。
@@ -213,7 +213,8 @@
 - Public customer lookup 已落地，但目前 rate limit 採 in-memory store，只適用 local / single-instance MVP，未達 production-grade distributed limiter。
 - Staging Supabase / Vercel 基礎部署已完成；`authenticated` table grants 與 `service_role` lookup grants 已推送至 staging，cookie-based `/api/admin/session` 已恢復正常，public lookup 已驗證正確手機 `200`、錯誤手機 `404`、不存在工單 `404` 與 payload 錯誤 `422`。
 - Safari 登入頁原本在 autofill / accessibility-set value 情境下可能送出 stale `v-model` form state；目前已改成 submit-time `FormData` 讀值，仍需以實際瀏覽器再跑一次完整登入流程確認。
-- 建工單後會 best-effort enqueue 第一筆 `print_job`；若 enqueue 失敗，需靠 server log 與 admin print-jobs 補建流程補救。
+- 建工單前若無法解析 `repairCount`，現在會直接 `422` 阻擋送出；建工單後若其他 enqueue 失敗，仍需靠 server log 與 admin print-jobs 補建流程補救。
+- 這一輪 `work_order_label` renderer 不保留舊 payload 相容；部署前需先清空或放棄舊版 pending label jobs。
 - 既有 legacy `SURFBOARD` 工單可能尚未有 `board_length_class`；目前 list / detail 會顯示 `—`，這次沒有補 edit flow 或 backfill。
 - 新增工單頁 F8C 尚未完整收尾：送出錯誤 scroll、建立成功後 next actions 尚未在本輪加入。
 - Admin 前端目前已有 Tailwind/shadcn shell、dashboard summary、工單列表、detail 的 `view/edit/work`、建單頁、bulk status 與列印中心 / Worker 管理第一版；detail 頁仍保留列印摘要與 deep link，但 bulk status 已改為純掃碼狀態頁，完整 print timeline 仍集中在 `/admin/printing`。

@@ -28,9 +28,13 @@ def summarize_job(job: PrintJob) -> None:
     print(f"- id: {job.id}")
     print(f"- jobType: {job.job_type}")
     print(f"- paperOrderNo: {payload.get('paperOrderNo', '—')}")
+    print(f"- templateVersion: {payload.get('templateVersion', '—')}")
+    print(f"- displayOrderNumber: {payload.get('displayOrderNumber', '—')}")
     print(f"- barcodeValue: {payload.get('barcodeValue', '—')}")
-    print(f"- customerNameAscii: {payload.get('customerNameAscii', '—')}")
-    print(f"- boardType: {payload.get('boardType', '—')}")
+    print(f"- intakeDate: {payload.get('intakeDate', '—')}")
+    print(f"- customerPhone: {payload.get('customerPhone', '—')}")
+    print(f"- paymentReceived: {payload.get('paymentReceived', '—')}")
+    print(f"- repairCount: {payload.get('repairCount', '—')}")
 
 
 def handle_claimed_job(client: PrintWorkerClient, settings: Settings, job: PrintJob) -> None:

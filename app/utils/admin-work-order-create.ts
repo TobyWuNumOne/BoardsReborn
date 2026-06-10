@@ -413,6 +413,14 @@ const createFormSchema = z
         path: ['repairCount'],
       });
     }
+
+    if (value.repairCountSource !== 'manual' && value.repairMarks.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '請先標記受損位置，或改用手動輸入維修處數。',
+        path: ['repairCount'],
+      });
+    }
   });
 
 const toFieldErrors = (error: z.ZodError): Record<string, string[]> => {
