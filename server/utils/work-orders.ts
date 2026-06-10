@@ -55,6 +55,8 @@ type ScanLookupWorkOrderRow = Pick<
   | 'payment_received'
   | 'pickup_note'
   | 'public_note'
+  | 'repair_count'
+  | 'repair_count_source'
   | 'updated_at'
 > & {
   customers: Pick<CustomerRow, 'name' | 'phone'> | null;
@@ -179,6 +181,10 @@ export interface AdminWorkOrderScanLookupData {
     name: string | null;
     phone: string | null;
   };
+  repairCount: number | null;
+  repairCountSource: WorkOrderRow['repair_count_source'];
+  repairMarkCount: number;
+  repairMarks: ReturnType<typeof mapRepairMark>[];
   notes: {
     internalNote: string | null;
     pickupNote: string | null;
@@ -1147,6 +1153,7 @@ export const lookupAdminWorkOrderScan = async (
     { data: workOrder, error: workOrderError },
     { data: quoteItems, error: quoteItemsError },
     { data: statusHistory, error: statusHistoryError },
+    { data: repairMarks, error: repairMarksError },
   ] = await Promise.all([
     supabase
       .from('work_orders')
@@ -1185,6 +1192,13 @@ export const lookupAdminWorkOrderScan = async (
       .select('id, status, changed_at, note')
       .eq('work_order_id', detailId)
       .order('changed_at', { ascending: true }),
+    supabase
+      .from('work_order_repair_marks')
+      .select(
+        'id, board_side, x_ratio, y_ratio, width_ratio, height_ratio, sort_order, template_key',
+      )
+      .eq('work_order_id', detailId)
+      .order('sort_order', { ascending: true }),
   ]);
 
   if (workOrderError) {
@@ -1203,6 +1217,10 @@ export const lookupAdminWorkOrderScan = async (
     throwMappedSupabaseError(statusHistoryError);
   }
 
+  if (repairMarksError) {
+    throwMappedSupabaseError(repairMarksError);
+  }
+
   const typedWorkOrder = workOrder as unknown as ScanLookupWorkOrderRow;
 
   if (!typedWorkOrder.customers) {
@@ -1210,6 +1228,7 @@ export const lookupAdminWorkOrderScan = async (
   }
 
   const typedStatusHistory = (statusHistory ?? []) as StatusHistoryRow[];
+  const typedRepairMarks = (repairMarks ?? []) as RepairMarkRow[];
   const pricing = calculateQuoteBreakdown((quoteItems ?? []) as QuoteItemRow[]);
   const receivedAt =
     typedStatusHistory.find((item) => item.status === 'RECEIVED')?.changed_at ??
@@ -1217,6 +1236,11 @@ export const lookupAdminWorkOrderScan = async (
     null;
 
   const currentStatus = typedWorkOrder.current_status as WorkOrderStatus;
+  const normalizedRepairCount = normalizeRepairCount(
+    typedWorkOrder.repair_count,
+    typedWorkOrder.repair_count_source,
+    typedRepairMarks.length,
+  );
 
   return {
     data: {
@@ -1235,6 +1259,10 @@ export const lookupAdminWorkOrderScan = async (
         name: typedWorkOrder.customers.name,
         phone: typedWorkOrder.customers.phone,
       },
+      repairCount: normalizedRepairCount,
+      repairCountSource: typedWorkOrder.repair_count_source,
+      repairMarkCount: typedRepairMarks.length,
+      repairMarks: typedRepairMarks.map(mapRepairMark),
       notes: {
         internalNote: typedWorkOrder.internal_note,
         pickupNote: typedWorkOrder.pickup_note,

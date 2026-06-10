@@ -205,7 +205,7 @@ Table 欄位順序：
 - 收版天數
 - 提醒
 
-板型欄位顯示 `板型 / 長度分類 / 尺寸標記 / 顏色`。顏色用小方框加文字 label 呈現；標準值 `WHITE / BLACK / BLUE / RED / YELLOW / GREEN / GRAY` 顯示固定 swatch，自訂值顯示中性描邊方框與原始文字。legacy `boardLengthClass = null` 或無顏色時顯示 `—`。
+板型欄位顯示 `板型 / 長度分類 / 尺寸標記 / 顏色`。顏色用小方框加文字 label 呈現；標準值 `BLACK / GRAY / WHITE / RED / ORANGE / YELLOW / GREEN / BLUE / PURPLE / MULTICOLOR / WOODGRAIN` 顯示固定 swatch，自訂值顯示中性描邊方框與原始文字。legacy `boardLengthClass = null` 或無顏色時顯示 `—`。
 
 `收件時間` 使用 `intakeDate`，`收版天數` 使用 list API 回傳的 `daysInShop`，`維修數量` 使用 `repairCount`；legacy null 顯示 `—`。整列仍可點擊進入工單詳情，不在列表中另放查看詳情按鈕。
 
@@ -262,8 +262,9 @@ Table 欄位順序：
 - 建單頁以平板現場收件為主要操作情境：
   - 本頁可局部加大 input、button、option card、checkbox 與 chip 的觸控尺寸，不需全域修改 shadcn primitives。
   - 紙本工單號、顧客手機與初始報價使用 numeric / tel input attributes 協助平板叫出數字鍵盤，但不改 API payload shape。
-  - 衝浪板尺寸、預估完成日、初始報價、損傷描述、維修處數量、公開備註與內部備註可提供 quick actions；quick actions 只寫回既有 form state。
+  - 衝浪板尺寸、預估完成日、初始報價、損傷描述、公開備註與內部備註可提供 quick actions；quick actions 只寫回既有 form state。
   - sticky action bar 顯示必填欄位完成度與未完成欄位，並保留清除 / 建立工單操作。
+- 建單頁欄位需直接標示必填/選填：必填顯示紅字 `（＊必填）`，非必填顯示灰字 `不必填`。
 - 只有 `boardType = SURFBOARD` 時才顯示 `boardLengthClass` 選項（短板 / 中尺寸 / 長板）；切換到 `SUP` / `SNOWBOARD` 時需清空該欄位。
 - 顧客流程固定為 lookup-first：
   - 先查手機
@@ -271,6 +272,7 @@ Table 欄位順序：
   - 手機號碼變更後必須清空 lookup 結果與 reuse/create 決策
 - `estimatedCompletionDate` 預設由 `intakeDate` 計算，第一版規則為固定下週日；在使用者手動改過前，`intakeDate` 改變時可自動重算。
 - 初始報價可留空；若有填金額，送單筆 `INITIAL` quote item。
+- `damageDescription` 在建單頁屬選填；若留空，create payload 可省略 `workOrder.damageDescription`。
 - 建單頁必須在送出前解析出非空 `repairCount`：
   - `auto` 模式：至少一筆 repair mark
   - `manual` 模式：必填正整數維修處數

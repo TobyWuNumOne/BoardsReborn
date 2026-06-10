@@ -149,6 +149,10 @@ export interface AdminWorkOrderScanLookupData {
     name: string | null;
     phone: string | null;
   };
+  repairCount: number | null;
+  repairMarkCount: number;
+  repairMarks: RepairMark[];
+  repairCountSource: RepairCountSource;
   notes: {
     internalNote: string | null;
     pickupNote: string | null;
@@ -505,6 +509,19 @@ const BOARD_COLOR_SWATCH_META: Record<string, BoardColorSwatchMeta> = {
     label: '綠色',
     swatchClass: 'border-emerald-500 bg-emerald-500',
   },
+  MULTICOLOR: {
+    label: '彩色',
+    swatchClass:
+      'border-pink-300 bg-[linear-gradient(135deg,#ef4444_0%,#f59e0b_18%,#eab308_36%,#22c55e_54%,#3b82f6_72%,#a855f7_100%)]',
+  },
+  ORANGE: {
+    label: '橘色',
+    swatchClass: 'border-orange-500 bg-orange-500',
+  },
+  PURPLE: {
+    label: '紫色',
+    swatchClass: 'border-violet-500 bg-violet-500',
+  },
   RED: {
     label: '紅色',
     swatchClass: 'border-red-500 bg-red-500',
@@ -516,6 +533,10 @@ const BOARD_COLOR_SWATCH_META: Record<string, BoardColorSwatchMeta> = {
   YELLOW: {
     label: '黃色',
     swatchClass: 'border-amber-400 bg-amber-300',
+  },
+  WOODGRAIN: {
+    label: '木紋',
+    swatchClass: 'border-amber-700 bg-[linear-gradient(135deg,#d6a96d_0%,#b9783f_45%,#8d5524_100%)]',
   },
 };
 

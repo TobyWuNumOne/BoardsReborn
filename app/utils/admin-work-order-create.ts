@@ -10,13 +10,17 @@ type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 const BOARD_TYPES = ['SURFBOARD', 'SUP', 'SNOWBOARD'] as const;
 const BOARD_LENGTH_CLASSES = ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'] as const;
 const BOARD_COLOR_OPTIONS = [
-  'WHITE',
   'BLACK',
-  'BLUE',
+  'GRAY',
+  'WHITE',
   'RED',
+  'ORANGE',
   'YELLOW',
   'GREEN',
-  'GRAY',
+  'BLUE',
+  'PURPLE',
+  'MULTICOLOR',
+  'WOODGRAIN',
   'OTHER',
 ] as const;
 const CUSTOMER_MODE_DECISIONS = ['unresolved', 'create', 'reuse'] as const;
@@ -134,7 +138,7 @@ export interface AdminWorkOrderCreatePayload {
   }>;
   repairMarks?: RepairMark[];
   workOrder: {
-    damageDescription: string;
+    damageDescription?: string | null;
     estimatedCompletionDate: string;
     intakeDate: string;
     internalNote?: string | null;
@@ -147,9 +151,9 @@ export interface AdminWorkOrderCreatePayload {
 }
 
 export const ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS = [
-  { description: '經典短板、長板與一般衝浪板', label: '衝浪板', value: 'SURFBOARD' },
-  { description: 'Stand Up Paddle 板型', label: 'SUP', value: 'SUP' },
-  { description: '雪季維修板型，不進除濕流程', label: '雪板', value: 'SNOWBOARD' },
+  { description: '', label: '衝浪板', value: 'SURFBOARD' },
+  { description: '', label: 'SUP', value: 'SUP' },
+  { description: '不進除濕流程', label: '雪板', value: 'SNOWBOARD' },
 ] as const satisfies ReadonlyArray<{
   description: string;
   label: string;
@@ -157,9 +161,9 @@ export const ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS = [
 }>;
 
 export const ADMIN_WORK_ORDER_CREATE_BOARD_LENGTH_CLASS_OPTIONS = [
-  { description: '高機動與短板操作取向', label: '短板', value: 'SHORTBOARD' },
-  { description: '介於短板與長板之間的中尺寸板型', label: '中尺寸', value: 'MID_LENGTH' },
-  { description: '長板與長距離巡航板型', label: '長板', value: 'LONGBOARD' },
+  { description: '', label: '短板', value: 'SHORTBOARD' },
+  { description: '', label: '中尺寸', value: 'MID_LENGTH' },
+  { description: '', label: '長板', value: 'LONGBOARD' },
 ] as const satisfies ReadonlyArray<{
   description: string;
   label: string;
@@ -168,24 +172,29 @@ export const ADMIN_WORK_ORDER_CREATE_BOARD_LENGTH_CLASS_OPTIONS = [
 
 export const ADMIN_WORK_ORDER_CREATE_BOARD_COLOR_OPTIONS = [
   {
-    className: 'border-slate-300 bg-white text-slate-700',
-    label: '白',
-    value: 'WHITE',
-  },
-  {
     className: 'border-slate-900 bg-slate-950 text-white',
     label: '黑',
     value: 'BLACK',
   },
   {
-    className: 'border-sky-300 bg-sky-500 text-white',
-    label: '藍',
-    value: 'BLUE',
+    className: 'border-slate-300 bg-slate-300 text-slate-900',
+    label: '灰',
+    value: 'GRAY',
+  },
+  {
+    className: 'border-slate-300 bg-white text-slate-700',
+    label: '白',
+    value: 'WHITE',
   },
   {
     className: 'border-red-300 bg-red-500 text-white',
     label: '紅',
     value: 'RED',
+  },
+  {
+    className: 'border-orange-300 bg-orange-500 text-white',
+    label: '橘',
+    value: 'ORANGE',
   },
   {
     className: 'border-amber-300 bg-amber-400 text-slate-900',
@@ -198,9 +207,26 @@ export const ADMIN_WORK_ORDER_CREATE_BOARD_COLOR_OPTIONS = [
     value: 'GREEN',
   },
   {
-    className: 'border-slate-300 bg-slate-300 text-slate-900',
-    label: '灰',
-    value: 'GRAY',
+    className: 'border-sky-300 bg-sky-500 text-white',
+    label: '藍',
+    value: 'BLUE',
+  },
+  {
+    className: 'border-violet-300 bg-violet-500 text-white',
+    label: '紫',
+    value: 'PURPLE',
+  },
+  {
+    className:
+      'border-pink-300 bg-[linear-gradient(135deg,#ef4444_0%,#f59e0b_18%,#eab308_36%,#22c55e_54%,#3b82f6_72%,#a855f7_100%)] text-white',
+    label: '彩色',
+    value: 'MULTICOLOR',
+  },
+  {
+    className:
+      'border-amber-700 bg-[linear-gradient(135deg,#d6a96d_0%,#b9783f_45%,#8d5524_100%)] text-white',
+    label: '木紋',
+    value: 'WOODGRAIN',
   },
   {
     className: 'border-dashed border-slate-300 bg-background text-foreground',
@@ -333,14 +359,6 @@ const createFormSchema = z
         code: 'custom',
         message: '只有衝浪板可以設定長度分類。',
         path: ['boardLengthClass'],
-      });
-    }
-
-    if (!value.damageDescription) {
-      ctx.addIssue({
-        code: 'custom',
-        message: '請輸入損傷描述。',
-        path: ['damageDescription'],
       });
     }
 
@@ -660,7 +678,6 @@ export const buildAdminWorkOrderCreatePayload = (
     customerMode: parsedForm.data.customerModeDecision as 'create' | 'reuse',
     quoteItems,
     workOrder: {
-      damageDescription: parsedForm.data.damageDescription,
       estimatedCompletionDate: parsedForm.data.estimatedCompletionDate,
       intakeDate: parsedForm.data.intakeDate,
       paperOrderNo: parsedForm.data.paperOrderNo,
@@ -692,6 +709,10 @@ export const buildAdminWorkOrderCreatePayload = (
 
   if (parsedForm.data.customerModeDecision === 'reuse') {
     payload.customerId = parsedForm.data.selectedCustomerId;
+  }
+
+  if (parsedForm.data.damageDescription) {
+    payload.workOrder.damageDescription = parsedForm.data.damageDescription;
   }
 
   if (parsedForm.data.boardBrand) {

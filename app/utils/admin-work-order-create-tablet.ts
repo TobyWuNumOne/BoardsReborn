@@ -32,15 +32,6 @@ export const DAMAGE_DESCRIPTION_QUICK_CHIPS = [
   '多處小傷',
 ] as const;
 
-export const REPAIR_SPOT_QUICK_OPTIONS = [
-  { label: '1 處', value: 1 },
-  { label: '2 處', value: 2 },
-  { label: '3 處', value: 3 },
-  { label: '4 處', value: 4 },
-  { label: '5 處', value: 5 },
-  { label: '多處', value: 'many' },
-] as const;
-
 export const PUBLIC_NOTE_QUICK_CHIPS = [
   '已收件，等待評估',
   '需先除濕後確認報價',
@@ -65,8 +56,6 @@ export interface RequiredFieldSummary {
 
 const BOARD_SIZE_PATTERN = /^\s*(\d+)\s*'\s*(\d{1,2})\s*"?\s*$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const REPAIR_SPOT_PATTERN = /維修處數量：(多處|\d+處)/;
-
 const trimValue = (value: string | null | undefined) => value?.trim() ?? '';
 
 const parseDateStringAsUtc = (value: string) => {
@@ -218,55 +207,6 @@ export const appendLineText = (currentValue: string, nextText: string) => {
   return current ? `${current}\n${next}` : next;
 };
 
-export const formatRepairSpotText = (value: number | 'many') => {
-  if (value === 'many') {
-    return '維修處數量：多處';
-  }
-
-  return `維修處數量：${Math.max(1, Math.floor(value))}處`;
-};
-
-export const getRepairSpotCount = (currentValue: string) => {
-  const match = REPAIR_SPOT_PATTERN.exec(currentValue);
-
-  if (!match) {
-    return null;
-  }
-
-  const rawCount = match[1];
-
-  if (!rawCount) {
-    return null;
-  }
-
-  if (rawCount === '多處') {
-    return 'many' as const;
-  }
-
-  const count = Number.parseInt(rawCount.replace('處', ''), 10);
-
-  return Number.isInteger(count) && count >= 1 ? count : null;
-};
-
-export const setRepairSpotCount = (currentValue: string, value: number | 'many') => {
-  const current = trimValue(currentValue);
-  const nextText = formatRepairSpotText(value);
-
-  if (REPAIR_SPOT_PATTERN.test(current)) {
-    return current.replace(REPAIR_SPOT_PATTERN, nextText);
-  }
-
-  return appendDelimitedText(current, nextText);
-};
-
-export const adjustRepairSpotCount = (currentValue: string, deltaCount: number) => {
-  const currentCount = getRepairSpotCount(currentValue);
-  const numericCount = typeof currentCount === 'number' ? currentCount : 0;
-  const nextCount = Math.max(1, numericCount + deltaCount);
-
-  return setRepairSpotCount(currentValue, nextCount);
-};
-
 export const getRequiredFieldSummary = (
   formState: AdminWorkOrderCreateFormState,
 ): RequiredFieldSummary => {
@@ -291,7 +231,6 @@ export const getRequiredFieldSummary = (
       label: formState.customerModeDecision === 'reuse' ? '選擇顧客' : '顧客姓名',
     },
     { complete: trimValue(formState.boardType).length > 0, label: '板型' },
-    { complete: trimValue(formState.damageDescription).length > 0, label: '損傷描述' },
     { complete: DATE_PATTERN.test(trimValue(formState.intakeDate)), label: '收件日期' },
     {
       complete: DATE_PATTERN.test(trimValue(formState.estimatedCompletionDate)),
@@ -302,7 +241,7 @@ export const getRequiredFieldSummary = (
         formState.repairCountSource === 'manual'
           ? trimValue(formState.repairCount).length > 0
           : formState.repairMarks.length > 0,
-      label: '維修處數',
+      label: '受損位置',
     },
   ];
 

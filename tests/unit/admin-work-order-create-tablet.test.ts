@@ -2,18 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   adjustBoardSizeLabel,
   adjustInitialQuoteAmount,
-  adjustRepairSpotCount,
   appendDelimitedText,
   appendLineText,
   BOARD_SIZE_QUICK_OPTIONS,
   formatBoardSizeInches,
   getBoardSizeQuickOptions,
   getEstimatedCompletionDateQuickValue,
-  getRepairSpotCount,
   getRequiredFieldSummary,
   parseBoardSizeInches,
   sanitizeNumericInput,
-  setRepairSpotCount,
 } from '../../app/utils/admin-work-order-create-tablet';
 import { createAdminWorkOrderCreateInitialFormState } from '../../app/utils/admin-work-order-create';
 
@@ -64,25 +61,14 @@ describe('admin work-order create tablet helpers', () => {
     expect(appendLineText('需拍照\n客人急件', '需拍照')).toBe('需拍照\n客人急件');
   });
 
-  it('sets and adjusts repair spot count in the damage description text', () => {
-    expect(setRepairSpotCount('', 3)).toBe('維修處數量：3處');
-    expect(setRepairSpotCount('鼻頭傷', 2)).toBe('鼻頭傷、維修處數量：2處');
-    expect(setRepairSpotCount('鼻頭傷、維修處數量：2處', 4)).toBe('鼻頭傷、維修處數量：4處');
-    expect(setRepairSpotCount('鼻頭傷、維修處數量：4處', 'many')).toBe('鼻頭傷、維修處數量：多處');
-    expect(getRepairSpotCount('鼻頭傷、維修處數量：多處')).toBe('many');
-    expect(adjustRepairSpotCount('鼻頭傷、維修處數量：2處', 1)).toBe('鼻頭傷、維修處數量：3處');
-    expect(adjustRepairSpotCount('鼻頭傷、維修處數量：1處', -1)).toBe('鼻頭傷、維修處數量：1處');
-    expect(adjustRepairSpotCount('', 1)).toBe('維修處數量：1處');
-  });
-
   it('builds a required-field completion summary from existing form rules', () => {
     const formState = createAdminWorkOrderCreateInitialFormState('2026-05-11');
     let summary = getRequiredFieldSummary(formState);
 
-    expect(summary.total).toBe(9);
+    expect(summary.total).toBe(8);
     expect(summary.missingLabels).toContain('工單號碼');
     expect(summary.missingLabels).toContain('顧客查詢');
-    expect(summary.missingLabels).toContain('維修處數');
+    expect(summary.missingLabels).toContain('受損位置');
 
     formState.paperOrderNo = '1001';
     formState.customerPhone = '0912345678';
@@ -90,16 +76,15 @@ describe('admin work-order create tablet helpers', () => {
     formState.customerName = '王小明';
     formState.boardType = 'SURFBOARD';
     formState.boardLengthClass = 'SHORTBOARD';
-    formState.damageDescription = '鼻頭傷';
     formState.repairCount = '2';
     formState.repairCountSource = 'manual';
 
     summary = getRequiredFieldSummary(formState);
 
     expect(summary).toEqual({
-      completed: 10,
+      completed: 9,
       missingLabels: [],
-      total: 10,
+      total: 9,
     });
   });
 });

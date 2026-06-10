@@ -34,7 +34,6 @@ import {
 import {
   adjustBoardSizeLabel,
   adjustInitialQuoteAmount,
-  adjustRepairSpotCount,
   appendDelimitedText,
   appendLineText,
   DAMAGE_DESCRIPTION_QUICK_CHIPS,
@@ -46,9 +45,7 @@ import {
   INITIAL_QUOTE_QUICK_AMOUNTS,
   INTERNAL_NOTE_QUICK_CHIPS,
   PUBLIC_NOTE_QUICK_CHIPS,
-  REPAIR_SPOT_QUICK_OPTIONS,
   sanitizeNumericInput,
-  setRepairSpotCount,
 } from '~/utils/admin-work-order-create-tablet';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
 import { normalizeTaiwanMobilePhoneInput } from '~/utils/phone';
@@ -69,6 +66,8 @@ useHead({
 
 const route = useRoute();
 const adminSession = useAdminSession();
+const requiredHintClass = 'ml-1 text-xs font-medium text-destructive';
+const optionalHintClass = 'ml-1 text-xs font-normal text-muted-foreground';
 
 const DEV_REPAIR_MARKS_PREVIEW_QUERY_KEY = 'repairMarksPreview';
 const DEV_REPAIR_MARKS_PREVIEW_BOARD_TYPE_QUERY_KEY = 'previewBoardType';
@@ -600,23 +599,6 @@ const appendDamageDescriptionChip = (value: string) => {
   clearFieldError('damageDescription');
 };
 
-const setRepairSpotQuickValue = (value: number | 'many') => {
-  form.damageDescription = setRepairSpotCount(form.damageDescription, value);
-  form.repairCountSource = 'manual';
-  form.repairCount = value === 'many' ? '' : String(value);
-  clearFieldError('damageDescription');
-  clearFieldError('repairCount');
-};
-
-const adjustRepairSpotQuickValue = (deltaCount: number) => {
-  form.damageDescription = adjustRepairSpotCount(form.damageDescription, deltaCount);
-  const currentCount = Number.parseInt(form.repairCount || '0', 10);
-  form.repairCountSource = 'manual';
-  form.repairCount = String(Math.max(1, currentCount + deltaCount));
-  clearFieldError('damageDescription');
-  clearFieldError('repairCount');
-};
-
 const appendPublicNoteChip = (value: string) => {
   form.publicNote = appendLineText(form.publicNote, value);
 };
@@ -801,7 +783,10 @@ if (import.meta.client) {
         </CardHeader>
         <CardContent class="grid gap-5 md:grid-cols-2">
           <Field class="md:col-span-2">
-            <FieldLabel for="paper-order-no">紙本工單號</FieldLabel>
+            <FieldLabel for="paper-order-no">
+              紙本工單號
+              <span :class="requiredHintClass">（＊必填）</span>
+            </FieldLabel>
             <Input
               id="paper-order-no"
               v-model="form.paperOrderNo"
@@ -817,7 +802,10 @@ if (import.meta.client) {
           </Field>
 
           <Field class="md:col-span-2">
-            <FieldLabel for="customer-phone">顧客手機</FieldLabel>
+            <FieldLabel for="customer-phone">
+              顧客手機
+              <span :class="requiredHintClass">（＊必填）</span>
+            </FieldLabel>
             <div class="flex flex-col gap-3 md:flex-row">
               <Input
                 id="customer-phone"
@@ -902,7 +890,10 @@ if (import.meta.client) {
           </div>
 
           <Field v-if="showCreateCustomerFields" class="md:col-span-2">
-            <FieldLabel for="customer-name">顧客姓名</FieldLabel>
+            <FieldLabel for="customer-name">
+              顧客姓名
+              <span :class="requiredHintClass">（＊必填）</span>
+            </FieldLabel>
             <Input
               id="customer-name"
               v-model="form.customerName"
@@ -934,7 +925,10 @@ if (import.meta.client) {
         </CardHeader>
         <CardContent class="space-y-6">
           <Field>
-            <FieldLabel>板型</FieldLabel>
+            <FieldLabel>
+              板型
+              <span :class="requiredHintClass">（＊必填）</span>
+            </FieldLabel>
             <RadioGroup
               :model-value="form.boardType || undefined"
               class="grid gap-3 md:grid-cols-3"
@@ -946,7 +940,7 @@ if (import.meta.client) {
                 :for="`board-type-${option.value}`"
                 :class="
                   cn(
-                    'flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors',
+                    'flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors',
                     form.boardType === option.value
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:bg-muted/30',
@@ -958,17 +952,17 @@ if (import.meta.client) {
                   :value="option.value"
                   class="mt-0.5"
                 />
-                <div class="space-y-1">
-                  <p class="font-medium">{{ option.label }}</p>
-                  <p class="text-sm text-muted-foreground">{{ option.description }}</p>
-                </div>
+                <p class="font-medium">{{ option.label }}</p>
               </label>
             </RadioGroup>
             <FieldError :errors="mergedFieldErrors.boardType" />
           </Field>
 
           <Field v-if="form.boardType === 'SURFBOARD'">
-            <FieldLabel>長度分類</FieldLabel>
+            <FieldLabel>
+              長度分類
+              <span :class="requiredHintClass">（＊必填）</span>
+            </FieldLabel>
             <RadioGroup
               :model-value="form.boardLengthClass || undefined"
               class="grid gap-3 md:grid-cols-3"
@@ -980,7 +974,7 @@ if (import.meta.client) {
                 :for="`board-length-class-${option.value}`"
                 :class="
                   cn(
-                    'flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors',
+                    'flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors',
                     form.boardLengthClass === option.value
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:bg-muted/30',
@@ -992,10 +986,7 @@ if (import.meta.client) {
                   :value="option.value"
                   class="mt-0.5"
                 />
-                <div class="space-y-1">
-                  <p class="font-medium">{{ option.label }}</p>
-                  <p class="text-sm text-muted-foreground">{{ option.description }}</p>
-                </div>
+                <p class="font-medium">{{ option.label }}</p>
               </label>
             </RadioGroup>
             <FieldDescription>只對衝浪板使用，不從尺寸標記自動推論。</FieldDescription>
@@ -1005,7 +996,10 @@ if (import.meta.client) {
           <div class="grid gap-4 md:grid-cols-3">
             <Field class="md:col-span-3">
               <div class="flex flex-wrap items-end justify-between gap-2">
-                <FieldLabel for="board-size-label">尺寸標記</FieldLabel>
+                <FieldLabel for="board-size-label">
+                  尺寸標記
+                  <span :class="optionalHintClass">不必填</span>
+                </FieldLabel>
                 <span v-if="form.boardSizeLabel" class="text-sm text-muted-foreground">
                   目前尺寸：{{ form.boardSizeLabel }}
                 </span>
@@ -1050,31 +1044,14 @@ if (import.meta.client) {
               </div>
               <FieldDescription>尺寸快捷依長度分類顯示；仍可手動輸入特殊尺寸。</FieldDescription>
             </Field>
-
-            <Field>
-              <FieldLabel for="board-brand">品牌</FieldLabel>
-              <Input
-                id="board-brand"
-                v-model="form.boardBrand"
-                class="h-12 text-base"
-                placeholder="例如 Channel Islands"
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel for="board-model">型號</FieldLabel>
-              <Input
-                id="board-model"
-                v-model="form.boardModel"
-                class="h-12 text-base"
-                placeholder="例如 Happy"
-              />
-            </Field>
           </div>
 
           <Field>
-            <FieldLabel>顏色</FieldLabel>
-            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+            <FieldLabel>
+              顏色
+              <span :class="optionalHintClass">不必填</span>
+            </FieldLabel>
+            <div class="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-6">
               <button
                 v-for="option in ADMIN_WORK_ORDER_CREATE_BOARD_COLOR_OPTIONS"
                 :key="option.value"
@@ -1101,6 +1078,34 @@ if (import.meta.client) {
             <FieldDescription>顏色只做現場辨識輔助，不作為主要識別欄位。</FieldDescription>
             <FieldError :errors="mergedFieldErrors.boardColorChoice" />
           </Field>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <Field>
+              <FieldLabel for="board-brand">
+                品牌
+                <span :class="optionalHintClass">不必填</span>
+              </FieldLabel>
+              <Input
+                id="board-brand"
+                v-model="form.boardBrand"
+                class="h-12 text-base"
+                placeholder="例如 Channel Islands"
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel for="board-model">
+                型號
+                <span :class="optionalHintClass">不必填</span>
+              </FieldLabel>
+              <Input
+                id="board-model"
+                v-model="form.boardModel"
+                class="h-12 text-base"
+                placeholder="例如 Happy"
+              />
+            </Field>
+          </div>
         </CardContent>
       </Card>
 
@@ -1112,7 +1117,10 @@ if (import.meta.client) {
         <CardContent class="space-y-6">
           <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-4 py-3">
             <div class="space-y-1">
-              <p class="text-sm font-medium">受損位置標記</p>
+              <p class="text-sm font-medium">
+                受損位置標記
+                <span :class="requiredHintClass">（＊必填）</span>
+              </p>
               <p class="text-sm text-muted-foreground">
                 已標記 {{ repairMarksCount }} 處
                 <span v-if="form.repairCountSource === 'manual' && form.repairCount">
@@ -1125,6 +1133,7 @@ if (import.meta.client) {
               受損位置
             </Button>
           </div>
+          <FieldError :errors="mergedFieldErrors.repairCount" />
 
           <Alert v-if="showRepairCountMismatch">
             <AlertTitle>維修處數已手動調整</AlertTitle>
@@ -1134,7 +1143,10 @@ if (import.meta.client) {
           </Alert>
 
           <Field>
-            <FieldLabel>常用損傷</FieldLabel>
+            <FieldLabel>
+              常用損傷
+              <span :class="optionalHintClass">不必填</span>
+            </FieldLabel>
             <div class="flex flex-wrap gap-2">
               <Button
                 v-for="chip in DAMAGE_DESCRIPTION_QUICK_CHIPS"
@@ -1150,41 +1162,10 @@ if (import.meta.client) {
           </Field>
 
           <Field>
-            <FieldLabel>維修處數量</FieldLabel>
-            <div class="flex flex-wrap gap-2">
-              <Button
-                v-for="option in REPAIR_SPOT_QUICK_OPTIONS"
-                :key="option.label"
-                type="button"
-                variant="outline"
-                class="h-11 min-w-16"
-                @click="setRepairSpotQuickValue(option.value)"
-              >
-                {{ option.label }}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                class="h-11 min-w-16"
-                @click="adjustRepairSpotQuickValue(-1)"
-              >
-                -1
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                class="h-11 min-w-16"
-                @click="adjustRepairSpotQuickValue(1)"
-              >
-                +1
-              </Button>
-            </div>
-            <FieldDescription>可用於沒有圈選完整標記時的快速手動調整。</FieldDescription>
-            <FieldError :errors="mergedFieldErrors.repairCount" />
-          </Field>
-
-          <Field>
-            <FieldLabel for="damage-description">損傷描述</FieldLabel>
+            <FieldLabel for="damage-description">
+              損傷描述
+              <span :class="optionalHintClass">不必填</span>
+            </FieldLabel>
             <Textarea
               id="damage-description"
               v-model="form.damageDescription"
@@ -1203,7 +1184,10 @@ if (import.meta.client) {
         </CardHeader>
         <CardContent class="grid gap-5 md:grid-cols-2">
           <Field>
-            <FieldLabel for="intake-date">收件日期</FieldLabel>
+            <FieldLabel for="intake-date">
+              收件日期
+              <span :class="requiredHintClass">（＊必填）</span>
+            </FieldLabel>
             <Popover v-model:open="intakeDatePopoverOpen">
               <PopoverTrigger as-child>
                 <Button
@@ -1227,7 +1211,10 @@ if (import.meta.client) {
           </Field>
 
           <Field>
-            <FieldLabel>預估完成日</FieldLabel>
+            <FieldLabel>
+              預估完成日
+              <span :class="requiredHintClass">（＊必填）</span>
+            </FieldLabel>
             <Popover v-model:open="estimatedDatePopoverOpen">
               <PopoverTrigger as-child>
                 <Button
@@ -1266,7 +1253,10 @@ if (import.meta.client) {
           </Field>
 
           <Field class="md:col-span-2">
-            <FieldLabel for="initial-quote-amount">初始報價</FieldLabel>
+            <FieldLabel for="initial-quote-amount">
+              初始報價
+              <span :class="optionalHintClass">不必填</span>
+            </FieldLabel>
             <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
               <Input
                 id="initial-quote-amount"
@@ -1307,7 +1297,10 @@ if (import.meta.client) {
           </Field>
 
           <Field>
-            <FieldLabel for="initial-quote-description">報價備註</FieldLabel>
+            <FieldLabel for="initial-quote-description">
+              報價備註
+              <span :class="optionalHintClass">不必填</span>
+            </FieldLabel>
             <Input
               id="initial-quote-description"
               v-model="form.initialQuoteDescription"
@@ -1334,7 +1327,10 @@ if (import.meta.client) {
                 class="pointer-events-none mt-0.5"
               />
               <div class="space-y-1">
-                <FieldLabel id="payment-received-label" for="payment-received">已收款</FieldLabel>
+                <FieldLabel id="payment-received-label" for="payment-received">
+                  已收款
+                  <span :class="optionalHintClass">不必填</span>
+                </FieldLabel>
                 <p class="text-sm text-muted-foreground">
                   可先標記已收款，建立後由後端維護收款時間。
                 </p>
@@ -1361,7 +1357,10 @@ if (import.meta.client) {
         </CardHeader>
         <CardContent class="grid gap-5 md:grid-cols-2">
           <Field>
-            <FieldLabel for="public-note">公開備註</FieldLabel>
+            <FieldLabel for="public-note">
+              公開備註
+              <span :class="optionalHintClass">不必填</span>
+            </FieldLabel>
             <div class="flex flex-wrap gap-2">
               <Button
                 v-for="chip in PUBLIC_NOTE_QUICK_CHIPS"
@@ -1383,7 +1382,10 @@ if (import.meta.client) {
           </Field>
 
           <Field>
-            <FieldLabel for="internal-note">內部備註</FieldLabel>
+            <FieldLabel for="internal-note">
+              內部備註
+              <span :class="optionalHintClass">不必填</span>
+            </FieldLabel>
             <div class="flex flex-wrap gap-2">
               <Button
                 v-for="chip in INTERNAL_NOTE_QUICK_CHIPS"

@@ -320,7 +320,8 @@ const lookupPublicWorkOrder = async () => {
               :canvas-width="500"
               dual-surface-min-height-class="min-h-[20rem] xl:min-h-[28rem]"
               :marks="result.repairMarks"
-              single-surface-min-height-class="min-h-[28rem] xl:min-h-[34rem]"
+              single-surface-canvas-wrapper-class="mx-auto h-auto w-full max-w-[24rem] aspect-[500/760]"
+              single-surface-min-height-class="min-h-0"
               surface-gap-class="gap-4"
             />
           </div>

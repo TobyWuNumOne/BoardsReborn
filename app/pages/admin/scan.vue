@@ -18,6 +18,9 @@ import {
   getWorkOrderStatusLabel,
 } from '~/utils/admin-work-orders';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
+import { summarizeRepairMarks } from '~/utils/repair-marks';
+import RepairMarksSurfaceGallery from '~/components/work-orders/RepairMarksSurfaceGallery.vue';
+import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 import { Textarea } from '~/components/ui/textarea';
 
@@ -68,6 +71,9 @@ const showNotFoundState = computed(() => lookupState.value === 'not-found');
 const currentWorkOrderId = computed(() => lookupResult.value?.summary.id ?? '');
 const isReadyForPickup = computed(() => lookupResult.value?.summary.status === 'READY_FOR_PICKUP');
 const isUnpaid = computed(() => lookupResult.value?.summary.paymentReceived === false);
+const repairMarksSummary = computed(() =>
+  summarizeRepairMarks(lookupResult.value?.repairMarks ?? []),
+);
 
 const focusAndSelectInput = async () => {
   await nextTick();
@@ -378,7 +384,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <Card class="top-16 z-10 border-primary/15 bg-background/95 backdrop-blur">
+    <Card class="top-16 z-8 border-primary/15 bg-background/95 backdrop-blur">
       <CardContent class="space-y-4 p-4">
         <div class="flex flex-col gap-3 lg:flex-row">
           <div class="relative flex-1">
@@ -435,59 +441,103 @@ onMounted(async () => {
             <CardDescription>只顯示此狀態下允許的第一版高頻操作。</CardDescription>
           </CardHeader>
           <CardContent class="space-y-4">
-            <div class="flex flex-wrap gap-2">
-              <Button
-                v-if="currentActions.includes('mark_paid')"
-                type="button"
-                variant="outline"
-                :disabled="isMutating || lookupResult.summary.paymentReceived"
-                @click="markPaid"
-              >
-                {{ getAdminWorkOrderScanActionLabel('mark_paid') }}
-              </Button>
-              <Button
-                v-if="currentActions.includes('mark_delivered')"
-                type="button"
-                :disabled="isMutating"
-                @click="handleMarkDelivered"
-              >
-                {{ getAdminWorkOrderScanActionLabel('mark_delivered') }}
-              </Button>
-              <Button
-                v-if="currentActions.includes('add_note')"
-                type="button"
-                variant="outline"
-                :disabled="isMutating"
-                @click="noteDialogOpen = true"
-              >
-                {{ getAdminWorkOrderScanActionLabel('add_note') }}
-              </Button>
-              <Button
-                v-if="currentActions.includes('open_detail')"
-                type="button"
-                variant="outline"
-                :disabled="isMutating"
-                @click="openDetail"
-              >
-                {{ getAdminWorkOrderScanActionLabel('open_detail') }}
-              </Button>
-            </div>
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
+              <div class="space-y-2">
+                <p class="text-sm font-medium">主要操作</p>
+                <div class="flex flex-wrap gap-2">
+                  <Button
+                    v-if="currentActions.includes('mark_paid')"
+                    type="button"
+                    variant="outline"
+                    :disabled="isMutating || lookupResult.summary.paymentReceived"
+                    @click="markPaid"
+                  >
+                    {{ getAdminWorkOrderScanActionLabel('mark_paid') }}
+                  </Button>
+                  <Button
+                    v-if="currentActions.includes('mark_delivered')"
+                    type="button"
+                    :disabled="isMutating"
+                    @click="handleMarkDelivered"
+                  >
+                    {{ getAdminWorkOrderScanActionLabel('mark_delivered') }}
+                  </Button>
+                  <Button
+                    v-if="currentActions.includes('add_note')"
+                    type="button"
+                    variant="outline"
+                    :disabled="isMutating"
+                    @click="noteDialogOpen = true"
+                  >
+                    {{ getAdminWorkOrderScanActionLabel('add_note') }}
+                  </Button>
+                  <Button
+                    v-if="currentActions.includes('open_detail')"
+                    type="button"
+                    variant="outline"
+                    :disabled="isMutating"
+                    @click="openDetail"
+                  >
+                    {{ getAdminWorkOrderScanActionLabel('open_detail') }}
+                  </Button>
+                </div>
+              </div>
 
-            <div v-if="statusTransitionActions.length > 0" class="space-y-2">
-              <p class="text-sm font-medium">更新狀態</p>
-              <div class="flex flex-wrap gap-2">
-                <Button
-                  v-for="status in statusTransitionActions"
-                  :key="status"
-                  type="button"
-                  variant="default"
-                  :disabled="isMutating"
-                  @click="updateStatus(status)"
-                >
-                  {{ getWorkOrderStatusLabel(status) }}
-                </Button>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-sm font-medium">更新狀態</p>
+                  <div class="inline-flex min-h-12 items-center rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-base font-semibold text-foreground shadow-sm">
+                    <span class="text-sm font-medium text-muted-foreground">目前狀態：</span>
+                    <span class="ml-2 text-base font-semibold">
+                      {{ getWorkOrderStatusLabel(lookupResult.summary.status) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <Button
+                    v-for="status in statusTransitionActions"
+                    :key="status"
+                    type="button"
+                    variant="default"
+                    :disabled="isMutating"
+                    @click="updateStatus(status)"
+                  >
+                    {{ getWorkOrderStatusLabel(status) }}
+                  </Button>
+                  <p
+                    v-if="statusTransitionActions.length === 0"
+                    class="text-sm text-muted-foreground"
+                  >
+                    目前狀態沒有提供下一步快速更新。
+                  </p>
+                </div>
               </div>
             </div>
+
+            <Card class="border-dashed bg-muted/20">
+              <CardHeader>
+                <CardTitle class="text-base">補板標記圖示</CardTitle>
+                <CardDescription>快速查看目前這張板標記的受損位置與維修處數。</CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <div class="flex flex-wrap gap-2">
+                  <Badge variant="outline">正面 {{ repairMarksSummary.frontCount }} 處</Badge>
+                  <Badge variant="outline">背面 {{ repairMarksSummary.backCount }} 處</Badge>
+                  <Badge variant="outline">維修處數 {{ lookupResult.repairCount ?? '—' }}</Badge>
+                </div>
+
+                <RepairMarksSurfaceGallery
+                  :board-type="lookupResult.board.type || 'SURFBOARD'"
+                  :canvas-height="620"
+                  :canvas-width="420"
+                  dual-surface-min-height-class="min-h-[18rem] xl:min-h-[22rem]"
+                  :marks="lookupResult.repairMarks"
+                  single-surface-canvas-wrapper-class="mx-auto h-auto w-full max-w-[22rem] aspect-[420/620]"
+                  single-surface-min-height-class="min-h-0"
+                  surface-gap-class="gap-3"
+                />
+              </CardContent>
+            </Card>
 
             <Alert v-if="isReadyForPickup && isUnpaid" variant="destructive">
               <AlertTitle>交件前提醒</AlertTitle>
@@ -545,9 +595,10 @@ onMounted(async () => {
             </div>
             <div class="space-y-1">
               <p class="text-sm text-muted-foreground">品牌 / 顏色</p>
-              <p class="text-sm font-medium">
-                {{ lookupResult.board.brand || '—' }} / {{ lookupResult.board.color || '—' }}
-              </p>
+              <div class="space-y-1">
+                <p class="text-sm font-medium">{{ lookupResult.board.brand || '—' }}</p>
+                <WorkOrderBoardColorSwatch :color="lookupResult.board.color" />
+              </div>
             </div>
             <div class="space-y-1">
               <p class="text-sm text-muted-foreground">報價總額</p>

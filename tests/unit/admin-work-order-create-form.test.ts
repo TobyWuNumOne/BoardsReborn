@@ -32,7 +32,6 @@ describe('admin work-order create helpers', () => {
     formState.boardType = 'SURFBOARD';
     formState.boardLengthClass = 'SHORTBOARD';
     formState.boardBrand = 'Channel Islands';
-    formState.damageDescription = '鼻頭裂傷';
     formState.paymentReceived = true;
     formState.repairCount = '1';
     formState.repairCountSource = 'manual';
@@ -53,7 +52,6 @@ describe('admin work-order create helpers', () => {
       customerMode: 'create',
       quoteItems: [],
       workOrder: {
-        damageDescription: '鼻頭裂傷',
         estimatedCompletionDate: '2026-05-10',
         intakeDate: '2026-04-29',
         paperOrderNo: 'BR-2026-0001',
@@ -72,13 +70,33 @@ describe('admin work-order create helpers', () => {
     formState.customerModeDecision = 'reuse';
     formState.selectedCustomerId = '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2';
     formState.boardType = 'SNOWBOARD';
+    formState.boardColorChoice = 'MULTICOLOR';
+    formState.repairMarks = [
+      {
+        boardSide: 'front',
+        heightRatio: 0.18,
+        id: 'mark-1',
+        sortOrder: 0,
+        templateKey: 'SNOWBOARD:front:v1',
+        widthRatio: 0.18,
+        xRatio: 0.4,
+        yRatio: 0.3,
+      },
+    ];
+
+    const presetColorResult = buildAdminWorkOrderCreatePayload(formState);
+
+    expect(presetColorResult.fieldErrors).toEqual({});
+    expect(presetColorResult.payload?.board.color).toBe('MULTICOLOR');
+    expect(presetColorResult.payload?.workOrder.repairCount).toBe(1);
+    expect(presetColorResult.payload?.workOrder.repairCountSource).toBe('auto');
+
     formState.boardColorChoice = 'OTHER';
     formState.boardColorOther = ' 藍白漸層 ';
-    formState.damageDescription = '表面刮傷';
     formState.initialQuoteAmount = '500';
     formState.initialQuoteDescription = ' ';
-    formState.repairCount = '2';
-    formState.repairCountSource = 'manual';
+    formState.repairCount = '';
+    formState.repairCountSource = 'auto';
 
     const result = buildAdminWorkOrderCreatePayload(formState);
 
@@ -97,14 +115,25 @@ describe('admin work-order create helpers', () => {
           itemType: 'INITIAL',
         },
       ],
+      repairMarks: [
+        {
+          boardSide: 'front',
+          heightRatio: 0.18,
+          id: 'mark-1',
+          sortOrder: 0,
+          templateKey: 'SNOWBOARD:front:v1',
+          widthRatio: 0.18,
+          xRatio: 0.4,
+          yRatio: 0.3,
+        },
+      ],
       workOrder: {
-        damageDescription: '表面刮傷',
         estimatedCompletionDate: '2026-05-10',
         intakeDate: '2026-04-29',
         paperOrderNo: 'BR-2026-0002',
         paymentReceived: false,
-        repairCount: 2,
-        repairCountSource: 'manual',
+        repairCount: 1,
+        repairCountSource: 'auto',
       },
     });
 
@@ -122,7 +151,6 @@ describe('admin work-order create helpers', () => {
     surfboardForm.customerModeDecision = 'create';
     surfboardForm.customerName = '王小明';
     surfboardForm.boardType = 'SURFBOARD';
-    surfboardForm.damageDescription = '尾端裂傷';
 
     expect(buildAdminWorkOrderCreatePayload(surfboardForm).fieldErrors).toMatchObject({
       boardLengthClass: ['請選擇衝浪板長度分類。'],
@@ -136,7 +164,6 @@ describe('admin work-order create helpers', () => {
     snowboardForm.customerName = '王小明';
     snowboardForm.boardType = 'SNOWBOARD';
     snowboardForm.boardLengthClass = 'LONGBOARD';
-    snowboardForm.damageDescription = '表面刮傷';
 
     expect(buildAdminWorkOrderCreatePayload(snowboardForm).fieldErrors).toMatchObject({
       boardLengthClass: ['只有衝浪板可以設定長度分類。'],

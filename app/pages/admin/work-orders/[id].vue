@@ -51,12 +51,14 @@ import { deriveRepairCount, summarizeRepairMarks } from '~/utils/repair-marks';
 import PrintJobStatusBadge from '~/components/printing/PrintJobStatusBadge.vue';
 import RepairMarksEditorDialog from '~/components/work-orders/RepairMarksEditorDialog.vue';
 import RepairMarksSurfaceGallery from '~/components/work-orders/RepairMarksSurfaceGallery.vue';
+import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 import { Textarea } from '~/components/ui/textarea';
 
 type RequestFetch = <T>(request: string, options?: Record<string, unknown>) => Promise<T>;
 
 interface DetailField {
+  isBoardColor?: boolean;
   label: string;
   value: string;
 }
@@ -611,6 +613,7 @@ const boardFields = computed<DetailField[]>(() => {
     {
       label: '顏色',
       value: formatNullableText(detail.value.board.color),
+      isBoardColor: true,
     },
     {
       label: '序號 / 標記',
@@ -1613,7 +1616,12 @@ if (import.meta.client) {
             <CardContent class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div v-for="field in boardFields" :key="field.label" class="space-y-1">
                 <p class="text-sm text-muted-foreground">{{ field.label }}</p>
-                <p class="text-sm font-medium">{{ field.value }}</p>
+                <WorkOrderBoardColorSwatch
+                  v-if="field.isBoardColor"
+                  :color="detail.board.color"
+                  empty-label="—"
+                />
+                <p v-else class="text-sm font-medium">{{ field.value }}</p>
               </div>
             </CardContent>
           </Card>
@@ -1659,7 +1667,8 @@ if (import.meta.client) {
               :canvas-width="500"
               dual-surface-min-height-class="min-h-[24rem] xl:min-h-[34rem]"
               :marks="detail.repairMarks"
-              single-surface-min-height-class="min-h-[30rem] xl:min-h-[38rem]"
+              single-surface-canvas-wrapper-class="mx-auto h-auto w-full max-w-[26rem] aspect-[500/760]"
+              single-surface-min-height-class="min-h-0"
               surface-gap-class="gap-4"
             />
           </CardContent>
@@ -1674,7 +1683,12 @@ if (import.meta.client) {
         <CardContent class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <div v-for="field in boardFields" :key="field.label" class="space-y-1">
             <p class="text-sm text-muted-foreground">{{ field.label }}</p>
-            <p class="text-sm font-medium">{{ field.value }}</p>
+            <WorkOrderBoardColorSwatch
+              v-if="field.isBoardColor"
+              :color="detail.board.color"
+              empty-label="—"
+            />
+            <p v-else class="text-sm font-medium">{{ field.value }}</p>
           </div>
         </CardContent>
       </Card>
