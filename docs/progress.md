@@ -131,6 +131,7 @@
 - Admin 前端第一版雛形：列表與詳情頁的主要流程、資料顯示與基本操作骨架已到位，可作為後續與甲方討論 UI/流程細節的基礎。
 - Staging deployment runbook：`docs/deployment.md` 已建立，記錄 Vercel + Supabase staging 的前置檢查、env 名稱、Supabase migration push、Vercel preview deploy、admin 建立與 smoke test checklist。
 - Staging 基礎部署：Supabase staging migrations 已推送，Vercel staging project 已建立並部署到 `https://board-reborn-staging.vercel.app`；`.vercel` 已加入 `.gitignore`。
+- Staging work-order list grant fix：已定位 `20260610000000_admin_work_order_list_repair_count.sql` 以 `drop/create view` 重建 `admin_work_order_list` 後遺失原本的 `authenticated` `select grant`，造成 staging `/admin/work-orders` 查詢 view 時 Supabase REST 回 `403`。已補 grant-fix migration，後續所有重建該 view 的 schema 變更都需重新補 grant。
 - Authenticated table grants：已新增 migration，讓 user-scoped admin APIs 可在 RLS policies 之上讀寫核心資料表與 `admin_work_order_list` view。
 - Print queue model：已新增 `print_devices`、重整 `print_jobs` schema 與 `admin_print_job_list` view，並用 migration 將 legacy print status 映射到 queue status。
 - Print job APIs：已新增 `GET /api/admin/print-jobs`、`POST /api/admin/print-jobs`、`POST /api/admin/print-jobs/{id}/retry`、`POST /api/print-worker/jobs/claim`、`POST /api/print-worker/jobs/{id}/succeed`、`POST /api/print-worker/jobs/{id}/fail`。

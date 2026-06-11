@@ -87,6 +87,13 @@ const workOrderLabelRepairCountSnapshotMigration = readFileSync(
   ),
   'utf8',
 );
+const adminWorkOrderListGrantFixMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260611132000_admin_work_order_list_grant_fix.sql',
+  ),
+  'utf8',
+);
 
 describe('initial Supabase migration', () => {
   it('keeps pickup fields inline on work_orders', () => {
@@ -174,6 +181,12 @@ describe('initial Supabase migration', () => {
       'grant select on table public.admin_work_order_list to authenticated',
     );
     expect(authenticatedTableGrantsMigration).not.toContain('to anon');
+  });
+
+  it('regrants admin_work_order_list after view recreation migrations', () => {
+    expect(adminWorkOrderListGrantFixMigration).toContain(
+      'grant select on table public.admin_work_order_list to authenticated',
+    );
   });
 
   it('grants minimal service_role read access for public lookup queries', () => {

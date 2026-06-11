@@ -201,6 +201,7 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 ### 權限補充
 
 - 管理端 user-scoped API 走 `authenticated` role，依 migration 補 `public` schema usage 與核心資料表 / `admin_work_order_list` view 權限。
+- 若 migration 以 `drop view` / `create view` 方式重建 `admin_work_order_list`，必須在同一批 schema 變更後重新 `grant select on table public.admin_work_order_list to authenticated`，否則 staging / production 的管理端工單列表會因 view grant 遺失而回 `403`。
 - Public customer lookup 走 server-side service-role client，不依賴 end-user session；資料庫需額外授予 `service_role` 對 `public.work_orders`、`public.customers`、`public.quote_items` 的 `select` 權限。
 - `service_role` 在本 repo 只用於 server-side lookup / backend job 類場景，不可暴露到 client runtime。
 
