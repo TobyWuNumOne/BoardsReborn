@@ -1314,7 +1314,11 @@ if (import.meta.client) {
             <div
               aria-labelledby="payment-received-label"
               :aria-checked="form.paymentReceived"
-              class="flex min-h-16 cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/30"
+              :class="
+                cn(
+                  'flex min-h-16 cursor-pointer items-start gap-3 rounded-lg border border-pink-500 bg-white p-4 transition-colors hover:bg-muted/20',
+                )
+              "
               role="checkbox"
               tabindex="0"
               @click="togglePaymentReceived"

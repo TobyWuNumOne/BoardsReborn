@@ -48,6 +48,7 @@ useHead({
 
 const route = useRoute();
 const adminSession = useAdminSession();
+const BULK_INPUT_ID = 'bulk-paper-order-input';
 const getRequestFetch = (): RequestFetch => {
   if (import.meta.server) {
     return useRequestFetch() as RequestFetch;
@@ -159,6 +160,25 @@ const clearSubmitFeedback = () => {
   submitApiError.value = null;
 };
 
+const focusBulkInput = async ({ select = false }: { select?: boolean } = {}) => {
+  if (import.meta.server) {
+    return;
+  }
+
+  await nextTick();
+  const inputElement = document.getElementById(BULK_INPUT_ID);
+
+  if (!(inputElement instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  inputElement.focus();
+
+  if (select) {
+    inputElement.select();
+  }
+};
+
 const resetGroupExpandedState = () => {
   for (const status of ADMIN_BULK_STATUS_GROUP_ORDER) {
     groupExpandedState[status] = true;
@@ -182,6 +202,7 @@ const clearBulkInput = () => {
   sharedNote.value = '';
   successAlert.value = null;
   resetPreviewState();
+  void focusBulkInput();
 };
 
 const applyPreviewResult = (result: {
@@ -259,6 +280,8 @@ const runPreviewSearch = async () => {
     previewErrorMessage.value =
       extractApiErrorEnvelope(error)?.error.message ?? '目前無法搜尋工單，請稍後再試。';
     previewStatus.value = hasPreviewResults.value ? 'stale' : 'idle';
+  } finally {
+    await focusBulkInput();
   }
 };
 
@@ -375,6 +398,7 @@ const submitBulkStatusUpdate = async (
   } finally {
     isSubmitting.value = false;
     submittingSelectedSnapshot.value = [];
+    await focusBulkInput();
   }
 };
 
@@ -405,6 +429,10 @@ watch(bulkInput, (nextValue, previousValue) => {
   if (previewStatus.value === 'ready' || previewStatus.value === 'stale') {
     previewStatus.value = 'stale';
   }
+});
+
+onMounted(async () => {
+  await focusBulkInput();
 });
 </script>
 
@@ -440,7 +468,7 @@ watch(bulkInput, (nextValue, previousValue) => {
           <Field>
             <FieldLabel for="bulk-paper-order-input">紙本工單號</FieldLabel>
             <Textarea
-              id="bulk-paper-order-input"
+              :id="BULK_INPUT_ID"
               v-model="bulkInput"
               :disabled="isInputLocked"
               class="min-h-36"
