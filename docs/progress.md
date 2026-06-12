@@ -11,7 +11,7 @@
 
 ## 目前快照
 
-- 最後更新：2026-06-10
+- 最後更新：2026-06-12
 - 目前階段：Cloud-to-Physical Printing MVP 已完成；admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up、worker claim/report 與 Raspberry Pi USB raw ESC/POS 實體列印皆已打通，下一階段聚焦真實場景穩定化、branch / environment discipline 與掃碼硬體補齊
 - 整體狀態：進行中
 - 現況摘要：
@@ -23,7 +23,7 @@
   - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序與分頁，`/admin/work-orders/[id]` 已提供 `mode=view|edit|work` detail route，且 `mode=edit` 已接上 PATCH 與 repair marks 編輯；`/admin/work-orders/new` 已接上 lookup-first 現場建單流程、tablet-first F8A/F8B 快捷操作與 Konva repair marks modal；`/admin/work-orders/bulk-status` 已接上 preview 搜尋與批量狀態更新；`/admin/scan` 已接上單張掃碼 lookup 與第一版快速操作。
   - `board_length_class` 已加入 schema 與 admin create/list/detail；衝浪板建單需選短板 / 中尺寸 / 長板，既有 legacy null 在 UI 顯示為 `—`。
   - `board_color` 已加入 `admin_work_order_list` projection 與 admin resolve preview；工單列表與 bulk status preview 會顯示顏色 swatch + label。
-  - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、repair marks 示意圖、公開備註與最近更新時間。
+  - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、repair marks 示意圖、公開備註、最近更新時間，以及紙本維修單上的公開店家資訊、取板預約電話 CTA、板型對應費用參考與補板注意事項。
   - `work_orders` 現在已新增 `repair_count` / `repair_count_source`，並新增 `work_order_repair_marks` 結構化標記表；create/detail/patch/public lookup contract 已同步支援，且建單前必須先解析出非空 `repairCount`。
   - repair marks 的編輯與只讀預覽已統一 responsive 規則：`>1024px` 顯示正反面，`<=1024px` 改成單面切換；Konva stage 會跟著外層卡片可用空間縮放，`SURFBOARD` / `SUP` 共用同一套瘦長輪廓，`SNOWBOARD` 保持獨立輪廓；其中 editor modal 已再調整為 iPad 11 吋橫向優先，`>=1024px` 時固定維持 `正面 / 背面 / 設定區` 同列，且不再需要為了看到 `儲存` 額外下捲；直向 editor 則改成單面切換在上、設定卡在下的堆疊版型，並把 modal 高度與單面標記區再往上放大。
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
@@ -42,8 +42,7 @@
   - Raspberry Pi `192.168.0.242` 已完成第一輪 connectivity smoke test：Pi 端 `printer-worker run-once` 可透過區網呼叫本機 Nuxt `print-worker` API，並成功驗證 `claim -> printed` 與 `claim -> pending(last_error, attempt_count+1)` 兩條路徑。
   - 已完成第一輪印表機硬體確認：Prowill PD-X326、80mm、`ESC/POS`、USB/Serial/Ethernet，Ethernet self-test 固定為 `192.168.50.88:9100`、DHCP disabled。
   - macOS 已完成 raw ESC/POS smoke test：`_USB_Receipt_Printer` 可透過 `lp -d _USB_Receipt_Printer -o raw` 成功列印 ASCII 文字、切紙與 1D barcode。
-  - 中文字目前在 raw ESC/POS 測試中仍會亂碼，因此 MVP 第一版先採 ASCII-only 模板，不做 QR Code，先印工單號文字與 1D barcode。
-  - Raspberry Pi 端 raw USB ESC/POS 已完成 end-to-end 驗證：Pi SSH、Wi-Fi 臨時連線、USB 偵測、`/dev/usb/lp0`、ASCII、1D barcode、切紙皆成功。
+  - Raspberry Pi 端 raw USB ESC/POS 已完成 end-to-end 驗證：Pi SSH、Wi-Fi 臨時連線、USB 偵測、`/dev/usb/lp0`、ASCII、CP950 / Big5 繁體中文、1D barcode、切紙皆成功；UTF-8 直送中文不支援，會亂碼。
   - Pi 端已確認有效 cut command 為 `\x1D\x56\x42\x05`，可靠手動驗證方式為 `printf ... | sudo tee /dev/usb/lp0 > /dev/null`。
   - 已確認 Pi worker 路徑應直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，也不使用 macOS printer queue name。
   - `printer-worker serve` 已實作 immutable print snapshot renderer 與 raw USB transport；`run-once` / `poll` 保持既有 smoke test，不會真的出紙。
@@ -122,7 +121,7 @@
 - Admin scan UI：獨立 `/admin/scan` 頁面、專用 `GET /api/admin/work-orders/lookup` read model、快速備註 endpoint 與 sidebar 入口已建立。
 - Bulk status 掃碼工作流：preview 與 recent batch result 已聚焦狀態核對，不再顯示列印摘要或補印操作，避免干擾掃碼批量作業。
 - Bulk preview / 工單列表資訊密度升級：`resolve` preview 已補顧客電話、長度分類、顏色、預估完成日與提醒 flags；bulk status 與工單列表都會顯示顏色 swatch。
-- Public customer lookup：`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，使用完整手機號碼驗證、server-generated progress timeline / cancelled state、只讀 repair marks 示意圖與 MVP in-memory rate limit。
+- Public customer lookup：`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，使用完整手機號碼驗證、server-generated progress timeline / cancelled state、只讀 repair marks 示意圖、公開店家/費用/注意事項資訊與 MVP in-memory rate limit。
 - Admin dashboard quick entries：已接上工單列表與建單頁入口，排除 create entry 仍停留 disabled placeholder 的不一致狀態。
 - Admin sidebar navigation：已補上 bulk status 入口與加高的新增工單快捷按鈕，讓現場建單與批量操作都不只依賴 dashboard quick entry。
 - Admin dashboard quick entries：已再補上 bulk status 入口。
@@ -144,8 +143,8 @@
 - Raspberry Pi connectivity smoke test：已在 Pi 上驗證 `run-once` 的 success 與 fail 路徑，確認可打通本機 Nuxt API、正確更新 `print_jobs.status`、`attempt_count`、`last_error` 與 `printed_at`。
 - Raspberry Pi poll heartbeat behavior：已確認 Pi 在 `printer-worker poll` 模式下，即使本輪 `No job available`，仍會透過 `claim -> job: null` 更新 `print_devices.last_seen_at`，所以 Worker 管理頁可在空佇列時維持顯示為在線。
 - Printer hardware verification：已確認 Prowill PD-X326 為目前 MVP 實機，支援 `ESC/POS`、80mm、USB/Serial/Ethernet；macOS raw USB 已驗證 ASCII、1D barcode 與 cut。
-- Raspberry Pi USB raw verification：已確認 Pi 端 `lsusb`、`/dev/usb/lp0`、ASCII、1D barcode、cut command 全部通過；有效 cut command 為 `\x1D\x56\x42\x05`。
-- Printing MVP decision：第一版先不做 QR Code，不處理中文列印；先以 ASCII-only receipt template 印工單號文字與 1D barcode。
+- Raspberry Pi USB raw verification：已確認 Pi 端 `lsusb`、`/dev/usb/lp0`、ASCII、CP950 / Big5 繁體中文、1D barcode、cut command 全部通過；UTF-8 直送中文會亂碼，有效 cut command 為 `\x1D\x56\x42\x05`。
+- Printing MVP decision：第一版先不做 QR Code；中文可讀文字若納入 receipt template，必須啟用 `FS &` / `\x1C\x26` 並以 CP950 / Big5 編碼，條碼內容仍維持 ASCII-only `paper_order_no`。
 - Pi transport decision：正式 Pi worker 直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，不使用 macOS printer queue name。
   - Print snapshot payload：`work_order_label` 現在會建立 `templateVersion: 2` 的 immutable print-ready snapshot，包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived` 與 `repairCount`。
   - Receipt renderer 已改成新版 ESC/POS 版面：置中的收件日期、電話 / Paid、大字工單號、維修處數括號與 1D barcode，條碼高度固定 `0x40`。
@@ -225,6 +224,6 @@
 - Nuxt 4 在此專案目前的本機開發組合下，`experimental.appManifest` 會導致 `/_nuxt/builds/meta/dev.json` 404；目前已先關閉這個實驗功能，以穩定開發中的 admin 頁面導航與刷新行為。
 - Nitro `node-server` build output 目前仍依賴 build 後補的 public asset symlink / fallback copy 來讓本機 `preview` 與直接 `node .output/server/index.mjs` 正常提供 `/_nuxt/*`；此 workaround 已落地，但後續仍可追蹤上游 Nitro 行為是否修正。
 - shadcn-vue latest 的 `reka-vega` style registry base style 在初始化時回 404；本次以 `--no-base-style` 初始化並依官方 neutral theme scaffold 手動補齊 global CSS tokens。
-- 已確認目前印表機型號為 Prowill PD-X326，且 Raspberry Pi raw USB `/dev/usb/lp0` 已驗證可用；但 Ethernet TCP `9100` 尚未驗證，另外中文 ESC/POS 編碼仍未解，因此 production printing workflow 仍有不確定性。
+- 已確認目前印表機型號為 Prowill PD-X326，且 Raspberry Pi raw USB `/dev/usb/lp0` 已驗證可用；CP950 / Big5 繁體中文列印已通過、UTF-8 直送中文不支援。Ethernet TCP `9100` 尚未驗證，因此 production printing workflow 仍有 transport 不確定性。
 - 條碼掃描端目前缺少實際條碼槍硬體，因此 user-side 掃碼流程仍停在文件與 Web 輸入設計階段；是否採 keyboard wedge、掃描後自動 Enter 與現場批量操作細節，需等實機後再驗證。
 - 目前仍以 `main` 承接主要開發，對真實場景測試風險偏高；若不切出 `dev` / staging discipline，之後 production 行為與正在開發中的變更會持續互相干擾。

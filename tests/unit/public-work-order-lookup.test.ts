@@ -1,21 +1,26 @@
 import type { H3Event } from 'h3';
 import { describe, expect, it } from 'vitest';
-import {
-  TooManyRequestsError,
-  ValidationError,
-} from '../../server/utils/api-errors';
-import {
-  applyInMemoryRateLimit,
-  getRateLimitClientIp,
-} from '../../server/utils/public-rate-limit';
+import { TooManyRequestsError, ValidationError } from '../../server/utils/api-errors';
+import { applyInMemoryRateLimit, getRateLimitClientIp } from '../../server/utils/public-rate-limit';
 import {
   buildPublicWorkOrderLookupPayload,
   formatPublicCurrency,
 } from '../../app/utils/public-work-order-lookup';
+import {
+  getPublicBoardRepairInfo,
+  PUBLIC_REPAIR_NOTICE_ITEMS,
+  PUBLIC_REPAIR_SHOP_INFO,
+} from '../../app/utils/public-repair-info';
 import { parsePublicWorkOrderLookupBody } from '../../server/utils/work-order-validation';
-import { buildPublicWorkOrderProgress, lookupPublicWorkOrder } from '../../server/utils/work-orders';
+import {
+  buildPublicWorkOrderProgress,
+  lookupPublicWorkOrder,
+} from '../../server/utils/work-orders';
 
-const createMockEvent = (requestHeaders: Record<string, string | undefined> = {}, remoteAddress = '') =>
+const createMockEvent = (
+  requestHeaders: Record<string, string | undefined> = {},
+  remoteAddress = '',
+) =>
   ({
     node: {
       req: {
@@ -323,5 +328,34 @@ describe('public work-order lookup', () => {
   it('formats nullable public quote amounts safely', () => {
     expect(formatPublicCurrency(null)).toBe('未提供');
     expect(formatPublicCurrency(2500)).toBe('NT$ 2,500');
+  });
+
+  it('keeps public repair shop info callable and board-specific', () => {
+    expect(PUBLIC_REPAIR_SHOP_INFO.phone).toBe('0936811575');
+    expect(PUBLIC_REPAIR_SHOP_INFO.phoneHref).toBe('tel:0936811575');
+    expect(PUBLIC_REPAIR_SHOP_INFO.bankAccount).toBe('5425899016440');
+    expect(PUBLIC_REPAIR_NOTICE_ITEMS.join('\n')).toContain('電話預約時間取板');
+
+    const surfboardInfo = getPublicBoardRepairInfo('SURFBOARD');
+    expect(surfboardInfo.boardLabel).toBe('衝浪板');
+    expect(surfboardInfo.workdayNote).toContain('七個工作天');
+    expect(surfboardInfo.feeSections.flatMap((section) => section.items)).toEqual(
+      expect.arrayContaining([
+        { amount: 'NT$400', label: '基本費（每張）' },
+        { amount: 'NT$2000', label: 'FCS2 Fin Box' },
+      ]),
+    );
+
+    const snowboardInfo = getPublicBoardRepairInfo('SNOWBOARD');
+    expect(snowboardInfo.boardLabel).toBe('雪板');
+    expect(snowboardInfo.workdayNote).toContain('五個工作天');
+    expect(snowboardInfo.feeSections.flatMap((section) => section.items)).toEqual(
+      expect.arrayContaining([
+        { amount: 'NT$800', label: '3~8cm' },
+        { amount: 'NT$1500', label: '手工打蠟（三層）' },
+      ]),
+    );
+
+    expect(getPublicBoardRepairInfo('SUP').feeSections).toEqual(surfboardInfo.feeSections);
   });
 });

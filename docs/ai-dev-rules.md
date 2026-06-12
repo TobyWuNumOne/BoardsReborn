@@ -87,7 +87,9 @@
 - 平板瀏覽器不可直接控制 USB 印表機。
 - 第一版已驗證硬體 profile 以 `ESC/POS` 80mm 熱感出單機為主，但仍不可綁死單一品牌 SDK。
 - 列印渲染與 transport 必須分離；不可把 ESC/POS command bytes 散落在 worker 主流程。
-- 第一版列印模板限 ASCII 內容，直到中文字編碼與字庫策略完成驗證前，不可把中文列為必印內容。
+- Prowill PD-X326 已驗證在 Raspberry Pi raw USB ESC/POS 下可用 CP950 / Big5 列印繁體中文；直接送 UTF-8 會亂碼。
+- 若列印模板加入中文可列印文字，renderer 必須先進入中文模式 `FS &` (`\x1C\x26`)，並以 `text.encode("cp950", errors="replace")` 產生文字 bytes，不可用 UTF-8 直送。
+- 條碼 payload 必須維持 ASCII-only `paper_order_no`；不可把 `barcodeValue` 以 CP950 或其他中文字編碼處理。
 - 第一版不做 QR Code 列印；先印工單號文字與 1D barcode。
 - 第一版主系統的 `print_job_status` 以 queue 為主：`pending`、`locked`、`printing`、`printed`、`failed`、`cancelled`。
 - Worker claim 必須是原子操作，避免多個 worker 同時取走同一筆 job。

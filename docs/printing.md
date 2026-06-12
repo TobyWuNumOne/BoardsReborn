@@ -33,7 +33,8 @@
 - 紙寬：80mm
 - 協定：`ESC/POS`
 - macOS USB raw printing：已驗證 ASCII 文字、1D barcode 與 cut command 可正常送出
-- Raspberry Pi raw USB printing：已完成 end-to-end 驗證，`/dev/usb/lp0`、ASCII、1D barcode 與 cut command 均正常
+- Raspberry Pi raw USB printing：已完成 end-to-end 驗證，`/dev/usb/lp0`、ASCII、CP950 / Big5 繁體中文、1D barcode 與 cut command 均正常
+- UTF-8 文字不可直接送印；Prowill PD-X326 需使用 CP950 / Big5 才能正確列印繁體中文
 
 具體硬體紀錄與約束見 [printer-hardware.md](printer-hardware.md)。
 
@@ -243,6 +244,8 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 - transport 固定不使用 CUPS
 - transport 固定每筆 job 寫 raw byte buffer、flush、close
 - 預設 cut command 使用 `\x1D\x56\x42\x05`
+- 若 receipt 模板加入中文可讀文字，renderer 必須先送 `FS &` / `\x1C\x26` 啟用中文模式，再用 `text.encode("cp950", errors="replace")` 編碼文字
+- `barcodeValue` 必須保持 ASCII-only，且只作為 1D barcode payload；不可對 barcode content 使用 CP950 編碼
 
 ## Raspberry Pi 穩定化下一階段
 
@@ -264,7 +267,6 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 ## 這一版不做
 
 - QR Code 列印
-- 中文列印
 - device key rotation UI
 - 多店 routing policy
 - 依印表機 transport 細節擴充主系統狀態機
