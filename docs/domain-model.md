@@ -232,6 +232,11 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 - `search_text`（由 `name` / `device_key` / `location` 組成，供 admin list search）
 - admin printing Realtime private topics 使用 `realtime.messages` RLS 授權；`authenticated` admin 需要同時具備 `select` 與 `insert` policy 才能完成 private broadcast topic join
 
+權限補充：
+
+- `authenticated` admin 需要具備 `select` / `insert` 權限，才能透過管理端建立新的 `print_devices`。
+- `service_role` 需要具備 `select` / `insert` / `update` 權限，供 server-side provisioning、worker lookup 與 backend repair / recovery flow 使用。
+
 ### `print_jobs`
 
 非同步標籤列印任務。工單主資料建立不依賴列印成功，但 `work_order_label` 需要完整 print-ready snapshot，因此 admin create flow 必須先確認 `repair_count` 非空。補印時新增另一筆任務，不覆蓋舊任務。

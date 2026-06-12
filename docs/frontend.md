@@ -89,12 +89,17 @@
   - progress timeline / cancelled state
   - 預估完成日
   - 初始報價
+  - 取板預約電話 CTA
   - 只讀 repair marks 示意圖與維修處數
   - 公開備註
+  - 依板型切換的公開費用參考與補板注意事項
   - 最近更新時間
 - public progress 由 server 回傳，不由前端自行推導。
 - `CANCELLED` 時只顯示取消狀態，不渲染一般 stepper。
 - 不把完整手機號碼或工單號寫進 URL query。
+- 店家資訊、營業時間、轉帳資訊、取板預約提醒、費用表與補板注意事項屬公開靜態內容；不透過 public lookup API 回傳，也不可因此回傳顧客完整電話或內部資料。
+- 查詢前只顯示共通店家資訊；查詢成功後依 `boardType` 顯示 `SURFBOARD / SUP` 或 `SNOWBOARD` 的費用與工作天數說明。
+- mobile 顧客查詢結果排序以狀態與取板行動優先：工單號 / 狀態、來電預約、目前進度、預估完成日 / 初始報價、公開備註、維修標記圖、費用參考與注意事項。
 
 版型規則：
 

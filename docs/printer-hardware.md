@@ -42,10 +42,6 @@ Raspberry Pi-side USB raw ESC/POS printing 已完成 end-to-end 驗證。
 - 切紙指令可正常執行
 - 1D barcode 可正常列印
 
-尚未解決：
-
-- 中文字目前會印成亂碼
-
 ### Raspberry Pi USB raw printing
 
 已驗證：
@@ -55,6 +51,8 @@ Raspberry Pi-side USB raw ESC/POS printing 已完成 end-to-end 驗證。
 - `lsusb` 可偵測印表機為 `0fe6:811e ICS Advent Parallel Adapter`
 - kernel 會建立 `/dev/usb/lp0`
 - raw ASCII text printing 正常
+- CP950 / Big5 繁體中文列印正常
+- 直接送 UTF-8 中文不支援，會印成亂碼
 - 1D barcode printing 正常
 - paper cut 正常
 - 有效 cut command 為 `\x1D\x56\x42\x05`
@@ -72,13 +70,16 @@ printf "\x1B\x40BoardsReborn Barcode Test\n\n\x1D\x48\x02\x1D\x68\x64\x1D\x77\x0
 - 不要使用 macOS printer queue name
 - 避免用會把 escaped sequence 原樣印出的 shell string
 - 正式 worker 應使用 raw byte buffer，而不是 literal escaped text
+- 中文可讀文字必須先送 `FS &` / `\x1C\x26` 啟用中文模式，再用 `text.encode("cp950", errors="replace")` 編碼
+- 不可把中文文字以 UTF-8 raw bytes 直送印表機
+- 條碼內容不可用 CP950 編碼，必須維持 ASCII-only
 - 每筆 job 完成後要 flush 並 close printer device
 - 預設 cut command 使用 `\x1D\x56\x42\x05`
 
 ## MVP 列印決策
 
 - 第一版不做 QR Code 列印。
-- 第一版列印模板使用 ASCII-only 內容。
+- 第一版列印模板的條碼內容維持 ASCII-only；中文可讀文字若納入模板，必須使用 CP950 / Big5。
 - 第一版輸出工單號文字加 1D barcode。
 - 1D barcode 優先評估 `Code39` 或 `Code128`。
 - 條碼內容必須保持 ASCII 且 scanner-friendly。

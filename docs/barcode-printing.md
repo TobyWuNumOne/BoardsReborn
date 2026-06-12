@@ -92,12 +92,23 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 目前 MVP 列印內容策略：
 
 - 不做 QR Code
-- 使用 ASCII-only 模板
+- 目前 `work_order_label` 仍以工單號、日期、電話、付款狀態與維修處數等精簡 receipt 內容為主；條碼 payload 維持 ASCII-only
 - enqueue `print_jobs` 時就建立 immutable print-ready snapshot，worker 不再自行推導 repair count
 - `work_order_label` snapshot 目前使用 `templateVersion = 2`，至少包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount`
 - 列印置中的收件日期、電話 / 付款狀態、大字工單號、維修處數括號與同一個工單號的 1D barcode
 - 1D barcode height 固定 `0x40`
 - 1D barcode 優先評估 `Code39` 或 `Code128`
+
+### 中文列印編碼
+
+Prowill PD-X326 已在 Raspberry Pi raw USB ESC/POS 路徑驗證可用 CP950 / Big5 列印繁體中文。直接送 UTF-8 不支援，會造成亂碼。
+
+Renderer 規則：
+
+- 列印中文可讀文字前，必須啟用中文模式 `FS &` / `\x1C\x26`。
+- 中文可列印文字使用 `text.encode("cp950", errors="replace")` 轉成 bytes。
+- 不可把中文文字以 UTF-8 raw bytes 直接送到印表機。
+- `barcodeValue` 與實際 1D barcode content 必須保持 ASCII-only，且仍使用 `paper_order_no`；不可用 CP950 編碼條碼內容。
 
 不要在 MVP 綁死單一品牌 SDK。具體已驗證硬體與測試結果見 [printer-hardware.md](printer-hardware.md)。
 
