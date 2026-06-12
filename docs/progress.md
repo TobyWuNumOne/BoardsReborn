@@ -12,7 +12,7 @@
 ## 目前快照
 
 - 最後更新：2026-06-12
-- 目前階段：Cloud-to-Physical Printing MVP 已完成；admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up、worker claim/report 與 Raspberry Pi USB raw ESC/POS 實體列印皆已打通，下一階段聚焦真實場景穩定化、branch / environment discipline 與掃碼硬體補齊
+- 目前階段：Cloud-to-Physical Printing MVP 已完成；admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up、worker claim/report 與 Raspberry Pi USB raw ESC/POS 實體列印皆已打通，staging / production label printer 也都已完成實機切換驗證；下一階段聚焦真實場景穩定化、branch / environment discipline 與掃碼硬體補齊
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
@@ -154,6 +154,7 @@
 - Staging login config hardening：已補 `.vercelignore` 排除 local `.env` / `.env.*`，避免 `vercel deploy` 從本機上傳 source 時把 local Supabase demo env 帶進 staging build。
 - Pi service refresh：Raspberry Pi 上 `boards-reborn-printer-worker.service` 已同步最新 worker 程式並重啟，啟動後已重新訂閱 `printing:worker-wakeup`。
 - Cloud-to-Physical Printing MVP：已完成雲端 Web 建立工單/補印 -> 建立 `print_jobs` -> worker wake-up / claim -> Pi USB raw ESC/POS 實體列印 -> succeeded / failed 回報的端到端流程，現場已可支撐最小可用標籤工作流。
+- Production printer cutover：已確認 production Supabase / Vercel / Pi `.env` 串接完成，補上 `print_devices` 缺漏的 `insert` grants 後，`raspi-print-worker-01` 已可在 production 成功 claim job 並回報 `printed`。
 - Local preview asset fix：`pnpm build` 現在會自動修正 Nitro build output 的 public asset link，避免 `pnpm preview` / `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
 
 ## 目前焦點
