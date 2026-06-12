@@ -10,7 +10,7 @@
 - 目前 `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎。
 - `/admin` 已接上 dashboard live data，第一版顯示處理中工單 breakdown、管理 summary 與 quick entries。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
-- `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation。
+- `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation，列印摘要卡可建立工單標籤或顧客留存聯補印任務。
 - `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API，並已補 tablet-first F8A/F8B 快捷輸入、sticky 必填摘要，以及 Konva repair marks modal。
 - `/admin/work-orders/bulk-status` 已實作第一版批量狀態頁，採 preview 搜尋、共享狀態與依狀態分組的快捷操作。
 - `/admin/scan` 已實作第一版掃碼查詢頁，支援單張工單 lookup、付款 / 交件 / 狀態更新 / 快速備註與完整工單導頁。
@@ -162,6 +162,7 @@
 
 - `GET /api/admin/print-jobs`
 - `GET /api/admin/print-summaries`
+- `POST /api/admin/print-jobs`
 - `POST /api/admin/print-jobs/{id}/retry`
 - `GET /api/admin/print-devices`
 - `PATCH /api/admin/print-devices/{id}`
@@ -252,6 +253,7 @@ Table 欄位順序：
   - 成功後 refresh detail、清空 form，並保留在 `mode=work`
 - detail 頁列印狀態卡使用 `GET /api/admin/print-summaries?workOrderId=...`，只刷新 summary，不因列印事件整頁重抓 work order detail。
 - detail 頁列印狀態卡只顯示 summary + deep link，不嵌入完整 print timeline。
+- detail 頁列印 action 使用 dialog 選擇 job type；第一版支援 `work_order_label`（工單標籤）與 `customer_receipt`（顧客留存聯），每次送出都建立新的 print job。
 - detail 頁若最新列印任務處於 `pending / locked / printing`，需短週期補抓 print summary，直到進入 terminal state，避免 Realtime 漏事件時卡在 `已鎖定`。
 
 ## Work Order Create
@@ -344,6 +346,7 @@ Table 欄位順序：
 - 第一版欄位：
   - 燈號
   - 工單號
+  - 任務類型（工單標籤 / 顧客留存聯）
   - 任務狀態
   - 板型摘要
   - 裝置 / `lockedBy`

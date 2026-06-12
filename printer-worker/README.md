@@ -7,7 +7,7 @@ BoardsReborn 的第一版 Python Print Worker 子專案。
 
 - 呼叫 `POST /api/print-worker/jobs/claim`
 - `run-once` / `poll` 模式下顯示拿到的 job 摘要
-- `serve` 模式下把 print snapshot render 成 ESC/POS bytes，直接寫入 `/dev/usb/lp0`
+- `serve` 模式下依 `jobType` 把 print snapshot render 成 ESC/POS bytes，直接寫入 `/dev/usb/lp0`
 - 列印成功後回報 `succeed`
 - 列印失敗後回報 `fail`
 - 在 `poll` 模式下，就算本輪 `No job available`，server 仍會更新該 device 的 `last_seen_at`
@@ -18,7 +18,6 @@ BoardsReborn 的第一版 Python Print Worker 子專案。
 - CUPS
 - macOS printer queue name
 - Ethernet TCP `9100` transport
-- 中文列印
 - `locked` / `printing` stale job 自動 recovery
 
 ## 檔案
@@ -95,7 +94,9 @@ python worker.py serve
 
 ## Payload contract
 
-`serve` 只消費 immutable print snapshot payload。第一版至少包含：
+`serve` 只消費 immutable print snapshot payload。Worker 不會自行推導 repair count，也不會自行 normalize phone 或 work order number。
+
+`work_order_label` payload 至少包含：
 
 - `templateVersion`
 - `paperOrderNo`
@@ -106,11 +107,20 @@ python worker.py serve
 - `paymentReceived`
 - `repairCount`
 
-Worker 不會自行推導 repair count，也不會自行 normalize phone 或 work order number。
+`customer_receipt` payload 至少包含：
 
-## Receipt template
+- `templateVersion`
+- `paperOrderNo`
+- `intakeDate`
+- `customerPhone`
+- `boardTypeLabel`
+- `paymentReceived`
+- `repairCount`
+- `publicLookupUrl`
 
-第一版固定輸出：
+## Label template
+
+`work_order_label` 第一版固定輸出：
 
 - centered 2x `In: YYYY-MM-DD`
 - `Tel: ...` / `Paid: YES|NO` 同行
@@ -119,6 +129,19 @@ Worker 不會自行推導 repair count，也不會自行 normalize phone 或 wor
 - centered 1D barcode using `barcodeValue`
 - barcode height `0x40`
 - cut command `\x1D\x56\x42\x05`
+
+## Customer receipt template
+
+`customer_receipt` 第一版固定輸出：
+
+- page mode `ESC L` + 576x660 page area
+- `FS &` 中文模式
+- CP950 / Big5 中文文字
+- `BoardsReborn 板再生維修收件單`
+- 收件日、工單號、電話、板型、維修處數、付款狀態
+- QR Code，內容固定使用 `publicLookupUrl`
+- 取板提醒 footer
+- form feed、standard mode、cut command `\x1D\x56\x42\x05`
 
 ## 預期輸出
 
@@ -136,6 +159,7 @@ Claimed print job
 - customerPhone: 0912927265
 - paymentReceived: true
 - repairCount: 6
+- publicLookupUrl: —
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```
 
@@ -153,6 +177,26 @@ Claimed print job
 - customerPhone: 0912927265
 - paymentReceived: true
 - repairCount: 6
+- publicLookupUrl: —
+Reported success -> status=printed attemptCount=0 printedAt=...
+```
+
+`serve` 顧客留存聯 job：
+
+```text
+Claimed print job
+- id: ...
+- jobType: customer_receipt
+- paperOrderNo: 260001
+- templateVersion: 1
+- displayOrderNumber: —
+- barcodeValue: —
+- intakeDate: 2026-06-05
+- customerPhone: 0912927265
+- boardTypeLabel: 衝浪板
+- paymentReceived: true
+- repairCount: 6
+- publicLookupUrl: https://boardsreborn.com/repair-status
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```
 

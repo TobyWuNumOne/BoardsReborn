@@ -2,12 +2,17 @@
 import { parseDate } from '@internationalized/date';
 import { CalendarIcon, MapPinnedIcon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
-import type { AdminPrintSummaryItem, AdminPrintSummaryResponse } from '~/utils/admin-printing';
+import type {
+  AdminPrintSummaryItem,
+  AdminPrintSummaryResponse,
+  PrintJobType,
+} from '~/utils/admin-printing';
 import type { RepairCountSource, RepairMark } from '~/utils/repair-marks';
 import {
   createEmptyAdminPrintSummary,
   getAdminPrintActionLabel,
   getAdminPrintingCenterPath,
+  getPrintJobTypeLabel,
 } from '~/utils/admin-printing';
 import {
   ADMIN_PRINTING_ACTIVE_SUMMARY_REFRESH_INTERVAL_MS,
@@ -133,9 +138,21 @@ const isSubmittingWorkForm = ref(false);
 const clientWorkFieldErrors = ref<Record<string, string[]>>({});
 const submitWorkApiError = ref<ApiErrorEnvelope | null>(null);
 const isSubmittingPrintAction = ref(false);
+const printActionDialogOpen = ref(false);
+const submittingPrintJobType = ref<PrintJobType | null>(null);
 const workOrderStatusValues = new Set(
   ADMIN_WORK_ORDER_STATUS_OPTIONS.map((option) => option.value),
 );
+const PRINT_JOB_CREATE_OPTIONS: Array<{ description: string; jobType: PrintJobType }> = [
+  {
+    description: '印現有工單標籤與 1D barcode。',
+    jobType: 'work_order_label',
+  },
+  {
+    description: '印顧客留存聯、QR Code 與取件提醒。',
+    jobType: 'customer_receipt',
+  },
+];
 
 const formatCurrency = (value: number | null) =>
   typeof value === 'number' ? CURRENCY_FORMATTER.format(value) : '—';
@@ -302,8 +319,8 @@ const printSummary = computed<AdminPrintSummaryItem | null>(() => {
   }
 
   return (
-    printSummaryResponse.value?.data?.[routeWorkOrderId.value]
-    ?? createEmptyAdminPrintSummary(routeWorkOrderId.value)
+    printSummaryResponse.value?.data?.[routeWorkOrderId.value] ??
+    createEmptyAdminPrintSummary(routeWorkOrderId.value)
   );
 });
 const printActionLabel = computed(() => getAdminPrintActionLabel(printSummary.value));
@@ -427,7 +444,9 @@ const currentStatusMeta = computed(() =>
   detail.value?.currentStatus ? getWorkOrderStatusMeta(detail.value.currentStatus) : null,
 );
 const detailRepairMarksSummary = computed(() =>
-  detail.value ? summarizeRepairMarks(detail.value.repairMarks) : { backCount: 0, frontCount: 0, totalCount: 0 },
+  detail.value
+    ? summarizeRepairMarks(detail.value.repairMarks)
+    : { backCount: 0, frontCount: 0, totalCount: 0 },
 );
 const editRepairCountMismatch = computed(() => {
   if (editForm.repairCountSource !== 'manual' || !editForm.repairCount) {
@@ -490,9 +509,13 @@ const syncActivePrintSummaryRefreshTimer = () => {
   }, ADMIN_PRINTING_ACTIVE_SUMMARY_REFRESH_INTERVAL_MS);
 };
 
-watch(shouldActiveRefreshPrintSummary, () => {
-  syncActivePrintSummaryRefreshTimer();
-}, { immediate: true });
+watch(
+  shouldActiveRefreshPrintSummary,
+  () => {
+    syncActivePrintSummaryRefreshTimer();
+  },
+  { immediate: true },
+);
 
 onBeforeUnmount(() => {
   clearActivePrintSummaryRefreshTimer();
@@ -917,23 +940,27 @@ const submitWorkForm = async () => {
   }
 };
 
-const createPrintJobFromDetail = async () => {
+const createPrintJobFromDetail = async (jobType: PrintJobType) => {
   if (!detail.value || !printSummary.value?.reprintAllowed || isSubmittingPrintAction.value) {
     return;
   }
 
   isSubmittingPrintAction.value = true;
+  submittingPrintJobType.value = jobType;
+  const jobTypeLabel = getPrintJobTypeLabel(jobType);
+  const actionLabel = printSummary.value.latestJob ? '補印' : '列印任務';
 
   try {
     await getRequestFetch()('/api/admin/print-jobs', {
       body: {
-        jobType: 'work_order_label',
+        jobType,
         workOrderId: detail.value.id,
       },
       method: 'POST',
     });
 
-    toast.success(`${printActionLabel.value}已送出`);
+    toast.success(`${jobTypeLabel}${actionLabel}已送出`);
+    printActionDialogOpen.value = false;
     await refreshPrintSummary();
   } catch (error) {
     if (await handleAuthRedirect(error)) {
@@ -941,11 +968,12 @@ const createPrintJobFromDetail = async () => {
     }
 
     const apiEnvelope = extractApiErrorEnvelope(error);
-    toast.error(`${printActionLabel.value}失敗。`, {
+    toast.error(`${jobTypeLabel}${actionLabel}失敗。`, {
       description: apiEnvelope?.error.message ?? '請稍後再試。',
     });
   } finally {
     isSubmittingPrintAction.value = false;
+    submittingPrintJobType.value = null;
   }
 };
 
@@ -1378,7 +1406,7 @@ if (import.meta.client) {
           <Card>
             <CardHeader>
               <CardTitle>列印狀態</CardTitle>
-              <CardDescription>顯示最新一筆標籤列印任務，完整操作仍以列印中心為主。</CardDescription>
+              <CardDescription>顯示最新一筆列印任務，完整操作仍以列印中心為主。</CardDescription>
             </CardHeader>
             <CardContent class="space-y-4">
               <div v-if="isPrintSummaryLoading" class="space-y-3">
@@ -1450,19 +1478,67 @@ if (import.meta.client) {
                   <p class="text-sm text-muted-foreground">
                     {{
                       printSummary?.latestJob
-                        ? '需要重送標籤時，會建立新的 print job，不覆蓋舊紀錄。'
-                        : '目前還沒有列印任務；可手動建立第一筆標籤列印。'
+                        ? '需要重送時，會建立新的 print job，不覆蓋舊紀錄。'
+                        : '目前還沒有列印任務；可手動建立第一筆列印任務。'
                     }}
                   </p>
                   <Button
                     type="button"
                     :disabled="isSubmittingPrintAction"
-                    @click="createPrintJobFromDetail"
+                    @click="printActionDialogOpen = true"
                   >
                     <Spinner v-if="isSubmittingPrintAction" data-icon="inline-start" />
                     {{ printActionLabel }}
                   </Button>
                 </div>
+
+                <Dialog
+                  :open="printActionDialogOpen"
+                  @update:open="(open) => (printActionDialogOpen = open)"
+                >
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{{ printActionLabel }}</DialogTitle>
+                      <DialogDescription>
+                        選擇要建立的列印任務。每次補印都會新增一筆 print job，不會覆蓋舊紀錄。
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                      <Button
+                        v-for="option in PRINT_JOB_CREATE_OPTIONS"
+                        :key="option.jobType"
+                        type="button"
+                        variant="outline"
+                        class="h-auto justify-start whitespace-normal p-4 text-left"
+                        :disabled="isSubmittingPrintAction"
+                        @click="createPrintJobFromDetail(option.jobType)"
+                      >
+                        <span class="flex flex-col gap-1">
+                          <span class="flex items-center gap-2 font-medium">
+                            <Spinner
+                              v-if="submittingPrintJobType === option.jobType"
+                              data-icon="inline-start"
+                            />
+                            {{ getPrintJobTypeLabel(option.jobType) }}
+                          </span>
+                          <span class="text-sm font-normal text-muted-foreground">
+                            {{ option.description }}
+                          </span>
+                        </span>
+                      </Button>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        :disabled="isSubmittingPrintAction"
+                        @click="printActionDialogOpen = false"
+                      >
+                        取消
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </template>
             </CardContent>
           </Card>
@@ -1518,7 +1594,9 @@ if (import.meta.client) {
                   </Button>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <Badge variant="outline">來源：{{ editForm.repairCountSource === 'auto' ? '自動' : '手動' }}</Badge>
+                  <Badge variant="outline"
+                    >來源：{{ editForm.repairCountSource === 'auto' ? '自動' : '手動' }}</Badge
+                  >
                   <Badge variant="outline">維修處數：{{ editForm.repairCount || '—' }}</Badge>
                 </div>
                 <FieldError :errors="editFieldErrors.repairCount" />
@@ -1527,7 +1605,8 @@ if (import.meta.client) {
               <Alert v-if="editRepairCountMismatch">
                 <AlertTitle>維修處數已手動調整</AlertTitle>
                 <AlertDescription>
-                  已標記 {{ editForm.repairMarks.length }} 處，但維修處數手動設定為 {{ editForm.repairCount }} 處。
+                  已標記 {{ editForm.repairMarks.length }} 處，但維修處數手動設定為
+                  {{ editForm.repairCount }} 處。
                 </AlertDescription>
               </Alert>
 

@@ -69,7 +69,9 @@ Admin UI / Work-order create
 
 ### `print_jobs`
 
-- `job_type` 第一版固定 `work_order_label`
+- `job_type` 第一版支援：
+  - `work_order_label`
+  - `customer_receipt`
 - `status`：
   - `pending`
   - `locked`
@@ -80,7 +82,7 @@ Admin UI / Work-order create
 
 第一版 API flow 只會主動使用 `pending`、`locked`、`printed`、`failed`。`printing` 保留給後續 Worker 內部更細的進度回報。
 
-`payload` 第一版固定是 immutable print snapshot：
+`payload` 第一版固定是 immutable print snapshot。`work_order_label` 範例：
 
 ```json
 {
@@ -97,17 +99,17 @@ Admin UI / Work-order create
 
 規則：
 
-- `job_type` 仍維持 `work_order_label`
+- `work_order_label` 使用 1D barcode，`customer_receipt` 使用 QR Code 導向公開查詢頁 `/repair-status`
 - worker 只消費 snapshot，不可自行推導 repair count，也不可自行 normalize phone 或 work order number
-- server enqueue 端負責生成 `displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived` 與 `repairCount` snapshot
+- server enqueue 端負責生成 `displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount`、`boardTypeLabel` 與 `publicLookupUrl` snapshot 欄位
 
 ## 建單與補印規則
 
-- 建立工單後，server 會 **best-effort** 自動建立第一筆 `pending` `print_job`。
+- 建立工單後，server 會 **best-effort** 依序自動建立 `work_order_label` 與 `customer_receipt` 兩筆 `pending` `print_jobs`。
 - 建立工單前，server 必須先確認可解析出非空 `repairCount`；若缺少則整體 create 回 `422`。
 - 自動 enqueue 失敗不可讓工單建立失敗。
 - Admin 可手動建立新的 `print_job` 作為補印或重印。
-- 若目標工單 `repairCount` 為 `null`，建立 `work_order_label` 必須回 `422 VALIDATION_ERROR`。
+- 若目標工單 `repairCount` 為 `null`，建立列印任務必須回 `422 VALIDATION_ERROR`。
 - 補印與重印都必須新增新任務，不覆蓋舊任務。
 - `attempt_count` 在 worker fail 時累加；manual retry 只重排任務，不重置計數。
 
@@ -246,6 +248,7 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 - 預設 cut command 使用 `\x1D\x56\x42\x05`
 - 若 receipt 模板加入中文可讀文字，renderer 必須先送 `FS &` / `\x1C\x26` 啟用中文模式，再用 `text.encode("cp950", errors="replace")` 編碼文字
 - `barcodeValue` 必須保持 ASCII-only，且只作為 1D barcode payload；不可對 barcode content 使用 CP950 編碼
+- `customer_receipt` renderer 使用 page mode、CP950 中文、QR Code、form feed 與 cut；QR 內容使用 snapshot 的 `publicLookupUrl`
 
 ## Raspberry Pi 穩定化下一階段
 
@@ -266,7 +269,6 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 
 ## 這一版不做
 
-- QR Code 列印
 - device key rotation UI
 - 多店 routing policy
 - 依印表機 transport 細節擴充主系統狀態機

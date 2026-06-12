@@ -10,7 +10,7 @@ const PRINT_JOB_STATUSES = [
   'failed',
   'cancelled',
 ] as const;
-const PRINT_JOB_TYPES = ['work_order_label'] as const;
+const PRINT_JOB_TYPES = ['work_order_label', 'customer_receipt'] as const;
 const PRINT_DEVICE_STATUSES = ['active', 'inactive', 'error'] as const;
 const PRINT_JOB_LIST_ALLOWED_FIELDS = [
   'page',
@@ -23,7 +23,12 @@ const PRINT_JOB_LIST_ALLOWED_FIELDS = [
 const PRINT_SUMMARY_ALLOWED_FIELDS = ['workOrderId'] as const;
 const ADMIN_PRINT_JOB_CREATE_ALLOWED_FIELDS = ['jobType', 'workOrderId'] as const;
 const PRINT_DEVICE_LIST_ALLOWED_FIELDS = ['page', 'pageSize', 'sort', 'status', 'q'] as const;
-const ADMIN_PRINT_DEVICE_CREATE_ALLOWED_FIELDS = ['deviceKey', 'location', 'name', 'status'] as const;
+const ADMIN_PRINT_DEVICE_CREATE_ALLOWED_FIELDS = [
+  'deviceKey',
+  'location',
+  'name',
+  'status',
+] as const;
 const ADMIN_PRINT_DEVICE_UPDATE_ALLOWED_FIELDS = ['name', 'location', 'status'] as const;
 const WORKER_CLAIM_ALLOWED_FIELDS = ['deviceKey'] as const;
 const WORKER_FAIL_ALLOWED_FIELDS = ['deviceKey', 'error'] as const;
@@ -286,7 +291,9 @@ export const parsePrintJobListQuery = (query: Record<string, unknown>): PrintJob
   const errors: ErrorCollector = {};
   const unknownFields = Object.keys(query).filter(
     (field) =>
-      !PRINT_JOB_LIST_ALLOWED_FIELDS.includes(field as (typeof PRINT_JOB_LIST_ALLOWED_FIELDS)[number]),
+      !PRINT_JOB_LIST_ALLOWED_FIELDS.includes(
+        field as (typeof PRINT_JOB_LIST_ALLOWED_FIELDS)[number],
+      ),
   );
 
   for (const field of unknownFields) {
@@ -327,12 +334,12 @@ export const parsePrintJobListQuery = (query: Record<string, unknown>): PrintJob
     const normalizedField =
       field === 'createdAt' ? 'created_at' : field === 'updatedAt' ? 'updated_at' : undefined;
 
-    if (
-      extra ||
-      !normalizedField ||
-      (direction !== 'asc' && direction !== 'desc')
-    ) {
-      addError(errors, 'sort', 'Must be createdAt:asc, createdAt:desc, updatedAt:asc, or updatedAt:desc.');
+    if (extra || !normalizedField || (direction !== 'asc' && direction !== 'desc')) {
+      addError(
+        errors,
+        'sort',
+        'Must be createdAt:asc, createdAt:desc, updatedAt:asc, or updatedAt:desc.',
+      );
     } else {
       sort = {
         direction,
@@ -363,7 +370,9 @@ export const parsePrintSummaryQuery = (query: Record<string, unknown>): PrintSum
   const errors: ErrorCollector = {};
   const unknownFields = Object.keys(query).filter(
     (field) =>
-      !PRINT_SUMMARY_ALLOWED_FIELDS.includes(field as (typeof PRINT_SUMMARY_ALLOWED_FIELDS)[number]),
+      !PRINT_SUMMARY_ALLOWED_FIELDS.includes(
+        field as (typeof PRINT_SUMMARY_ALLOWED_FIELDS)[number],
+      ),
   );
 
   for (const field of unknownFields) {
@@ -635,11 +644,7 @@ export const parseUpdatePrintDeviceBody = (body: unknown): UpdatePrintDeviceInpu
     }
   }
 
-  if (
-    !hasOwn(body, 'name') &&
-    !hasOwn(body, 'location') &&
-    !hasOwn(body, 'status')
-  ) {
+  if (!hasOwn(body, 'name') && !hasOwn(body, 'location') && !hasOwn(body, 'status')) {
     addError(errors, 'body', 'At least one updatable field is required.');
   }
 

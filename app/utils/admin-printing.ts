@@ -2,7 +2,7 @@ import type { LocationQuery, LocationQueryRaw } from 'vue-router';
 import type { Database } from '../../types/database.types';
 
 type PrintJobStatus = Database['public']['Enums']['print_job_status'];
-type PrintJobType = Database['public']['Enums']['print_job_type'];
+export type PrintJobType = Database['public']['Enums']['print_job_type'];
 type PrintDeviceStatus = Database['public']['Enums']['print_device_status'];
 export type PrintDeviceConnectionState = 'online' | 'offline' | 'stale' | 'inactive' | 'error';
 type BoardType = Database['public']['Enums']['board_type'];
@@ -178,8 +178,7 @@ export const ADMIN_PRINT_DEVICE_SORT_OPTIONS = [
   { label: '最早建立', value: 'createdAt:asc' },
 ] as const;
 
-export type AdminPrintJobListSortValue =
-  (typeof ADMIN_PRINT_JOB_SORT_OPTIONS)[number]['value'];
+export type AdminPrintJobListSortValue = (typeof ADMIN_PRINT_JOB_SORT_OPTIONS)[number]['value'];
 export type AdminPrintDeviceListSortValue =
   (typeof ADMIN_PRINT_DEVICE_SORT_OPTIONS)[number]['value'];
 
@@ -278,8 +277,7 @@ const parseOptionalText = (value: string | undefined) => {
 const isSameQuery = (
   left: LocationQuery | LocationQueryRaw,
   right: LocationQuery | LocationQueryRaw,
-) =>
-  JSON.stringify(left) === JSON.stringify(right);
+) => JSON.stringify(left) === JSON.stringify(right);
 
 export const createEmptyAdminPrintJobListResponse = (
   page = DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE,
@@ -314,12 +312,9 @@ export const createEmptyAdminPrintDeviceListResponse = (
 export const serializeAdminPrintJobListQuery = (
   query: AdminPrintJobListQueryState,
 ): LocationQueryRaw => ({
-  page:
-    query.page === DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE ? undefined : String(query.page),
+  page: query.page === DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE ? undefined : String(query.page),
   pageSize:
-    query.pageSize === DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE_SIZE
-      ? undefined
-      : String(query.pageSize),
+    query.pageSize === DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE_SIZE ? undefined : String(query.pageSize),
   paperOrderNo: query.paperOrderNo,
   sort: query.sort === DEFAULT_ADMIN_PRINT_JOB_LIST_SORT ? undefined : query.sort,
   status: query.status,
@@ -327,10 +322,7 @@ export const serializeAdminPrintJobListQuery = (
 
 export const normalizeAdminPrintJobListRouteQuery = (query: LocationQuery | LocationQueryRaw) => {
   const normalizedQuery: AdminPrintJobListQueryState = {
-    page: parsePositiveInteger(
-      readSingleQueryValue(query.page),
-      DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE,
-    ),
+    page: parsePositiveInteger(readSingleQueryValue(query.page), DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE),
     pageSize: parsePositiveInteger(
       readSingleQueryValue(query.pageSize),
       DEFAULT_ADMIN_PRINT_JOB_LIST_PAGE_SIZE,
@@ -369,8 +361,7 @@ export const hasActiveAdminPrintJobFilters = (query: AdminPrintJobListQueryState
 export const serializeAdminPrintDeviceListQuery = (
   query: AdminPrintDeviceListQueryState,
 ): LocationQueryRaw => ({
-  page:
-    query.page === DEFAULT_ADMIN_PRINT_DEVICE_LIST_PAGE ? undefined : String(query.page),
+  page: query.page === DEFAULT_ADMIN_PRINT_DEVICE_LIST_PAGE ? undefined : String(query.page),
   pageSize:
     query.pageSize === DEFAULT_ADMIN_PRINT_DEVICE_LIST_PAGE_SIZE
       ? undefined
@@ -429,8 +420,12 @@ export const getPrintDeviceStatusLabel = (status: PrintDeviceStatus) =>
 export const getPrintJobStatusTone = (status: PrintJobStatus) => PRINT_JOB_STATUS_TONES[status];
 export const getPrintDeviceStatusTone = (status: PrintDeviceStatus) =>
   PRINT_DEVICE_STATUS_TONES[status];
-export const getPrintJobTypeLabel = (jobType: PrintJobType) =>
-  jobType === 'work_order_label' ? '工單標籤' : jobType;
+const PRINT_JOB_TYPE_LABELS: Record<PrintJobType, string> = {
+  customer_receipt: '顧客留存聯',
+  work_order_label: '工單標籤',
+};
+
+export const getPrintJobTypeLabel = (jobType: PrintJobType) => PRINT_JOB_TYPE_LABELS[jobType];
 
 interface GetPrintDeviceConnectionStateInput {
   lastSeenAt: string | null;

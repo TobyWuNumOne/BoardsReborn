@@ -96,6 +96,30 @@ class HandleClaimedPrintJobTest(unittest.TestCase):
         self.assertEqual(client.success_calls, [])
         self.assertEqual(client.fail_calls, [("job-1", "device offline")])
 
+    def test_dispatches_renderer_with_job_type(self) -> None:
+        client = FakeClient()
+        renderer_calls: list[tuple[str, dict[str, object]]] = []
+        transport_calls: list[bytes] = []
+
+        def renderer(job_type: str, payload: dict[str, object]) -> bytes:
+            renderer_calls.append((job_type, payload))
+            return b"rendered"
+
+        def transport(_device_path: str, payload: bytes) -> None:
+            transport_calls.append(payload)
+
+        handle_claimed_print_job(
+            client,
+            self.settings,
+            self.job,
+            renderer=renderer,
+            transport=transport,
+        )
+
+        self.assertEqual(renderer_calls, [("work_order_label", self.job.payload)])
+        self.assertEqual(transport_calls, [b"rendered"])
+        self.assertEqual(client.success_calls, ["job-1"])
+
 
 if __name__ == "__main__":
     unittest.main()

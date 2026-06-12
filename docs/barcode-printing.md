@@ -91,10 +91,11 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 
 目前 MVP 列印內容策略：
 
-- 不做 QR Code
-- 目前 `work_order_label` 仍以工單號、日期、電話、付款狀態與維修處數等精簡 receipt 內容為主；條碼 payload 維持 ASCII-only
+- 工單標籤 `work_order_label` 仍以工單號、日期、電話、付款狀態與維修處數等精簡 receipt 內容為主；1D barcode payload 維持 ASCII-only
+- 顧客留存聯 `customer_receipt` 是獨立 print job，使用 CP950 / Big5 中文文字與 QR Code 導向公開查詢頁 `/repair-status`
 - enqueue `print_jobs` 時就建立 immutable print-ready snapshot，worker 不再自行推導 repair count
 - `work_order_label` snapshot 目前使用 `templateVersion = 2`，至少包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount`
+- `customer_receipt` snapshot 目前使用 `templateVersion = 1`，至少包含 `paperOrderNo`、`intakeDate`、`customerPhone`、`boardTypeLabel`、`paymentReceived`、`repairCount`、`publicLookupUrl`
 - 列印置中的收件日期、電話 / 付款狀態、大字工單號、維修處數括號與同一個工單號的 1D barcode
 - 1D barcode height 固定 `0x40`
 - 1D barcode 優先評估 `Code39` 或 `Code128`
@@ -138,11 +139,11 @@ Renderer 規則：
 
 補印是標準流程，不是異常 workaround。
 
-- 建立工單主資料後，server 會 best-effort 建立第一筆 `print_jobs`。
+- 建立工單成功後，server 會依序 best-effort 建立 `work_order_label` 與 `customer_receipt` 兩筆 `print_jobs`。
 - 建立工單前，server 必須先確認可解析出非空 `repairCount`；若缺少則整體 create 回 `422`。
 - 需要列印時，系統建立新的 `print_jobs`。
 - 如果列印失敗或標籤破損，使用者可建立補印任務。
-- 若目標工單 `repairCount` 為 `null`，`work_order_label` enqueue 必須回 `422 VALIDATION_ERROR`。
+- 若目標工單 `repairCount` 為 `null`，建立列印任務必須回 `422 VALIDATION_ERROR`。
 - 補印必須新增 `print_jobs` 記錄，不覆蓋舊任務。
 - 建立工單不要求同步列印成功。
 - work-order detail / create success / bulk-status 只顯示列印摘要與 deep link；完整列印操作仍集中在 `/admin/printing`。
@@ -170,4 +171,3 @@ Renderer 規則：
 - 完整微服務或複雜訊息佇列。
 - 把標籤列印當一般文件列印流程。
 - 要求建立工單必須同步列印成功。
-- QR Code 列印。

@@ -515,7 +515,7 @@ Response：`201`
 }
 ```
 
-建立工單前，server 必須先確認可解析出非空 `repairCount`，因為第一筆 `work_order_label` 需要完整 print-ready snapshot。若 `repairCount` 缺少，整體建單回 `422 VALIDATION_ERROR`。除這個前置條件外，建工單成功後仍會 best-effort 建立第一筆 `print_jobs`；其他 enqueue 失敗不回滾工單主資料。
+建立工單前，server 必須先確認可解析出非空 `repairCount`，因為 `work_order_label` 與 `customer_receipt` 都需要完整 print-ready snapshot。若 `repairCount` 缺少，整體建單回 `422 VALIDATION_ERROR`。除這個前置條件外，建工單成功後仍會 best-effort 依序建立 `work_order_label` 與 `customer_receipt` 兩筆 `print_jobs`；enqueue 失敗不回滾工單主資料。
 
 ### `GET /api/admin/work-orders/{id}`
 
@@ -817,14 +817,14 @@ Response：`200`
 
 Query：
 
-| Field         | Required | Example                        |
-| ------------- | -------- | ------------------------------ |
-| `status`      | no       | `failed`                       |
-| `workOrderId` | no       | `4d4ff81c-2b1d-41aa-9fd2...`   |
-| `paperOrderNo`| no       | `BR-2026-0001`                 |
-| `page`        | no       | `1`                            |
-| `pageSize`    | no       | `20`                           |
-| `sort`        | no       | `createdAt:desc`               |
+| Field          | Required | Example                      |
+| -------------- | -------- | ---------------------------- |
+| `status`       | no       | `failed`                     |
+| `workOrderId`  | no       | `4d4ff81c-2b1d-41aa-9fd2...` |
+| `paperOrderNo` | no       | `BR-2026-0001`               |
+| `page`         | no       | `1`                          |
+| `pageSize`     | no       | `20`                         |
+| `sort`         | no       | `createdAt:desc`             |
 
 Response：
 
@@ -884,6 +884,11 @@ Request：
 }
 ```
 
+`jobType` 允許：
+
+- `work_order_label`：工單標籤，使用紙本工單號文字與 1D barcode。
+- `customer_receipt`：顧客留存聯，使用 CP950 / Big5 中文文字與 QR Code 導向公開查詢頁。
+
 Response：`201`
 
 ```json
@@ -903,7 +908,7 @@ Response：`201`
 
 補印必須新增新的 `print_jobs` 記錄，不可覆蓋舊任務。
 
-若目標工單目前 `repairCount` 為 `null` 或缺失，建立 `work_order_label` 回 `422 VALIDATION_ERROR`。第一版回傳 `fieldErrors.workOrderId`，表示該工單尚未具備可列印的維修處數快照。
+若目標工單目前 `repairCount` 為 `null` 或缺失，建立列印任務回 `422 VALIDATION_ERROR`。第一版回傳 `fieldErrors.workOrderId`，表示該工單尚未具備可列印的維修處數快照。
 
 ### `POST /api/admin/print-jobs/{id}/retry`
 
@@ -1256,6 +1261,8 @@ Response：
 - claim 必須是原子操作，避免多個 worker 同時取走同一筆
 - claim 成功後寫入 `status = locked`、`lockedAt`、`lockedBy`、`printDeviceId`
 - `payload` 是 immutable print snapshot；worker 只消費，不可自行 normalize customer name、phone、board type 或 work order number
+- `work_order_label` payload 使用 `templateVersion = 2`，包含 `barcodeValue` 並由 worker 印 1D barcode
+- `customer_receipt` payload 使用 `templateVersion = 1`，包含 `boardTypeLabel` 與 `publicLookupUrl`，由 worker 印 QR Code
 
 ### `POST /api/print-worker/jobs/{id}/succeed`
 

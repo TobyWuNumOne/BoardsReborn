@@ -133,6 +133,15 @@ describe('print job validation', () => {
       jobType: 'work_order_label',
       workOrderId: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
     });
+    expect(
+      parseCreatePrintJobBody({
+        jobType: 'customer_receipt',
+        workOrderId: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
+      }),
+    ).toEqual({
+      jobType: 'customer_receipt',
+      workOrderId: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
+    });
 
     expect(parseClaimPrintJobBody({ deviceKey: 'raspi-print-worker-01' })).toEqual({
       deviceKey: 'raspi-print-worker-01',
@@ -151,6 +160,14 @@ describe('print job validation', () => {
     });
 
     expectValidationField(() => parseCreatePrintJobBody({ workOrderId: 'bad' }), 'workOrderId');
+    expectValidationField(
+      () =>
+        parseCreatePrintJobBody({
+          jobType: 'shipping_label',
+          workOrderId: '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2',
+        }),
+      'jobType',
+    );
     expectValidationField(() => parseClaimPrintJobBody({}), 'deviceKey');
     expectValidationField(() => parseFailPrintJobBody({ deviceKey: 'pi', extra: true }), 'extra');
   });
@@ -413,6 +430,7 @@ describe('print job services', () => {
       args: {
         p_created_by_user_id: 'user-1',
         p_job_type: 'work_order_label',
+        p_public_lookup_url: 'http://localhost:3000/repair-status',
         p_work_order_id: 'work-order-1',
       },
       name: 'create_admin_print_job',
@@ -831,7 +849,16 @@ describe('work order print job enqueue', () => {
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
+      'create_admin_print_job',
+      'emit_printing_realtime_event',
+      'emit_printing_realtime_event',
+      'emit_printing_realtime_event',
     ]);
+    expect(
+      calls
+        .filter((call) => call.name === 'create_admin_print_job')
+        .map((call) => call.args.p_job_type),
+    ).toEqual(['work_order_label', 'customer_receipt']);
   });
 
   it('does not fail work order creation when initial print job enqueue fails', async () => {
@@ -910,7 +937,7 @@ describe('work order print job enqueue', () => {
       },
     });
 
-    expect(consoleError).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledTimes(2);
   });
 
   it('maps missing repair count print enqueue failures to a validation error', async () => {
@@ -937,7 +964,7 @@ describe('work order print job enqueue', () => {
       ),
     ).rejects.toMatchObject({
       fieldErrors: {
-        workOrderId: ['Repair count is required before creating a work order label print job.'],
+        workOrderId: ['Repair count is required before creating a print job.'],
       },
     });
   });

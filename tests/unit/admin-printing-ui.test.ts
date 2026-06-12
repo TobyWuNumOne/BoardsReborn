@@ -6,6 +6,7 @@ import {
   getPrintDeviceConnectionState,
   getPrintDeviceConnectionStateLabel,
   getPrintDeviceConnectionStateTone,
+  getPrintJobTypeLabel,
 } from '../../app/utils/admin-printing';
 import {
   ADMIN_PRINTING_ACTIVE_SUMMARY_REFRESH_INTERVAL_MS,
@@ -253,5 +254,10 @@ describe('admin printing UI helpers', () => {
       '/admin/printing?paperOrderNo=BR%202026%2F%231',
     );
     expect(getAdminPrintingCenterPath(null)).toBe('/admin/printing');
+  });
+
+  it('maps print job types to display labels', () => {
+    expect(getPrintJobTypeLabel('work_order_label')).toBe('工單標籤');
+    expect(getPrintJobTypeLabel('customer_receipt')).toBe('顧客留存聯');
   });
 });

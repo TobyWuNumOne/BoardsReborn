@@ -57,38 +57,38 @@
 
 工單是第一版操作中心。因為第一版不做板子歷史維修彙整頁，也不需要跨工單追蹤同一塊板，所以板子資訊直接作為工單快照存在這張表。
 
-| 欄位                             | 型別                 | 規則                                                  |
-| -------------------------------- | -------------------- | ----------------------------------------------------- |
-| `id`                             | `uuid`               | Primary key                                           |
-| `paper_order_no`                 | `varchar(50)`        | required，unique，沿用紙本工單號；trim 後長度 3 到 50 |
-| `customer_id`                    | `uuid`               | required，references `customers.id`                   |
-| `board_type`                     | `board_type`         | required，見 `BoardType`                              |
-| `board_length_class`             | `board_length_class` | nullable，只對 `SURFBOARD` 使用                       |
-| `board_brand`                    | `varchar(80)`        | nullable                                              |
-| `board_model`                    | `varchar(80)`        | nullable                                              |
-| `board_size_label`               | `varchar(40)`        | nullable，例如長度或尺寸描述                          |
-| `board_color`                    | `varchar(40)`        | nullable                                              |
-| `board_serial_label`             | `varchar(80)`        | nullable，板上貼紙或人工標記                          |
-| `intake_date`                    | `date`               | required                                              |
-| `damage_description`             | `text`               | nullable，可描述示意圖標記內容                        |
-| `repair_count`                   | `smallint`           | nullable；`null` 表示 legacy / 未確認，不允許 `0`；admin create flow 需在送出前解析成非空值 |
-| `repair_count_source`            | `repair_count_source`| required，`auto` 或 `manual`                         |
-| `estimated_completion_date`      | `date`               | nullable，老闆檢查後填寫，可修改                      |
-| `current_status`                 | `work_order_status`  | required，latest status cache，不可取代 history       |
-| `payment_received`               | `boolean`            | required，default `false`                             |
-| `payment_received_at`            | `timestamptz`        | nullable，由 Nuxt API 在付款標記為 true 時維護        |
-| `customer_confirmed_at`          | `timestamptz`        | nullable                                              |
-| `ready_for_pickup_at`            | `timestamptz`        | nullable                                              |
-| `notified_at`                    | `timestamptz`        | nullable，完工通知時間                                |
-| `picked_up_at`                   | `timestamptz`        | nullable，取件時間                                    |
-| `delivered_at`                   | `timestamptz`        | nullable                                              |
-| `cancelled_at`                   | `timestamptz`        | nullable                                              |
-| `pickup_note`                    | `text`               | nullable                                              |
-| `storage_fee_warning_after_days` | `smallint`           | required，default `14`                                |
-| `public_note`                    | `text`               | nullable，顧客查詢可見                                |
-| `internal_note`                  | `text`               | nullable，內部備註                                    |
-| `created_at`                     | `timestamptz`        | required，default `now()`                             |
-| `updated_at`                     | `timestamptz`        | required，default `now()`                             |
+| 欄位                             | 型別                  | 規則                                                                                        |
+| -------------------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
+| `id`                             | `uuid`                | Primary key                                                                                 |
+| `paper_order_no`                 | `varchar(50)`         | required，unique，沿用紙本工單號；trim 後長度 3 到 50                                       |
+| `customer_id`                    | `uuid`                | required，references `customers.id`                                                         |
+| `board_type`                     | `board_type`          | required，見 `BoardType`                                                                    |
+| `board_length_class`             | `board_length_class`  | nullable，只對 `SURFBOARD` 使用                                                             |
+| `board_brand`                    | `varchar(80)`         | nullable                                                                                    |
+| `board_model`                    | `varchar(80)`         | nullable                                                                                    |
+| `board_size_label`               | `varchar(40)`         | nullable，例如長度或尺寸描述                                                                |
+| `board_color`                    | `varchar(40)`         | nullable                                                                                    |
+| `board_serial_label`             | `varchar(80)`         | nullable，板上貼紙或人工標記                                                                |
+| `intake_date`                    | `date`                | required                                                                                    |
+| `damage_description`             | `text`                | nullable，可描述示意圖標記內容                                                              |
+| `repair_count`                   | `smallint`            | nullable；`null` 表示 legacy / 未確認，不允許 `0`；admin create flow 需在送出前解析成非空值 |
+| `repair_count_source`            | `repair_count_source` | required，`auto` 或 `manual`                                                                |
+| `estimated_completion_date`      | `date`                | nullable，老闆檢查後填寫，可修改                                                            |
+| `current_status`                 | `work_order_status`   | required，latest status cache，不可取代 history                                             |
+| `payment_received`               | `boolean`             | required，default `false`                                                                   |
+| `payment_received_at`            | `timestamptz`         | nullable，由 Nuxt API 在付款標記為 true 時維護                                              |
+| `customer_confirmed_at`          | `timestamptz`         | nullable                                                                                    |
+| `ready_for_pickup_at`            | `timestamptz`         | nullable                                                                                    |
+| `notified_at`                    | `timestamptz`         | nullable，完工通知時間                                                                      |
+| `picked_up_at`                   | `timestamptz`         | nullable，取件時間                                                                          |
+| `delivered_at`                   | `timestamptz`         | nullable                                                                                    |
+| `cancelled_at`                   | `timestamptz`         | nullable                                                                                    |
+| `pickup_note`                    | `text`                | nullable                                                                                    |
+| `storage_fee_warning_after_days` | `smallint`            | required，default `14`                                                                      |
+| `public_note`                    | `text`                | nullable，顧客查詢可見                                                                      |
+| `internal_note`                  | `text`                | nullable，內部備註                                                                          |
+| `created_at`                     | `timestamptz`         | required，default `now()`                                                                   |
+| `updated_at`                     | `timestamptz`         | required，default `now()`                                                                   |
 
 `id` 是資料庫 primary key 與 admin 單筆 API 的 internal resource identity。`paper_order_no` 是現場與條碼操作輸入；工單條碼內容直接等於 `paper_order_no`。掃碼或人工輸入工單號時，前端應先透過 admin resolve endpoint 取得 `work_orders.id`，再呼叫 UUID-based detail / update / status endpoint。批量更新時仍以多個 `paper_order_no` 作為 payload。
 
@@ -116,19 +116,19 @@
 
 ### `work_order_repair_marks`
 
-| 欄位           | 型別                     | 規則                                                  |
-| -------------- | ------------------------ | ----------------------------------------------------- |
-| `id`           | `uuid`                   | Primary key                                           |
-| `work_order_id`| `uuid`                   | required，references `work_orders.id`，`on delete cascade` |
-| `template_key` | `varchar(80)`            | required，例如 `SURFBOARD:front:v1`                   |
-| `board_side`   | `repair_mark_board_side` | required，`front` / `back`                            |
-| `x_ratio`      | `numeric(6,5)`           | required，0 到 1                                      |
-| `y_ratio`      | `numeric(6,5)`           | required，0 到 1                                      |
-| `width_ratio`  | `numeric(6,5)`           | required，> 0 且 <= 1                                 |
-| `height_ratio` | `numeric(6,5)`           | required，> 0 且 <= 1                                 |
-| `sort_order`   | `integer`                | required，>= 0，控制顯示編號順序                      |
-| `created_at`   | `timestamptz`            | required，default `now()`                             |
-| `updated_at`   | `timestamptz`            | required，default `now()`                             |
+| 欄位            | 型別                     | 規則                                                       |
+| --------------- | ------------------------ | ---------------------------------------------------------- |
+| `id`            | `uuid`                   | Primary key                                                |
+| `work_order_id` | `uuid`                   | required，references `work_orders.id`，`on delete cascade` |
+| `template_key`  | `varchar(80)`            | required，例如 `SURFBOARD:front:v1`                        |
+| `board_side`    | `repair_mark_board_side` | required，`front` / `back`                                 |
+| `x_ratio`       | `numeric(6,5)`           | required，0 到 1                                           |
+| `y_ratio`       | `numeric(6,5)`           | required，0 到 1                                           |
+| `width_ratio`   | `numeric(6,5)`           | required，> 0 且 <= 1                                      |
+| `height_ratio`  | `numeric(6,5)`           | required，> 0 且 <= 1                                      |
+| `sort_order`    | `integer`                | required，>= 0，控制顯示編號順序                           |
+| `created_at`    | `timestamptz`            | required，default `now()`                                  |
+| `updated_at`    | `timestamptz`            | required，default `now()`                                  |
 
 第一版 repair mark 代表「本次要維修的位置」，不是一般 damage audit。資料以 normalized 比例儲存，不保存 Konva stage JSON 或像素位置，讓不同裝置大小下仍能重建同一個標記。
 
@@ -209,16 +209,16 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 
 店內可用的本地列印 Worker / 裝置。
 
-| 欄位           | 型別                  | 規則                                  |
-| -------------- | --------------------- | ------------------------------------- |
-| `id`           | `uuid`                | Primary key                           |
-| `name`         | `varchar(80)`         | required                              |
-| `device_key`   | `varchar(120)`        | required，unique，Worker identity     |
-| `location`     | `varchar(120)`        | nullable                              |
-| `status`       | `print_device_status` | required，default `active`            |
-| `last_seen_at` | `timestamptz`         | nullable                              |
-| `created_at`   | `timestamptz`         | required，default `now()`             |
-| `updated_at`   | `timestamptz`         | required，default `now()`             |
+| 欄位           | 型別                  | 規則                              |
+| -------------- | --------------------- | --------------------------------- |
+| `id`           | `uuid`                | Primary key                       |
+| `name`         | `varchar(80)`         | required                          |
+| `device_key`   | `varchar(120)`        | required，unique，Worker identity |
+| `location`     | `varchar(120)`        | nullable                          |
+| `status`       | `print_device_status` | required，default `active`        |
+| `last_seen_at` | `timestamptz`         | nullable                          |
+| `created_at`   | `timestamptz`         | required，default `now()`         |
+| `updated_at`   | `timestamptz`         | required，default `now()`         |
 
 建議 index：
 
@@ -239,25 +239,25 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 
 ### `print_jobs`
 
-非同步標籤列印任務。工單主資料建立不依賴列印成功，但 `work_order_label` 需要完整 print-ready snapshot，因此 admin create flow 必須先確認 `repair_count` 非空。補印時新增另一筆任務，不覆蓋舊任務。
+非同步列印任務。工單主資料建立不依賴列印成功，但列印任務需要完整 print-ready snapshot，因此 admin create flow 必須先確認 `repair_count` 非空。補印時新增另一筆任務，不覆蓋舊任務。
 
-| 欄位                 | 型別               | 規則                                                       |
-| -------------------- | ------------------ | ---------------------------------------------------------- |
-| `id`                 | `uuid`             | Primary key                                                |
-| `work_order_id`      | `uuid`             | required，references `work_orders.id`                      |
-| `print_device_id`    | `uuid`             | nullable，references `print_devices.id`                    |
-| `job_type`           | `print_job_type`   | required，第一版固定 `work_order_label`                    |
-| `status`             | `print_job_status` | required，見 `PrintJobStatus`                              |
-| `payload`            | `jsonb`            | required，不可變的列印快照；目前 `work_order_label` 使用 `templateVersion = 2`，至少包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount` |
-| `attempt_count`      | `smallint`         | required，default `0`                                      |
-| `max_attempts`       | `smallint`         | required，default `3`                                      |
-| `last_error`         | `text`             | nullable，最後一次錯誤原因                                 |
-| `locked_by`          | `varchar(120)`     | nullable，最後一次 claim 該任務的 `device_key`             |
-| `locked_at`          | `timestamptz`      | nullable，Worker 取走任務時間                              |
-| `printed_at`         | `timestamptz`      | nullable，Worker 回報列印成功時間                          |
-| `created_by_user_id` | `uuid`             | nullable，references `auth.users.id`                       |
-| `created_at`         | `timestamptz`      | required，default `now()`                                  |
-| `updated_at`         | `timestamptz`      | required，default `now()`                                  |
+| 欄位                 | 型別               | 規則                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                 | `uuid`             | Primary key                                                                                                                                                                                                                                                                                                                                                                             |
+| `work_order_id`      | `uuid`             | required，references `work_orders.id`                                                                                                                                                                                                                                                                                                                                                   |
+| `print_device_id`    | `uuid`             | nullable，references `print_devices.id`                                                                                                                                                                                                                                                                                                                                                 |
+| `job_type`           | `print_job_type`   | required，第一版支援 `work_order_label` / `customer_receipt`                                                                                                                                                                                                                                                                                                                            |
+| `status`             | `print_job_status` | required，見 `PrintJobStatus`                                                                                                                                                                                                                                                                                                                                                           |
+| `payload`            | `jsonb`            | required，不可變的列印快照；`work_order_label` 使用 `templateVersion = 2`，至少包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount`；`customer_receipt` 使用 `templateVersion = 1`，至少包含 `paperOrderNo`、`intakeDate`、`customerPhone`、`boardTypeLabel`、`paymentReceived`、`repairCount`、`publicLookupUrl` |
+| `attempt_count`      | `smallint`         | required，default `0`                                                                                                                                                                                                                                                                                                                                                                   |
+| `max_attempts`       | `smallint`         | required，default `3`                                                                                                                                                                                                                                                                                                                                                                   |
+| `last_error`         | `text`             | nullable，最後一次錯誤原因                                                                                                                                                                                                                                                                                                                                                              |
+| `locked_by`          | `varchar(120)`     | nullable，最後一次 claim 該任務的 `device_key`                                                                                                                                                                                                                                                                                                                                          |
+| `locked_at`          | `timestamptz`      | nullable，Worker 取走任務時間                                                                                                                                                                                                                                                                                                                                                           |
+| `printed_at`         | `timestamptz`      | nullable，Worker 回報列印成功時間                                                                                                                                                                                                                                                                                                                                                       |
+| `created_by_user_id` | `uuid`             | nullable，references `auth.users.id`                                                                                                                                                                                                                                                                                                                                                    |
+| `created_at`         | `timestamptz`      | required，default `now()`                                                                                                                                                                                                                                                                                                                                                               |
+| `updated_at`         | `timestamptz`      | required，default `now()`                                                                                                                                                                                                                                                                                                                                                               |
 
 建議 index：
 
@@ -345,6 +345,7 @@ TypeScript 名稱：`PrintDeviceStatus`
 TypeScript 名稱：`PrintJobType`
 
 - `work_order_label`
+- `customer_receipt`
 
 ## 關聯
 
@@ -373,8 +374,8 @@ TypeScript 名稱：`PrintJobType`
 ## 列印任務規則
 
 - admin create flow 必須先解析出非空 `repair_count`；否則不可建立工單。
-- 建立工單主資料時不要求同步列印成功；server 仍應在建單成功後 best-effort 建立第一筆 `print_jobs`。
-- `create_admin_print_job` 若目標工單 `repair_count` 為 `null`，必須拒絕建立 `work_order_label`。
+- 建立工單主資料時不要求同步列印成功；server 仍應在建單成功後 best-effort 依序建立 `work_order_label` 與 `customer_receipt` 兩筆 `print_jobs`。
+- `create_admin_print_job` 若目標工單 `repair_count` 為 `null`，必須拒絕建立列印任務。
 - 補印時，應新增一筆 `print_jobs`，不可重用舊任務。
 - Print Worker claim 任務時，狀態更新為 `locked`，並設定 `locked_by`、`locked_at`、`print_device_id`。
 - 若 `locked_at` 超過 reclaim timeout，其他 active Worker 可重新 claim 該任務。

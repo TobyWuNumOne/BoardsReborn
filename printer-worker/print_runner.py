@@ -4,7 +4,7 @@ from typing import Callable
 
 from client import PrintJob, PrintWorkerClient
 from config import Settings
-from renderer import render_work_order_receipt
+from renderer import render_print_job
 from transport import write_raw_bytes_to_device
 
 
@@ -19,8 +19,10 @@ def summarize_job(job: PrintJob) -> None:
     print(f"- barcodeValue: {payload.get('barcodeValue', '—')}")
     print(f"- intakeDate: {payload.get('intakeDate', '—')}")
     print(f"- customerPhone: {payload.get('customerPhone', '—')}")
+    print(f"- boardTypeLabel: {payload.get('boardTypeLabel', '—')}")
     print(f"- paymentReceived: {payload.get('paymentReceived', '—')}")
     print(f"- repairCount: {payload.get('repairCount', '—')}")
+    print(f"- publicLookupUrl: {payload.get('publicLookupUrl', '—')}")
 
 
 def _format_failure_message(error: Exception) -> str:
@@ -33,13 +35,13 @@ def handle_claimed_print_job(
     settings: Settings,
     job: PrintJob,
     *,
-    renderer: Callable[[dict[str, object]], bytes] = render_work_order_receipt,
+    renderer: Callable[[str, dict[str, object]], bytes] = render_print_job,
     transport: Callable[[str, bytes], None] = write_raw_bytes_to_device,
 ) -> None:
     summarize_job(job)
 
     try:
-        receipt_bytes = renderer(job.payload)
+        receipt_bytes = renderer(job.job_type, job.payload)
         transport(settings.printer_device_path, receipt_bytes)
     except Exception as error:
         result = client.mark_failure(job.id, _format_failure_message(error))
