@@ -49,10 +49,7 @@ const printingRealtimeBroadcastJoinPolicyMigration = readFileSync(
   'utf8',
 );
 const printingPhase2RealtimeEventsMigration = readFileSync(
-  resolve(
-    process.cwd(),
-    'supabase/migrations/20260527103000_printing_phase2_realtime_events.sql',
-  ),
+  resolve(process.cwd(), 'supabase/migrations/20260527103000_printing_phase2_realtime_events.sql'),
   'utf8',
 );
 const printJobPayloadSnapshotMigration = readFileSync(
@@ -88,9 +85,17 @@ const workOrderLabelRepairCountSnapshotMigration = readFileSync(
   'utf8',
 );
 const adminWorkOrderListGrantFixMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260611132000_admin_work_order_list_grant_fix.sql'),
+  'utf8',
+);
+const customerReceiptPrintJobTypeMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260612110000_customer_receipt_print_job_type.sql'),
+  'utf8',
+);
+const customerReceiptPrintJobSnapshotMigration = readFileSync(
   resolve(
     process.cwd(),
-    'supabase/migrations/20260611132000_admin_work_order_list_grant_fix.sql',
+    'supabase/migrations/20260612111000_customer_receipt_print_job_snapshot.sql',
   ),
   'utf8',
 );
@@ -204,13 +209,21 @@ describe('initial Supabase migration', () => {
 
   it('adds the print queue model, admin list view, and worker RPCs', () => {
     expect(printQueueModelMigration).toContain('create type public.print_device_status as enum');
-    expect(printQueueModelMigration).toContain("create type public.print_job_type as enum");
-    expect(printQueueModelMigration).toContain("rename to print_job_status");
+    expect(printQueueModelMigration).toContain('create type public.print_job_type as enum');
+    expect(printQueueModelMigration).toContain('rename to print_job_status');
     expect(printQueueModelMigration).toContain('create table public.print_devices');
-    expect(printQueueModelMigration).toContain('create or replace view public.admin_print_job_list');
-    expect(printQueueModelMigration).toContain('create or replace function public.create_admin_print_job');
-    expect(printQueueModelMigration).toContain('create or replace function public.retry_admin_print_job');
-    expect(printQueueModelMigration).toContain('create or replace function public.claim_next_print_job');
+    expect(printQueueModelMigration).toContain(
+      'create or replace view public.admin_print_job_list',
+    );
+    expect(printQueueModelMigration).toContain(
+      'create or replace function public.create_admin_print_job',
+    );
+    expect(printQueueModelMigration).toContain(
+      'create or replace function public.retry_admin_print_job',
+    );
+    expect(printQueueModelMigration).toContain(
+      'create or replace function public.claim_next_print_job',
+    );
     expect(printQueueModelMigration).toContain(
       'create or replace function public.mark_print_job_succeeded',
     );
@@ -219,20 +232,26 @@ describe('initial Supabase migration', () => {
     );
     expect(printQueueModelMigration).toContain("when 'QUEUED' then 'pending'");
     expect(printQueueModelMigration).toContain("when 'FAILED_TRANSPORT' then 'failed'");
-    expect(printQueueModelMigration).toContain("grant execute on function public.claim_next_print_job");
-    expect(printQueueModelMigration).toContain('grant select on table public.print_devices to authenticated');
-    expect(printQueueModelMigration).toContain('grant select on table public.print_devices to service_role');
+    expect(printQueueModelMigration).toContain(
+      'grant execute on function public.claim_next_print_job',
+    );
+    expect(printQueueModelMigration).toContain(
+      'grant select on table public.print_devices to authenticated',
+    );
+    expect(printQueueModelMigration).toContain(
+      'grant select on table public.print_devices to service_role',
+    );
   });
 
   it('adds the admin print device list projection for worker management UI', () => {
     expect(adminPrintDeviceListMigration).toContain(
       'create or replace view public.admin_print_device_list',
     );
-    expect(adminPrintDeviceListMigration).toContain("current_job.job_id as current_job_id");
+    expect(adminPrintDeviceListMigration).toContain('current_job.job_id as current_job_id');
     expect(adminPrintDeviceListMigration).toContain(
-      "recent_error.last_error as recent_error_message",
+      'recent_error.last_error as recent_error_message',
     );
-    expect(adminPrintDeviceListMigration).toContain("concat_ws(");
+    expect(adminPrintDeviceListMigration).toContain('concat_ws(');
     expect(adminPrintDeviceListMigration).toContain(
       'grant select on table public.admin_print_device_list to authenticated',
     );
@@ -249,7 +268,7 @@ describe('initial Supabase migration', () => {
       'create or replace function public.notify_printing_realtime()',
     );
     expect(printingRealtimeBroadcastMigration).toContain(
-      "perform realtime.send(v_payload, v_event, v_topic, true);",
+      'perform realtime.send(v_payload, v_event, v_topic, true);',
     );
     expect(printingRealtimeBroadcastMigration).toContain("'printing:jobs'");
     expect(printingRealtimeBroadcastMigration).toContain("'printing:devices'");
@@ -309,7 +328,9 @@ describe('initial Supabase migration', () => {
     expect(repairMarksMigration).toContain('on delete cascade');
     expect(repairMarksMigration).toContain('x_ratio >= 0 and x_ratio <= 1');
     expect(repairMarksMigration).toContain('width_ratio > 0 and width_ratio <= 1');
-    expect(repairMarksMigration).toContain('alter table public.work_order_repair_marks enable row level security');
+    expect(repairMarksMigration).toContain(
+      'alter table public.work_order_repair_marks enable row level security',
+    );
     expect(repairMarksMigration).toContain(
       'create policy "Authenticated users can manage work order repair marks"',
     );
@@ -333,16 +354,14 @@ describe('initial Supabase migration', () => {
     );
     expect(printJobPayloadSnapshotMigration).toContain("'templateVersion', 1");
     expect(printJobPayloadSnapshotMigration).toContain("'barcodeValue', v_barcode_value");
-    expect(printJobPayloadSnapshotMigration).toContain("'customerNameAscii', v_customer_name_ascii");
+    expect(printJobPayloadSnapshotMigration).toContain(
+      "'customerNameAscii', v_customer_name_ascii",
+    );
     expect(printJobPayloadSnapshotMigration).toContain("'maskedPhone', v_masked_phone");
     expect(printJobPayloadSnapshotMigration).toContain("'boardType', v_board_type");
     expect(printJobPayloadSnapshotMigration).toContain('Print barcode value is invalid');
-    expect(printJobPayloadSnapshotMigration).toContain(
-      "length(v_barcode_value) < 4",
-    );
-    expect(printJobPayloadSnapshotMigration).toContain(
-      "length(v_barcode_value) > 32",
-    );
+    expect(printJobPayloadSnapshotMigration).toContain('length(v_barcode_value) < 4');
+    expect(printJobPayloadSnapshotMigration).toContain('length(v_barcode_value) > 32');
   });
 
   it('updates new print snapshots to use full customer phone for receipt display', () => {
@@ -357,9 +376,7 @@ describe('initial Supabase migration', () => {
   });
 
   it('extends print snapshots with eta, initial quote, and payment status', () => {
-    expect(printJobEtaQuotePaymentSnapshotMigration).toContain(
-      "and item_type = 'INITIAL'",
-    );
+    expect(printJobEtaQuotePaymentSnapshotMigration).toContain("and item_type = 'INITIAL'");
     expect(printJobEtaQuotePaymentSnapshotMigration).toContain(
       "'estimatedCompletionDate', v_work_order.estimated_completion_date",
     );
@@ -381,5 +398,32 @@ describe('initial Supabase migration', () => {
     expect(workOrderLabelRepairCountSnapshotMigration).toContain("'customerPhone'");
     expect(workOrderLabelRepairCountSnapshotMigration).toContain("'paymentReceived'");
     expect(workOrderLabelRepairCountSnapshotMigration).toContain("'repairCount'");
+  });
+
+  it('adds customer receipt as a separate print job snapshot', () => {
+    expect(customerReceiptPrintJobTypeMigration).toContain(
+      "alter type public.print_job_type add value if not exists 'customer_receipt'",
+    );
+    expect(customerReceiptPrintJobSnapshotMigration).toContain(
+      'drop function if exists public.create_admin_print_job(uuid, public.print_job_type, uuid)',
+    );
+    expect(customerReceiptPrintJobSnapshotMigration).toContain(
+      'p_public_lookup_url text default null',
+    );
+    expect(customerReceiptPrintJobSnapshotMigration).toContain(
+      "v_job_type = 'customer_receipt'::public.print_job_type",
+    );
+    expect(customerReceiptPrintJobSnapshotMigration).toContain("'templateVersion', 1");
+    expect(customerReceiptPrintJobSnapshotMigration).toContain("'boardTypeLabel'");
+    expect(customerReceiptPrintJobSnapshotMigration).toContain("'publicLookupUrl'");
+    expect(customerReceiptPrintJobSnapshotMigration).toContain(
+      "raise exception 'Print repair count is required'",
+    );
+    expect(customerReceiptPrintJobSnapshotMigration).toContain(
+      "raise exception 'Print public lookup URL is required'",
+    );
+    expect(customerReceiptPrintJobSnapshotMigration).toContain(
+      'grant execute on function public.create_admin_print_job(uuid, public.print_job_type, uuid, text) to authenticated',
+    );
   });
 });

@@ -27,6 +27,25 @@ interface PageInfo {
 }
 
 const PRINT_JOB_STALE_LOCK_SECONDS = 300;
+const INITIAL_PRINT_JOB_TYPES = [
+  'work_order_label',
+  'customer_receipt',
+] as const satisfies readonly Database['public']['Enums']['print_job_type'][];
+
+const normalizePublicAppUrl = (value: string | undefined) => {
+  const trimmedValue = value?.trim().replace(/\/+$/, '');
+
+  return trimmedValue || 'http://localhost:3000';
+};
+
+const getPublicLookupUrl = () => {
+  try {
+    const config = useRuntimeConfig();
+    return `${normalizePublicAppUrl(config.public.appUrl)}/repair-status`;
+  } catch {
+    return 'http://localhost:3000/repair-status';
+  }
+};
 
 const calculatePageInfo = (page: number, pageSize: number, total: number): PageInfo => {
   const totalPages = Math.ceil(total / pageSize);
@@ -226,6 +245,7 @@ export const createAdminPrintJob = async (
   const { data, error } = await supabase.rpc('create_admin_print_job', {
     p_created_by_user_id: userId,
     p_job_type: input.jobType,
+    p_public_lookup_url: getPublicLookupUrl(),
     p_work_order_id: input.workOrderId,
   });
 
@@ -282,20 +302,23 @@ export const enqueueInitialPrintJobForWorkOrder = async (
   workOrderId: string,
   userId: string,
 ) => {
-  try {
-    await createAdminPrintJob(
-      supabase,
-      {
-        jobType: 'work_order_label',
+  for (const jobType of INITIAL_PRINT_JOB_TYPES) {
+    try {
+      await createAdminPrintJob(
+        supabase,
+        {
+          jobType,
+          workOrderId,
+        },
+        userId,
+      );
+    } catch (error) {
+      console.error('Failed to enqueue initial print job', {
+        error,
+        jobType,
         workOrderId,
-      },
-      userId,
-    );
-  } catch (error) {
-    console.error('Failed to enqueue initial print job', {
-      error,
-      workOrderId,
-    });
+      });
+    }
   }
 };
 

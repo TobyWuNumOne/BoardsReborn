@@ -78,9 +78,9 @@ printf "\x1B\x40BoardsReborn Barcode Test\n\n\x1D\x48\x02\x1D\x68\x64\x1D\x77\x0
 
 ## MVP 列印決策
 
-- 第一版不做 QR Code 列印。
-- 第一版列印模板的條碼內容維持 ASCII-only；中文可讀文字若納入模板，必須使用 CP950 / Big5。
-- 第一版輸出工單號文字加 1D barcode。
+- 工單標籤輸出工單號文字加 1D barcode。
+- 顧客留存聯輸出收件資訊與 QR Code，QR 內容導向公開查詢頁 `/repair-status`。
+- 工單標籤的條碼內容維持 ASCII-only；中文可讀文字必須使用 CP950 / Big5。
 - 1D barcode 優先評估 `Code39` 或 `Code128`。
 - 條碼內容必須保持 ASCII 且 scanner-friendly。
 - 若後續需要 `BR-20260601-001` 這種人類可讀格式，應視為顯示格式；列印與掃碼值仍應保持單一 ASCII-safe 工單號。

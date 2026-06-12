@@ -167,8 +167,8 @@ const lookupPublicWorkOrder = async () => {
 <template>
   <div class="min-h-svh bg-muted/20">
     <section class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)] lg:items-start">
-        <Card>
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)] lg:items-stretch">
+        <Card class="h-full">
           <CardHeader class="space-y-3">
             <Badge variant="secondary" class="w-fit">BoardsReborn</Badge>
             <div class="space-y-2">
@@ -230,7 +230,7 @@ const lookupPublicWorkOrder = async () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card class="h-full">
           <CardHeader class="space-y-2">
             <CardTitle class="text-xl">店家資訊</CardTitle>
             <CardDescription>{{ PUBLIC_REPAIR_SHOP_INFO.pickupReminder }}</CardDescription>

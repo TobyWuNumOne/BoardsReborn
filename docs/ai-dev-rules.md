@@ -90,7 +90,7 @@
 - Prowill PD-X326 已驗證在 Raspberry Pi raw USB ESC/POS 下可用 CP950 / Big5 列印繁體中文；直接送 UTF-8 會亂碼。
 - 若列印模板加入中文可列印文字，renderer 必須先進入中文模式 `FS &` (`\x1C\x26`)，並以 `text.encode("cp950", errors="replace")` 產生文字 bytes，不可用 UTF-8 直送。
 - 條碼 payload 必須維持 ASCII-only `paper_order_no`；不可把 `barcodeValue` 以 CP950 或其他中文字編碼處理。
-- 第一版不做 QR Code 列印；先印工單號文字與 1D barcode。
+- 工單標籤使用工單號文字與 1D barcode；顧客留存聯可使用 QR Code 導向公開查詢頁。
 - 第一版主系統的 `print_job_status` 以 queue 為主：`pending`、`locked`、`printing`、`printed`、`failed`、`cancelled`。
 - Worker claim 必須是原子操作，避免多個 worker 同時取走同一筆 job。
 - 補印必須建立新的 `print_jobs` 記錄，不可覆蓋舊列印任務。
@@ -112,7 +112,6 @@
 - 顧客觀看影片。
 - 平板瀏覽器直接控制 USB 印表機。
 - 綁死單一品牌印表機 SDK。
-- QR Code 列印。
 - 完整微服務或複雜訊息佇列。
 
 如果任務要求碰到上述項目，必須先更新產品文件或要求重新確認 scope。

@@ -61,37 +61,31 @@ export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
     });
   }
 
-  if (
-    error.code === '23514' &&
-    includesErrorText(error, 'Only failed print jobs can be retried')
-  ) {
+  if (error.code === '23514' && includesErrorText(error, 'Only failed print jobs can be retried')) {
     throw new ValidationError({
       status: ['Only failed print jobs can be retried.'],
     });
   }
 
-  if (
-    error.code === '23514' &&
-    includesErrorText(error, 'Print barcode value is invalid')
-  ) {
+  if (error.code === '23514' && includesErrorText(error, 'Print barcode value is invalid')) {
     throw new ValidationError({
       body: ['Print barcode value is invalid.'],
     });
   }
 
-  if (
-    error.code === '23514' &&
-    includesErrorText(error, 'Print repair count is required')
-  ) {
+  if (error.code === '23514' && includesErrorText(error, 'Print repair count is required')) {
     throw new ValidationError({
-      workOrderId: ['Repair count is required before creating a work order label print job.'],
+      workOrderId: ['Repair count is required before creating a print job.'],
     });
   }
 
-  if (
-    error.code === '23514' &&
-    includesErrorText(error, 'Print phone value is invalid')
-  ) {
+  if (error.code === '23514' && includesErrorText(error, 'Print public lookup URL is required')) {
+    throw new ValidationError({
+      body: ['Public lookup URL is required before creating a customer receipt print job.'],
+    });
+  }
+
+  if (error.code === '23514' && includesErrorText(error, 'Print phone value is invalid')) {
     throw new ValidationError({
       body: ['Print phone value is invalid.'],
     });
