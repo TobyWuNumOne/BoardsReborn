@@ -60,7 +60,7 @@
 | 欄位                             | 型別                  | 規則                                                                                        |
 | -------------------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
 | `id`                             | `uuid`                | Primary key                                                                                 |
-| `paper_order_no`                 | `varchar(50)`         | required，unique，沿用紙本工單號；trim 後長度 3 到 50                                       |
+| `paper_order_no`                 | `varchar(50)`         | required，unique；新工單由 server 產生純數字年份流水號，trim 後長度 3 到 50                 |
 | `customer_id`                    | `uuid`                | required，references `customers.id`                                                         |
 | `board_type`                     | `board_type`          | required，見 `BoardType`                                                                    |
 | `board_length_class`             | `board_length_class`  | nullable，只對 `SURFBOARD` 使用                                                             |
@@ -90,7 +90,11 @@
 | `created_at`                     | `timestamptz`         | required，default `now()`                                                                   |
 | `updated_at`                     | `timestamptz`         | required，default `now()`                                                                   |
 
-`id` 是資料庫 primary key 與 admin 單筆 API 的 internal resource identity。`paper_order_no` 是現場與條碼操作輸入；工單條碼內容直接等於 `paper_order_no`。掃碼或人工輸入工單號時，前端應先透過 admin resolve endpoint 取得 `work_orders.id`，再呼叫 UUID-based detail / update / status endpoint。批量更新時仍以多個 `paper_order_no` 作為 payload。
+`id` 是資料庫 primary key 與 admin 單筆 API 的 internal resource identity。`paper_order_no` 是現場與條碼操作輸入；工單條碼內容直接等於 `paper_order_no`。新建工單時，`paper_order_no` 由 database helper 依 `Asia/Taipei` 建單年份產生：年份後兩碼 + 至少四位流水號，例如 `260001`；當年現存最大純數字單號為 `269999` 時，下一張為 `2610000`。流水號只計算同年前綴的純數字單號，舊 `BR-...` 單號可繼續查詢與顯示，但不參與新流水。建立時使用 transaction-level advisory lock 避免併發撞號；若刪除目前最高號，下一張可以重用該號。掃碼或人工輸入工單號時，前端應先透過 admin resolve endpoint 取得 `work_orders.id`，再呼叫 UUID-based detail / update / status endpoint。批量更新時仍以多個 `paper_order_no` 作為 payload。
+
+`99` 前綴保留給正式環境中的測試工單。測試頁會估算下一個 `99` 流水號並允許 admin 修改，但 API 與 DB 都只接受 `^99[0-9]{4,}$`。測試工單不新增 `is_test` 欄位，除單號 namespace 外與一般工單使用相同資料模型、狀態及關聯資料。
+
+新建錯單可由 admin 透過 hard delete 移除，但只允許 `current_status = RECEIVED` 且沒有 `locked` / `printing` / `printed` print job 的工單。刪除 `work_orders` 會 cascade 移除該工單的 `status_history`、`quote_items`、`print_jobs`、`work_order_repair_marks` 等關聯資料；`customers` 以 `on delete restrict` 保留，不會因刪除工單而刪除顧客。
 
 `board_length_class` 只對 `SURFBOARD` 使用，值為 `SHORTBOARD`、`MID_LENGTH`、`LONGBOARD`。第一版不從 `board_size_label` 自動推論，由現場人員明確選擇。為保留既有 legacy SURFBOARD 工單不被 migration 阻斷，資料庫使用 board-field scoped trigger 針對新 insert 與 `board_type` / `board_length_class` 變更做檢查：`SURFBOARD` 必須有值，`SUP` / `SNOWBOARD` 必須是 `null`。舊資料若仍為 `null` 可保留，UI 以 `—` 顯示。
 

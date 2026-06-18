@@ -8,6 +8,7 @@ import {
   PlusSquareIcon,
   PrinterIcon,
   ScanLineIcon,
+  SettingsIcon,
 } from 'lucide-vue-next';
 
 const adminSession = useAdminSession();
@@ -60,6 +61,12 @@ const navItems = [
     label: '列印',
     to: '/admin/printing',
     icon: PrinterIcon,
+    enabled: true,
+  },
+  {
+    label: '後台設定',
+    to: '/admin/settings',
+    icon: SettingsIcon,
     enabled: true,
   },
 ];

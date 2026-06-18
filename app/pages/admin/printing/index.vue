@@ -440,7 +440,7 @@ const getPrintJobLightTone = (status: AdminPrintJobListResponse['data'][number][
                 v-model="filterForm.paperOrderNo"
                 autocomplete="off"
                 name="paperOrderNo"
-                placeholder="例如 BR-2026-0001"
+                placeholder="例如 260001"
               />
               <FieldError :errors="validationFieldErrors.paperOrderNo" />
             </Field>

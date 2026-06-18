@@ -81,7 +81,7 @@
 
 - `/repair-status` 是顧客查進度頁，不需要登入。
 - 第一版使用：
-  - 紙本工單號
+  - 工單號
   - 完整台灣手機號碼
 - 結果頁只顯示：
   - 工單號
@@ -261,17 +261,20 @@ Table 欄位順序：
 - 建單頁定位是「現場收件流程」，不是一般後台 CRUD 表單。
 - `/admin/work-orders/new` 採單頁分區表單，不做 wizard。
 - 平板 / 手機第一屏優先顯示：
-  - 紙本工單號
+  - 系統產生的工單號
   - 顧客手機
   - 查詢顧客
   - 板型
   - 固定可見的建立按鈕
 - 建單頁以平板現場收件為主要操作情境：
   - 本頁可局部加大 input、button、option card、checkbox 與 chip 的觸控尺寸，不需全域修改 shadcn primitives。
-  - 紙本工單號、顧客手機與初始報價使用 numeric / tel input attributes 協助平板叫出數字鍵盤，但不改 API payload shape。
+  - 工單號由後端產生，頁面只顯示目前估算值且不可編輯；顧客手機與初始報價使用 numeric / tel input attributes 協助平板叫出數字鍵盤。
   - 衝浪板尺寸、預估完成日、初始報價、損傷描述、公開備註與內部備註可提供 quick actions；quick actions 只寫回既有 form state。
   - sticky action bar 顯示必填欄位完成度與未完成欄位，並保留清除 / 建立工單操作。
+- admin sidebar 提供 `/admin/settings` 後台設定入口；設定頁的「新增測試工單」導向 `/admin/work-orders/new?mode=test`，不加入行動版頂部核心導覽。
+- 測試模式共用同一份建單表單，標題與警示需說明會建立真實資料並送出列印；單號預填下一個 `99` 流水號且可修改。正式模式仍唯讀且不可指定單號。
 - 建單頁欄位需直接標示必填/選填：必填顯示紅字 `（＊必填）`，非必填顯示灰字 `不必填`。
+- 建立成功後以 detail 頁與出單機列印的正式 `paperOrderNo` 為準；若送出前估算值被其他建單使用，前端不阻擋建立。
 - 只有 `boardType = SURFBOARD` 時才顯示 `boardLengthClass` 選項（短板 / 中尺寸 / 長板）；切換到 `SUP` / `SNOWBOARD` 時需清空該欄位。
 - 顧客流程固定為 lookup-first：
   - 先查手機
@@ -298,7 +301,7 @@ Table 欄位順序：
   - `GET /api/admin/work-orders/resolve`
   - `POST /api/admin/work-orders/bulk-status`
 - 頁面採 hybrid 操作模型：
-  - 先貼上多筆紙本工單號
+  - 先貼上多筆工單號
   - 先做 preview 搜尋
   - 用共享 `status` select + `note` 做整批更新
   - 依 `currentStatus` 分組提供「下一階段」快捷按鈕

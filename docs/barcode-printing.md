@@ -12,7 +12,9 @@
 
 ## 掃碼架構
 
-條碼內容直接使用 `paper_order_no`，不新增第二套 barcode identifier。
+條碼內容直接使用 `paper_order_no`，不新增第二套 barcode identifier。新工單的 `paper_order_no` 由後端產生純數字年份流水號，例如 `260001`；舊單號仍可查詢與掃描。
+
+正式環境的測試工單使用保留的 `99` 前綴，例如 `990001`。它和一般工單相同，會建立 `work_order_label` 與 `customer_receipt`，且 barcode payload 仍直接等於該測試工單的 `paper_order_no`。
 
 無線條碼槍採 keyboard wedge 模式：
 

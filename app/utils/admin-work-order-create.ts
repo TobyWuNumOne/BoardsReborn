@@ -6,6 +6,11 @@ import type { RepairCountSource, RepairMark } from './repair-marks';
 type BoardType = Database['public']['Enums']['board_type'];
 type BoardLengthClass = Database['public']['Enums']['board_length_class'];
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
+export type AdminWorkOrderPaperOrderMode = 'standard' | 'test';
+
+export const normalizeAdminWorkOrderCreateMode = (
+  query: Record<string, unknown>,
+): AdminWorkOrderPaperOrderMode => (query.mode === 'test' ? 'test' : 'standard');
 
 const BOARD_TYPES = ['SURFBOARD', 'SUP', 'SNOWBOARD'] as const;
 const BOARD_LENGTH_CLASSES = ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'] as const;
@@ -63,6 +68,12 @@ export interface AdminWorkOrderCreateResponse {
   };
 }
 
+export interface AdminWorkOrderNextPaperOrderNoResponse {
+  data: {
+    paperOrderNo: string;
+  };
+}
+
 export interface AdminWorkOrderCreateFormState {
   boardBrand: string;
   boardLengthClass: BoardLengthClass | '';
@@ -81,8 +92,8 @@ export interface AdminWorkOrderCreateFormState {
   initialQuoteDescription: string;
   intakeDate: string;
   internalNote: string;
-  paperOrderNo: string;
   paymentReceived: boolean;
+  paperOrderNo: string;
   publicNote: string;
   repairCount: string;
   repairCountSource: RepairCountSource;
@@ -107,8 +118,8 @@ export interface AdminWorkOrderCreateNormalizedSnapshot {
   initialQuoteDescription: string;
   intakeDate: string;
   internalNote: string;
-  paperOrderNo: string;
   paymentReceived: boolean;
+  paperOrderNo: string;
   publicNote: string;
   repairCount: string;
   repairCountSource: RepairCountSource;
@@ -131,6 +142,7 @@ export interface AdminWorkOrderCreatePayload {
   };
   customerId?: string;
   customerMode: 'create' | 'reuse';
+  paperOrderMode?: AdminWorkOrderPaperOrderMode;
   quoteItems: Array<{
     amount: number;
     description: string;
@@ -142,8 +154,8 @@ export interface AdminWorkOrderCreatePayload {
     estimatedCompletionDate: string;
     intakeDate: string;
     internalNote?: string | null;
-    paperOrderNo: string;
     paymentReceived: boolean;
+    paperOrderNo?: string;
     publicNote?: string | null;
     repairCount?: number | null;
     repairCountSource?: RepairCountSource;
@@ -275,8 +287,8 @@ const createFormSchema = z
     initialQuoteDescription: z.string().max(160, '報價備註不可超過 160 字。'),
     intakeDate: z.string(),
     internalNote: z.string(),
-    paperOrderNo: z.string(),
     paymentReceived: z.boolean(),
+    paperOrderNo: z.string().max(50, '工單號不可超過 50 碼。'),
     publicNote: z.string(),
     repairCount: z.string(),
     repairCountSource: z.enum(['auto', 'manual']),
@@ -284,26 +296,6 @@ const createFormSchema = z
     selectedCustomerId: z.string(),
   })
   .superRefine((value, ctx) => {
-    if (!value.paperOrderNo) {
-      ctx.addIssue({
-        code: 'custom',
-        message: '請輸入紙本工單號。',
-        path: ['paperOrderNo'],
-      });
-    } else if (value.paperOrderNo.length < 3) {
-      ctx.addIssue({
-        code: 'custom',
-        message: '紙本工單號至少 3 碼。',
-        path: ['paperOrderNo'],
-      });
-    } else if (value.paperOrderNo.length > 50) {
-      ctx.addIssue({
-        code: 'custom',
-        message: '紙本工單號不可超過 50 碼。',
-        path: ['paperOrderNo'],
-      });
-    }
-
     const normalizedPhone = normalizeTaiwanMobilePhoneInput(value.customerPhone);
 
     if (!normalizedPhone) {
@@ -586,8 +578,8 @@ export const createAdminWorkOrderCreateInitialFormState = (
   initialQuoteDescription: '',
   intakeDate: today,
   internalNote: '',
-  paperOrderNo: '',
   paymentReceived: false,
+  paperOrderNo: '',
   publicNote: '',
   repairCount: '',
   repairCountSource: 'auto',
@@ -614,8 +606,8 @@ export const normalizeAdminWorkOrderCreateFormState = (
   initialQuoteDescription: trimValue(formState.initialQuoteDescription),
   intakeDate: trimValue(formState.intakeDate),
   internalNote: trimValue(formState.internalNote),
-  paperOrderNo: trimValue(formState.paperOrderNo),
   paymentReceived: formState.paymentReceived,
+  paperOrderNo: trimValue(formState.paperOrderNo),
   publicNote: trimValue(formState.publicNote),
   repairCount: trimValue(formState.repairCount),
   repairCountSource: formState.repairCountSource,
@@ -630,6 +622,7 @@ export const hasAdminWorkOrderCreateUnsavedChanges = (
 
 export const buildAdminWorkOrderCreatePayload = (
   formState: AdminWorkOrderCreateFormState,
+  paperOrderMode: AdminWorkOrderPaperOrderMode = 'standard',
 ): {
   fieldErrors: Record<string, string[]>;
   payload: AdminWorkOrderCreatePayload | null;
@@ -650,6 +643,15 @@ export const buildAdminWorkOrderCreatePayload = (
     return {
       fieldErrors: {
         customerPhone: ['請輸入完整台灣手機號碼。'],
+      },
+      payload: null,
+    };
+  }
+
+  if (paperOrderMode === 'test' && !/^99[0-9]{4,}$/.test(parsedForm.data.paperOrderNo)) {
+    return {
+      fieldErrors: {
+        paperOrderNo: ['測試工單號必須為 99 開頭，且至少包含四位流水號。'],
       },
       payload: null,
     };
@@ -680,10 +682,14 @@ export const buildAdminWorkOrderCreatePayload = (
     workOrder: {
       estimatedCompletionDate: parsedForm.data.estimatedCompletionDate,
       intakeDate: parsedForm.data.intakeDate,
-      paperOrderNo: parsedForm.data.paperOrderNo,
       paymentReceived: parsedForm.data.paymentReceived,
     },
   };
+
+  if (paperOrderMode === 'test') {
+    payload.paperOrderMode = 'test';
+    payload.workOrder.paperOrderNo = parsedForm.data.paperOrderNo;
+  }
 
   if (parsedForm.data.repairMarks.length > 0) {
     payload.repairMarks = parsedForm.data.repairMarks.map((mark: RepairMark) => ({ ...mark }));

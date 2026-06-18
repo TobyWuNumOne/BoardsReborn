@@ -666,6 +666,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      delete_admin_work_order: {
+        Args: { p_work_order_id: string };
+        Returns: Json;
+      };
       emit_printing_realtime_event: {
         Args: {
           p_event: string;
@@ -674,6 +678,14 @@ export type Database = {
           p_topic: string;
         };
         Returns: undefined;
+      };
+      get_next_admin_paper_order_no: {
+        Args: { p_lock?: boolean };
+        Returns: string;
+      };
+      get_next_admin_test_paper_order_no: {
+        Args: { p_lock?: boolean };
+        Returns: string;
       };
       mark_print_job_failed: {
         Args: { p_device_key: string; p_error: string; p_print_job_id: string };

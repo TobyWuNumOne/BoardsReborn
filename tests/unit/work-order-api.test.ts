@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { InternalServerError, NotFoundError, ValidationError } from '../../server/utils/api-errors';
+import {
+  ConflictError,
+  InternalServerError,
+  NotFoundError,
+  ValidationError,
+} from '../../server/utils/api-errors';
 import { normalizeTaiwanMobilePhone } from '../../server/utils/phone';
 import { throwMappedSupabaseError } from '../../server/utils/supabase-errors';
 import {
   appendAdminWorkOrderScanQuickNote,
   bulkAdminWorkOrderStatus,
   buildWorkOrderPatchUpdates,
+  deleteAdminWorkOrder,
   getAdminDashboardSummary,
   getAdminWorkOrderScanAvailableActions,
+  getNextAdminPaperOrderNo,
   getStaleReceivedDays,
   getTaipeiDayRange,
   mapScanRecentHistory,
@@ -23,6 +30,7 @@ import {
   WORK_ORDER_LIST_SORT_FIELDS,
   parseCreateWorkOrderBody,
   parseCustomerLookupQuery,
+  parseNextPaperOrderNoQuery,
   parsePaperOrderResolveQuery,
   parsePatchWorkOrderBody,
   parseStatusTransitionBody,
@@ -349,7 +357,6 @@ describe('work order API validation', () => {
       quoteItems: [],
       workOrder: {
         intakeDate: '2026-04-20',
-        paperOrderNo: 'BR-2026-0001',
       },
     });
 
@@ -363,7 +370,6 @@ describe('work order API validation', () => {
       customerMode: 'reuse',
       workOrder: {
         intakeDate: '2026-04-20',
-        paperOrderNo: 'BR-2026-0002',
         repairCount: 2,
         repairCountSource: 'manual',
       },
@@ -380,11 +386,72 @@ describe('work order API validation', () => {
           customerMode: 'reuse',
           workOrder: {
             intakeDate: '2026-04-20',
-            paperOrderNo: 'BR-2026-0003',
           },
         }),
       'customer',
     );
+  });
+
+  it('rejects client-supplied paper order numbers when creating work orders', () => {
+    expectValidationField(
+      () =>
+        parseCreateWorkOrderBody({
+          board: { boardType: 'SUP' },
+          customer: { name: '王小明', phone: '0912345678' },
+          customerMode: 'create',
+          workOrder: {
+            intakeDate: '2026-04-20',
+            paperOrderNo: 'BR-2026-0001',
+            repairCount: 2,
+            repairCountSource: 'manual',
+          },
+        }),
+      'workOrder.paperOrderNo',
+    );
+  });
+
+  it('accepts only 99-prefixed manual numbers for test work orders', () => {
+    const input = parseCreateWorkOrderBody({
+      board: { boardType: 'SUP' },
+      customer: { name: '王小明', phone: '0912345678' },
+      customerMode: 'create',
+      paperOrderMode: 'test',
+      workOrder: {
+        intakeDate: '2026-04-20',
+        paperOrderNo: '990001',
+        repairCount: 2,
+        repairCountSource: 'manual',
+      },
+    });
+
+    expect(input.paperOrderMode).toBe('test');
+    expect(input.workOrder.paperOrderNo).toBe('990001');
+
+    for (const paperOrderNo of ['260001', '99ABC1', '99001']) {
+      expectValidationField(
+        () =>
+          parseCreateWorkOrderBody({
+            board: { boardType: 'SUP' },
+            customer: { name: '王小明', phone: '0912345678' },
+            customerMode: 'create',
+            paperOrderMode: 'test',
+            workOrder: {
+              intakeDate: '2026-04-20',
+              paperOrderNo,
+              repairCount: 2,
+              repairCountSource: 'manual',
+            },
+          }),
+        'workOrder.paperOrderNo',
+      );
+    }
+  });
+
+  it('parses the next-number mode strictly', () => {
+    expect(parseNextPaperOrderNoQuery({})).toEqual({ mode: 'standard' });
+    expect(parseNextPaperOrderNoQuery({ mode: 'test' })).toEqual({ mode: 'test' });
+    expectValidationField(() => parseNextPaperOrderNoQuery({ mode: 'manual' }), 'mode');
+    expectValidationField(() => parseNextPaperOrderNoQuery({ mode: 'test', extra: 'x' }), 'extra');
   });
 
   it('requires a resolved repair count before creating a work order', () => {
@@ -399,7 +466,6 @@ describe('work order API validation', () => {
           customerMode: 'create',
           workOrder: {
             intakeDate: '2026-04-20',
-            paperOrderNo: 'BR-2026-0102',
           },
         }),
       'workOrder.repairCount',
@@ -415,7 +481,6 @@ describe('work order API validation', () => {
           customerMode: 'create',
           workOrder: {
             intakeDate: '2026-04-20',
-            paperOrderNo: 'BR-2026-0100',
           },
         }),
       'board.boardLengthClass',
@@ -432,7 +497,6 @@ describe('work order API validation', () => {
           customerMode: 'create',
           workOrder: {
             intakeDate: '2026-04-20',
-            paperOrderNo: 'BR-2026-0101',
           },
         }),
       'board.boardLengthClass',
@@ -452,7 +516,6 @@ describe('work order API validation', () => {
           ],
           workOrder: {
             intakeDate: '2026-04-20',
-            paperOrderNo: 'BR-2026-0004',
           },
         }),
       'quoteItems',
@@ -749,6 +812,84 @@ describe('work order API validation', () => {
       column: 'paper_order_no',
       value: 'BR-2026-0001',
     });
+  });
+
+  it('loads the next generated paper order number from the database helper', async () => {
+    const calls: Array<{ args: Record<string, unknown>; name: string }> = [];
+    const client = {
+      rpc(name: string, args: Record<string, unknown>) {
+        calls.push({ args, name });
+        return Promise.resolve({ data: '260005', error: null });
+      },
+    };
+
+    await expect(getNextAdminPaperOrderNo(client as never)).resolves.toEqual({
+      data: {
+        paperOrderNo: '260005',
+      },
+    });
+    expect(calls).toEqual([
+      {
+        args: { p_lock: false },
+        name: 'get_next_admin_paper_order_no',
+      },
+    ]);
+
+    await expect(getNextAdminPaperOrderNo(client as never, 'test')).resolves.toEqual({
+      data: {
+        paperOrderNo: '260005',
+      },
+    });
+    expect(calls.at(-1)).toEqual({
+      args: { p_lock: false },
+      name: 'get_next_admin_test_paper_order_no',
+    });
+  });
+
+  it('deletes newly received work orders through the guarded RPC', async () => {
+    const calls: Array<{ args: Record<string, unknown>; name: string }> = [];
+    const client = {
+      rpc(name: string, args: Record<string, unknown>) {
+        calls.push({ args, name });
+        return Promise.resolve({
+          data: {
+            deletedAt: '2026-06-12T06:30:00.000Z',
+            id: 'work-order-1',
+            paperOrderNo: '260005',
+          },
+          error: null,
+        });
+      },
+    };
+
+    await expect(deleteAdminWorkOrder(client as never, 'work-order-1')).resolves.toEqual({
+      data: {
+        deletedAt: '2026-06-12T06:30:00.000Z',
+        id: 'work-order-1',
+        paperOrderNo: '260005',
+      },
+    });
+    expect(calls).toEqual([
+      {
+        args: { p_work_order_id: 'work-order-1' },
+        name: 'delete_admin_work_order',
+      },
+    ]);
+  });
+
+  it('maps delete guard database errors to conflicts', () => {
+    expect(() =>
+      throwMappedSupabaseError({
+        code: '23514',
+        message: 'Only RECEIVED work orders can be deleted',
+      }),
+    ).toThrow(ConflictError);
+    expect(() =>
+      throwMappedSupabaseError({
+        code: '23514',
+        message: 'Work order has active or printed print jobs',
+      }),
+    ).toThrow(ConflictError);
   });
 
   it('maps status transition RPC results to the camelCase API contract', () => {

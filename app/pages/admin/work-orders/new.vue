@@ -8,6 +8,7 @@ import type { ApiErrorEnvelope } from '~/utils/admin-work-orders';
 import type {
   AdminCustomerLookupCandidate,
   AdminCustomerLookupResponse,
+  AdminWorkOrderNextPaperOrderNoResponse,
   AdminWorkOrderCreateResponse,
 } from '~/utils/admin-work-order-create';
 import {
@@ -26,6 +27,7 @@ import {
   getAdminWorkOrderCreateBoardColorButtonClassName,
   getTaipeiTodayDateString,
   hasAdminWorkOrderCreateUnsavedChanges,
+  normalizeAdminWorkOrderCreateMode,
   normalizeAdminWorkOrderCreateFormState,
   resolveAdminCustomerLookupCandidates,
   shouldAutoLookupCustomerPhone,
@@ -60,11 +62,14 @@ definePageMeta({
   middleware: ['admin-auth'],
 });
 
-useHead({
-  title: '新增工單 | BoardsReborn',
-});
-
 const route = useRoute();
+const paperOrderMode = computed(() => normalizeAdminWorkOrderCreateMode(route.query));
+const isTestMode = computed(() => paperOrderMode.value === 'test');
+
+useHead(() => ({
+  title: `${isTestMode.value ? '新增測試工單' : '新增工單'} | BoardsReborn`,
+}));
+
 const adminSession = useAdminSession();
 const requiredHintClass = 'ml-1 text-xs font-medium text-destructive';
 const optionalHintClass = 'ml-1 text-xs font-normal text-muted-foreground';
@@ -85,6 +90,25 @@ let autoLookupTimer: number | null = null;
 let lookupRequestToken = 0;
 
 const form = reactive(createAdminWorkOrderCreateInitialFormState());
+const {
+  data: nextPaperOrderNoResponse,
+  error: nextPaperOrderNoLoadError,
+  pending: isNextPaperOrderNoLoading,
+  refresh: refreshNextPaperOrderNo,
+} = await useAsyncData(
+  computed(() => `admin-work-order-next-paper-order-no:${paperOrderMode.value}`),
+  () =>
+    getRequestFetch()<AdminWorkOrderNextPaperOrderNoResponse>(
+      '/api/admin/work-orders/next-paper-order-no',
+      { query: { mode: paperOrderMode.value } },
+    ),
+  { watch: [paperOrderMode] },
+);
+
+if (isTestMode.value && nextPaperOrderNoResponse.value) {
+  form.paperOrderNo = nextPaperOrderNoResponse.value.data.paperOrderNo;
+}
+
 const baselineSnapshot = shallowRef(normalizeAdminWorkOrderCreateFormState(form));
 const clientFieldErrors = ref<Record<string, string[]>>({});
 const lookupResults = ref<AdminCustomerLookupCandidate[]>([]);
@@ -136,6 +160,18 @@ const missingRequiredFieldText = computed(() =>
     ? `尚未完成：${requiredFieldSummary.value.missingLabels.join('、')}`
     : '必要欄位已完成',
 );
+const displayedPaperOrderNo = computed(() => nextPaperOrderNoResponse.value?.data.paperOrderNo ?? '—');
+const nextPaperOrderNoErrorMessage = computed(() => {
+  const envelope = extractApiErrorEnvelope(nextPaperOrderNoLoadError.value);
+
+  return envelope?.error.message ?? '目前無法取得工單號。';
+});
+
+watch(nextPaperOrderNoResponse, (response) => {
+  if (isTestMode.value && response) {
+    form.paperOrderNo = response.data.paperOrderNo;
+  }
+});
 
 const isRepairMarksPreviewEnabled = computed(() => {
   if (!import.meta.client || !import.meta.dev) {
@@ -261,6 +297,10 @@ const clearLookupState = (options: { preserveCustomerName?: boolean } = {}) => {
 const resetForm = () => {
   const nextState = createAdminWorkOrderCreateInitialFormState(getTaipeiTodayDateString());
 
+  if (isTestMode.value) {
+    nextState.paperOrderNo = nextPaperOrderNoResponse.value?.data.paperOrderNo ?? '';
+  }
+
   lookupRequestToken += 1;
   clearAutoLookupTimer();
   Object.assign(form, nextState);
@@ -274,6 +314,7 @@ const resetForm = () => {
   intakeDatePopoverOpen.value = false;
   estimatedDatePopoverOpen.value = false;
   baselineSnapshot.value = normalizeAdminWorkOrderCreateFormState(nextState);
+  void refreshNextPaperOrderNo();
 };
 
 const clearUnsavedGuard = () => {
@@ -457,7 +498,7 @@ const submitCreateForm = async () => {
   lookupApiError.value = null;
   clientFieldErrors.value = {};
 
-  const { fieldErrors, payload } = buildAdminWorkOrderCreatePayload(form);
+  const { fieldErrors, payload } = buildAdminWorkOrderCreatePayload(form, paperOrderMode.value);
 
   if (Object.keys(fieldErrors).length > 0 || !payload) {
     clientFieldErrors.value = fieldErrors;
@@ -477,7 +518,7 @@ const submitCreateForm = async () => {
     );
 
     clearUnsavedGuard();
-    toast.success('工單已建立');
+    toast.success(`工單已建立：${response.data.paperOrderNo}`);
     await navigateTo(`${getAdminWorkOrderDetailPath(response.data.id)}?created=1`);
   } catch (error) {
     if (await maybeHandleAdminAuthRedirect(error)) {
@@ -739,12 +780,20 @@ if (import.meta.client) {
 <template>
   <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 pb-40">
     <div class="flex flex-col gap-2">
-      <Badge variant="secondary" class="w-fit">New work order</Badge>
+      <Badge :variant="isTestMode ? 'destructive' : 'secondary'" class="w-fit">
+        {{ isTestMode ? 'Test work order' : 'New work order' }}
+      </Badge>
       <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 class="text-2xl font-semibold tracking-tight">新增工單</h1>
+          <h1 class="text-2xl font-semibold tracking-tight">
+            {{ isTestMode ? '新增測試工單' : '新增工單' }}
+          </h1>
           <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            以現場收件流程快速建立工單。第一版只負責建立工單本身，後續拍照、列印、追加報價與狀態更新留在下一步流程。
+            {{
+              isTestMode
+                ? '測試工單會建立真實工單並送出列印任務，且會出現在一般工單列表。'
+                : '以現場收件流程快速建立工單。'
+            }}
           </p>
         </div>
 
@@ -759,6 +808,14 @@ if (import.meta.client) {
         </Button>
       </div>
     </div>
+
+    <Alert v-if="isTestMode">
+      <TriangleAlertIcon class="size-4" />
+      <AlertTitle>正在建立測試工單</AlertTitle>
+      <AlertDescription>
+        這不是預覽：會建立真實工單並送出列印任務，工單號只能使用 99 開頭的純數字。
+      </AlertDescription>
+    </Alert>
 
     <Alert v-if="formAlertMessages.length" variant="destructive">
       <TriangleAlertIcon class="size-4" />
@@ -779,26 +836,47 @@ if (import.meta.client) {
       <Card>
         <CardHeader>
           <CardTitle>1. 工單與顧客</CardTitle>
-          <CardDescription>先確認紙本工單號，再用手機號碼查詢既有顧客。</CardDescription>
+          <CardDescription>系統會建立純數字工單號，再用手機號碼查詢既有顧客。</CardDescription>
         </CardHeader>
         <CardContent class="grid gap-5 md:grid-cols-2">
           <Field class="md:col-span-2">
-            <FieldLabel for="paper-order-no">
-              紙本工單號
-              <span :class="requiredHintClass">（＊必填）</span>
-            </FieldLabel>
-            <Input
-              id="paper-order-no"
-              v-model="form.paperOrderNo"
-              autofocus
-              autocomplete="off"
-              class="h-12 text-base"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              placeholder="例如 BR-2026-0001"
-              type="text"
-            />
+            <FieldLabel>工單號</FieldLabel>
+            <div class="flex flex-col gap-3 md:flex-row md:items-center">
+              <Input
+                v-if="isTestMode"
+                v-model="form.paperOrderNo"
+                class="h-12 flex-1 text-xl font-semibold tabular-nums"
+                inputmode="numeric"
+                pattern="99[0-9]{4,}"
+                placeholder="例如 990001"
+              />
+              <div v-else class="min-h-12 flex-1 rounded-lg border bg-muted/30 px-3 py-2">
+                <p class="text-xl font-semibold tabular-nums">
+                  {{ isNextPaperOrderNoLoading ? '產生中' : displayedPaperOrderNo }}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                class="h-12 w-full md:w-auto"
+                :disabled="isNextPaperOrderNoLoading || isSubmitting"
+                @click="() => refreshNextPaperOrderNo()"
+              >
+                重新整理
+              </Button>
+            </div>
+            <FieldDescription>
+              {{
+                isTestMode
+                  ? '預設為下一個 99 測試流水號，可手動修改。'
+                  : '送出建立時由後端確認正式號碼；出單機列印為準。'
+              }}
+            </FieldDescription>
             <FieldError :errors="mergedFieldErrors.paperOrderNo" />
+            <FieldError
+              v-if="nextPaperOrderNoLoadError"
+              :errors="[nextPaperOrderNoErrorMessage]"
+            />
           </Field>
 
           <Field class="md:col-span-2">
@@ -809,6 +887,7 @@ if (import.meta.client) {
             <div class="flex flex-col gap-3 md:flex-row">
               <Input
                 id="customer-phone"
+                autofocus
                 autocomplete="tel"
                 class="h-12 text-base"
                 inputmode="numeric"
