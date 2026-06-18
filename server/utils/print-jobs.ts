@@ -41,7 +41,7 @@ const normalizePublicAppUrl = (value: string | undefined) => {
 const getPublicLookupUrl = () => {
   try {
     const config = useRuntimeConfig();
-    return `${normalizePublicAppUrl(config.public.appUrl)}/repair-status`;
+    return `${normalizePublicAppUrl(config.public.statusUrl || config.public.appUrl)}/repair-status`;
   } catch {
     return 'http://localhost:3000/repair-status';
   }

@@ -65,12 +65,10 @@ describe('admin work-order create tablet helpers', () => {
     const formState = createAdminWorkOrderCreateInitialFormState('2026-05-11');
     let summary = getRequiredFieldSummary(formState);
 
-    expect(summary.total).toBe(8);
-    expect(summary.missingLabels).toContain('工單號碼');
+    expect(summary.total).toBe(7);
     expect(summary.missingLabels).toContain('顧客查詢');
     expect(summary.missingLabels).toContain('受損位置');
 
-    formState.paperOrderNo = '1001';
     formState.customerPhone = '0912345678';
     formState.customerModeDecision = 'create';
     formState.customerName = '王小明';
@@ -82,9 +80,9 @@ describe('admin work-order create tablet helpers', () => {
     summary = getRequiredFieldSummary(formState);
 
     expect(summary).toEqual({
-      completed: 9,
+      completed: 8,
       missingLabels: [],
-      total: 9,
+      total: 8,
     });
   });
 });

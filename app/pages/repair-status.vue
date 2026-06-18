@@ -36,7 +36,7 @@ useHead({
   meta: [
     {
       name: 'description',
-      content: '使用紙本工單號與手機號碼查詢目前維修進度。',
+      content: '使用工單號與手機號碼查詢目前維修進度。',
     },
   ],
 });
@@ -174,7 +174,7 @@ const lookupPublicWorkOrder = async () => {
             <div class="space-y-2">
               <CardTitle class="text-2xl sm:text-3xl">查詢維修進度</CardTitle>
               <CardDescription class="max-w-2xl text-base leading-7">
-                請輸入紙本工單號與手機號碼，查詢目前維修進度、預估完成日與公開備註。
+                請輸入工單號與手機號碼，查詢目前維修進度、預估完成日與公開備註。
               </CardDescription>
             </div>
           </CardHeader>
@@ -183,15 +183,15 @@ const lookupPublicWorkOrder = async () => {
             <form class="space-y-6" @submit.prevent="lookupPublicWorkOrder">
               <div class="grid gap-4 md:grid-cols-2">
                 <Field>
-                  <FieldLabel for="paper-order-no">紙本工單號</FieldLabel>
+                  <FieldLabel for="paper-order-no">工單號</FieldLabel>
                   <Input
                     id="paper-order-no"
                     v-model="form.paperOrderNo"
                     autocomplete="off"
                     name="paperOrderNo"
-                    placeholder="例如 BR-2026-0001"
+                    placeholder="例如 260001"
                   />
-                  <FieldDescription>請輸入紙本工單號，系統會自動去除前後空白。</FieldDescription>
+                  <FieldDescription>請輸入工單號，系統會自動去除前後空白。</FieldDescription>
                   <FieldError :errors="mergedFieldErrors.paperOrderNo" />
                 </Field>
 

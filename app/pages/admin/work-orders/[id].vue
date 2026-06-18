@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { parseDate } from '@internationalized/date';
-import { CalendarIcon, MapPinnedIcon } from 'lucide-vue-next';
+import { CalendarIcon, MapPinnedIcon, Trash2Icon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import type {
   AdminPrintSummaryItem,
@@ -128,10 +128,12 @@ const lastSyncedEditSnapshot = ref<AdminWorkOrderEditNormalizedSnapshot | null>(
 const lastSyncedWorkOrderId = ref<string | null>(null);
 const shouldSyncEditFormOnNextRefresh = ref(false);
 const isSubmittingEditForm = ref(false);
+const isDeletingWorkOrder = ref(false);
 const editEstimatedDatePopoverOpen = ref(false);
 const repairMarksDialogOpen = ref(false);
 const clientEditFieldErrors = ref<Record<string, string[]>>({});
 const submitEditApiError = ref<ApiErrorEnvelope | null>(null);
+const deleteWorkOrderApiError = ref<ApiErrorEnvelope | null>(null);
 const workForm = reactive<AdminWorkOrderWorkFormState>(createEmptyAdminWorkOrderWorkFormState());
 const lastWorkFormWorkOrderId = ref<string | null>(null);
 const isSubmittingWorkForm = ref(false);
@@ -207,6 +209,7 @@ const getSafeCalendarDate = (value: string) => {
 const clearEditFeedback = () => {
   clientEditFieldErrors.value = {};
   submitEditApiError.value = null;
+  deleteWorkOrderApiError.value = null;
 };
 
 const clearWorkFeedback = () => {
@@ -363,10 +366,18 @@ const editDirtyFields = computed(() =>
 );
 const isEditDirty = computed(() => editDirtyFields.value.length > 0);
 const canSubmitEditForm = computed(
-  () => detailMode.value === 'edit' && isEditDirty.value && !isSubmittingEditForm.value,
+  () =>
+    detailMode.value === 'edit' &&
+    isEditDirty.value &&
+    !isSubmittingEditForm.value &&
+    !isDeletingWorkOrder.value,
 );
 const hasUnsavedEditChanges = computed(
-  () => detailMode.value === 'edit' && isEditDirty.value && !isSubmittingEditForm.value,
+  () =>
+    detailMode.value === 'edit' &&
+    isEditDirty.value &&
+    !isSubmittingEditForm.value &&
+    !isDeletingWorkOrder.value,
 );
 
 const editFieldErrors = computed<Record<string, string[]>>(() => {
@@ -398,6 +409,10 @@ const editFormAlertMessages = computed(() => {
 
   if (submitEditApiError.value && messages.size === 0 && Object.keys(fieldErrors).length === 0) {
     messages.add(submitEditApiError.value.error.message);
+  }
+
+  if (deleteWorkOrderApiError.value) {
+    messages.add(deleteWorkOrderApiError.value.error.message);
   }
 
   return Array.from(messages);
@@ -439,6 +454,13 @@ const workFormAlertMessages = computed(() => {
 
 const canSubmitWorkForm = computed(
   () => detailMode.value === 'work' && Boolean(workForm.status) && !isSubmittingWorkForm.value,
+);
+const canDeleteWorkOrder = computed(
+  () =>
+    detailMode.value === 'edit' &&
+    detail.value?.currentStatus === 'RECEIVED' &&
+    !isSubmittingEditForm.value &&
+    !isDeletingWorkOrder.value,
 );
 const currentStatusMeta = computed(() =>
   detail.value?.currentStatus ? getWorkOrderStatusMeta(detail.value.currentStatus) : null,
@@ -867,6 +889,60 @@ const submitEditForm = async () => {
   }
 };
 
+const deleteWorkOrder = async () => {
+  if (!detail.value || isDeletingWorkOrder.value || !import.meta.client) {
+    return;
+  }
+
+  const dirtyWarning = isEditDirty.value ? '目前未儲存的管理修正也會一併放棄。\n' : '';
+  const confirmed = window.confirm(
+    `${dirtyWarning}確定要刪除工單「${detail.value.paperOrderNo ?? routeWorkOrderId.value}」？刪除後會移除這張工單與關聯紀錄，但不刪除顧客資料。`,
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  clearEditFeedback();
+  isDeletingWorkOrder.value = true;
+
+  try {
+    await getRequestFetch()<{
+      data: {
+        deletedAt: string;
+        id: string;
+        paperOrderNo: string;
+      };
+    }>(`/api/admin/work-orders/${encodeURIComponent(routeWorkOrderId.value)}`, {
+      method: 'DELETE',
+    });
+
+    lastSyncedEditSnapshot.value = currentEditSnapshot.value;
+    toast.success('工單已刪除。');
+    await navigateTo(LIST_ROUTE);
+  } catch (deleteError) {
+    const statusCode = getApiErrorStatusCode(deleteError);
+
+    if (statusCode === 401 || statusCode === 403) {
+      const sessionSnapshot = await adminSession.refreshAdminSession({ force: true });
+      const redirectTarget = getAdminRouteGuardRedirect(sessionSnapshot.status, route.fullPath);
+
+      if (redirectTarget) {
+        await navigateTo(redirectTarget);
+      }
+
+      return;
+    }
+
+    deleteWorkOrderApiError.value = extractApiErrorEnvelope(deleteError);
+    toast.error('刪除工單失敗。', {
+      description: deleteWorkOrderApiError.value?.error.message ?? '請稍後再試。',
+    });
+  } finally {
+    isDeletingWorkOrder.value = false;
+  }
+};
+
 const submitWorkForm = async () => {
   if (!detail.value || isSubmittingWorkForm.value) {
     return;
@@ -1142,8 +1218,18 @@ if (import.meta.client) {
           <div class="flex flex-wrap gap-2">
             <Button
               type="button"
+              variant="destructive"
+              :disabled="!canDeleteWorkOrder"
+              @click="deleteWorkOrder"
+            >
+              <Spinner v-if="isDeletingWorkOrder" data-icon="inline-start" />
+              <Trash2Icon v-else data-icon="inline-start" />
+              刪除工單
+            </Button>
+            <Button
+              type="button"
               variant="outline"
-              :disabled="!isEditDirty || isSubmittingEditForm"
+              :disabled="!isEditDirty || isSubmittingEditForm || isDeletingWorkOrder"
               @click="resetEditForm"
             >
               Reset

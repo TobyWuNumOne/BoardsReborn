@@ -44,6 +44,10 @@ const publicAppUrl =
     resolveVercelUrl(process.env.VERCEL_BRANCH_URL),
     resolveVercelUrl(process.env.VERCEL_URL),
   ) || 'http://localhost:3000';
+const publicAdminUrl = readFirstNonEmpty(process.env.NUXT_PUBLIC_ADMIN_URL) || '';
+const publicStatusUrl =
+  readFirstNonEmpty(process.env.NUXT_PUBLIC_STATUS_URL, process.env.NUXT_PUBLIC_APP_URL) ||
+  publicAppUrl;
 const supabaseCookieSecure = (() => {
   try {
     return new URL(publicAppUrl).protocol === 'https:';
@@ -59,7 +63,13 @@ export default defineNuxtConfig({
     appManifest: false,
   },
 
-  modules: ['@nuxt/eslint', '@nuxt/test-utils/module', '@nuxtjs/supabase', 'shadcn-nuxt'],
+  modules: [
+    '@nuxt/eslint',
+    '@nuxt/test-utils/module',
+    '@nuxtjs/supabase',
+    '@vercel/speed-insights/nuxt',
+    'shadcn-nuxt',
+  ],
 
   css: ['~/assets/css/main.css'],
 
@@ -83,7 +93,9 @@ export default defineNuxtConfig({
     adminEmail: process.env.ADMIN_EMAIL || '',
     adminPassword: process.env.ADMIN_PASSWORD || '',
     public: {
+      adminUrl: publicAdminUrl,
       appUrl: publicAppUrl,
+      statusUrl: publicStatusUrl,
     },
   },
 

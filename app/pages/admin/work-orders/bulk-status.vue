@@ -444,7 +444,7 @@ onMounted(async () => {
         <div>
           <h1 class="text-2xl font-semibold tracking-tight">批量狀態更新</h1>
           <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            一次輸入多筆紙本工單號，先 preview 搜尋，再用共享狀態或各組快捷按鈕批量推進工單。
+            一次輸入多筆工單號，先 preview 搜尋，再用共享狀態或各組快捷按鈕批量推進工單。
           </p>
         </div>
       </div>
@@ -466,13 +466,13 @@ onMounted(async () => {
         </CardHeader>
         <CardContent class="space-y-4">
           <Field>
-            <FieldLabel for="bulk-paper-order-input">紙本工單號</FieldLabel>
+            <FieldLabel for="bulk-paper-order-input">工單號</FieldLabel>
             <Textarea
               :id="BULK_INPUT_ID"
               v-model="bulkInput"
               :disabled="isInputLocked"
               class="min-h-36"
-              placeholder="例如&#10;BR-2026-0001&#10;BR-2026-0002, BR-2026-0003"
+              placeholder="例如&#10;260001&#10;260002, 260003"
             />
             <FieldDescription>
               共解析 {{ parsedPaperOrderNos.length }} 筆唯一工單號。
@@ -609,7 +609,7 @@ onMounted(async () => {
         <Card>
           <CardHeader>
             <CardTitle>尚未建立 preview</CardTitle>
-            <CardDescription>貼上多筆紙本工單號後，按搜尋取得可更新的工單清單。</CardDescription>
+            <CardDescription>貼上多筆工單號後，按搜尋取得可更新的工單清單。</CardDescription>
           </CardHeader>
         </Card>
       </template>
@@ -629,7 +629,7 @@ onMounted(async () => {
                   <Badge variant="outline">已選 {{ group.selectedCount }} 筆</Badge>
                 </div>
                 <CardDescription>
-                  這組工單會保持原始輸入順序，方便核對掃描或貼上的紙本工單號。
+                  這組工單會保持原始輸入順序，方便核對掃描或貼上的工單號。
                 </CardDescription>
               </div>
 

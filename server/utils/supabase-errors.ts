@@ -79,6 +79,28 @@ export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
     });
   }
 
+  if (
+    error.code === '23514' &&
+    includesErrorText(error, 'Only RECEIVED work orders can be deleted')
+  ) {
+    throw new ConflictError('Only newly received work orders can be deleted.');
+  }
+
+  if (
+    error.code === '23514' &&
+    includesErrorText(error, 'Work order has active or printed print jobs')
+  ) {
+    throw new ConflictError('Cannot delete a work order with active or printed print jobs.');
+  }
+
+  if (error.code === '23514' && includesErrorText(error, 'Invalid test paper order number')) {
+    throw new ValidationError({
+      'workOrder.paperOrderNo': [
+        'Must start with 99 and include at least four sequence digits.',
+      ],
+    });
+  }
+
   if (error.code === '23514' && includesErrorText(error, 'Print public lookup URL is required')) {
     throw new ValidationError({
       body: ['Public lookup URL is required before creating a customer receipt print job.'],

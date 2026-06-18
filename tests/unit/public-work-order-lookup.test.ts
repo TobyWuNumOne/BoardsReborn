@@ -138,7 +138,7 @@ describe('public work-order lookup', () => {
       }),
     ).toEqual({
       fieldErrors: {
-        paperOrderNo: ['請輸入紙本工單號。'],
+        paperOrderNo: ['請輸入工單號。'],
         phone: ['請輸入完整台灣手機號碼。'],
       },
     });

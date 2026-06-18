@@ -174,6 +174,10 @@ describe('print job validation', () => {
 });
 
 describe('print job services', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('lists admin print jobs with pagination and nested response mapping', async () => {
     const client = {
       from() {
@@ -275,6 +279,13 @@ describe('print job services', () => {
   });
 
   it('calls admin and worker print job RPCs with the expected payloads', async () => {
+    vi.stubGlobal('useRuntimeConfig', () => ({
+      public: {
+        appUrl: 'https://legacy.surfboards-reborn.com/',
+        statusUrl: 'https://status.surfboards-reborn.com/',
+      },
+    }));
+
     const calls: Array<{ args: Record<string, unknown>; name: string }> = [];
     const client = {
       rpc(name: string, args: Record<string, unknown>) {
@@ -430,7 +441,7 @@ describe('print job services', () => {
       args: {
         p_created_by_user_id: 'user-1',
         p_job_type: 'work_order_label',
-        p_public_lookup_url: 'http://localhost:3000/repair-status',
+        p_public_lookup_url: 'https://status.surfboards-reborn.com/repair-status',
         p_work_order_id: 'work-order-1',
       },
       name: 'create_admin_print_job',
@@ -785,7 +796,7 @@ describe('work order print job enqueue', () => {
               createdAt: '2026-05-21T00:00:00.000Z',
               currentStatus: 'RECEIVED',
               id: 'work-order-1',
-              paperOrderNo: 'BR-2026-0001',
+              paperOrderNo: '990001',
               quoteTotalAmount: 0,
             },
             error: null,
@@ -821,10 +832,11 @@ describe('work order print job enqueue', () => {
             phone: '0912345678',
           },
           customerMode: 'create',
+          paperOrderMode: 'test',
           quoteItems: [],
           workOrder: {
             intakeDate: '2026-05-21',
-            paperOrderNo: 'BR-2026-0001',
+            paperOrderNo: '990001',
             paymentReceived: false,
             repairCount: 2,
             repairCountSource: 'manual',
@@ -837,7 +849,7 @@ describe('work order print job enqueue', () => {
         createdAt: '2026-05-21T00:00:00.000Z',
         currentStatus: 'RECEIVED',
         id: 'work-order-1',
-        paperOrderNo: 'BR-2026-0001',
+        paperOrderNo: '990001',
         quoteTotalAmount: 0,
       },
     });
@@ -854,6 +866,10 @@ describe('work order print job enqueue', () => {
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
     ]);
+    expect(calls[0]?.args.p_work_order).toMatchObject({
+      paperOrderMode: 'test',
+      paperOrderNo: '990001',
+    });
     expect(
       calls
         .filter((call) => call.name === 'create_admin_print_job')
@@ -919,7 +935,6 @@ describe('work order print job enqueue', () => {
           quoteItems: [],
           workOrder: {
             intakeDate: '2026-05-21',
-            paperOrderNo: 'BR-2026-0001',
             paymentReceived: false,
             repairCount: 2,
             repairCountSource: 'manual',

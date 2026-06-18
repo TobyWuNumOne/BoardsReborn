@@ -126,11 +126,11 @@ export const buildPublicWorkOrderLookupPayload = (
   const fieldErrors: Record<string, string[]> = {};
 
   if (!paperOrderNo) {
-    fieldErrors.paperOrderNo = ['請輸入紙本工單號。'];
+    fieldErrors.paperOrderNo = ['請輸入工單號。'];
   } else if (paperOrderNo.length < 3) {
-    fieldErrors.paperOrderNo = ['紙本工單號至少 3 碼。'];
+    fieldErrors.paperOrderNo = ['工單號至少 3 碼。'];
   } else if (paperOrderNo.length > 50) {
-    fieldErrors.paperOrderNo = ['紙本工單號不可超過 50 碼。'];
+    fieldErrors.paperOrderNo = ['工單號不可超過 50 碼。'];
   }
 
   if (!normalizedPhone) {

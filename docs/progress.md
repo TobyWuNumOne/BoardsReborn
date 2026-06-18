@@ -11,7 +11,7 @@
 
 ## 目前快照
 
-- 最後更新：2026-06-12
+- 最後更新：2026-06-18
 - 目前階段：Cloud-to-Physical Printing MVP 已完成；admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up、worker claim/report 與 Raspberry Pi USB raw ESC/POS 實體列印皆已打通，並已支援工單標籤與顧客留存聯分開排隊列印；下一階段聚焦真實場景穩定化、branch / environment discipline 與掃碼硬體補齊
 - 整體狀態：進行中
 - 現況摘要：
@@ -20,14 +20,16 @@
   - `server/api/` 已有 admin session、customer lookup、public lookup、work-order create/list/detail/update/status/resolve/bulk-status，以及 admin / print-worker 列印 handlers 與 `print-devices` 管理 handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - 前端已導入 Tailwind CSS v4、shadcn-vue primitives、`shadcn-nuxt` 與 SSR width baseline。
-  - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序與分頁，`/admin/work-orders/[id]` 已提供 `mode=view|edit|work` detail route，且 `mode=edit` 已接上 PATCH 與 repair marks 編輯；`/admin/work-orders/new` 已接上 lookup-first 現場建單流程、tablet-first F8A/F8B 快捷操作與 Konva repair marks modal；`/admin/work-orders/bulk-status` 已接上 preview 搜尋與批量狀態更新；`/admin/scan` 已接上單張掃碼 lookup 與第一版快速操作。
+  - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序與分頁，`/admin/work-orders/[id]` 已提供 `mode=view|edit|work` detail route，且 `mode=edit` 已接上 PATCH、repair marks 編輯與新建錯單刪除；`/admin/work-orders/new` 已接上 lookup-first 現場建單流程、後端純數字工單號產生、99 前綴測試建單模式、tablet-first F8A/F8B 快捷操作與 Konva repair marks modal；`/admin/settings` 已提供測試工單入口；`/admin/work-orders/bulk-status` 已接上 preview 搜尋與批量狀態更新；`/admin/scan` 已接上單張掃碼 lookup 與第一版快速操作。
   - `board_length_class` 已加入 schema 與 admin create/list/detail；衝浪板建單需選短板 / 中尺寸 / 長板，既有 legacy null 在 UI 顯示為 `—`。
   - `board_color` 已加入 `admin_work_order_list` projection 與 admin resolve preview；工單列表與 bulk status preview 會顯示顏色 swatch + label。
   - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、repair marks 示意圖、公開備註、最近更新時間，以及紙本維修單上的公開店家資訊、取板預約電話 CTA、板型對應費用參考與補板注意事項。
+  - Production domain routing 已在 Nuxt 全域 route middleware 落地並部署：admin、status、主網域與 `www` 依 canonical route 以 `302` 分流；localhost、staging、preview 與未知 host 不受影響。Vercel 原有的 `www -> root` 永久 redirect 已移除，避免繞過 Nuxt 規則。
+  - Vercel Speed Insights 已接入 Nuxt module；正式站重新部署並開始回傳 Web Vitals 後，可直接在 Vercel Speed Insights dashboard 觀測資料。
   - `work_orders` 現在已新增 `repair_count` / `repair_count_source`，並新增 `work_order_repair_marks` 結構化標記表；create/detail/patch/public lookup contract 已同步支援，且建單前必須先解析出非空 `repairCount`。
   - repair marks 的編輯與只讀預覽已統一 responsive 規則：`>1024px` 顯示正反面，`<=1024px` 改成單面切換；Konva stage 會跟著外層卡片可用空間縮放，`SURFBOARD` / `SUP` 共用同一套瘦長輪廓，`SNOWBOARD` 保持獨立輪廓；其中 editor modal 已再調整為 iPad 11 吋橫向優先，`>=1024px` 時固定維持 `正面 / 背面 / 設定區` 同列，且不再需要為了看到 `儲存` 額外下捲；直向 editor 則改成單面切換在上、設定卡在下的堆疊版型，並把 modal 高度與單面標記區再往上放大。
   - `/admin` 已接上 dashboard live data，第一版顯示互動式處理中工單 breakdown、管理 summary 與 Quick entries。
-  - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作、sticky 必填摘要，以及顧客手機 10 碼自動查詢與單一候選顧客自動選取；送出錯誤 scroll 與建立成功後 next actions 區塊尚待下一輪，但導頁後頂部成功提示已補上。
+  - 目前 admin 前端頁面屬第一版方向雛形：主要流程、版位與資料結構已建立；新增工單頁已先完成後端估算下一張純數字工單號、平板收件用的輸入尺寸、尺寸 / 日期 / 報價 / 備註快捷操作、sticky 必填摘要，以及顧客手機 10 碼自動查詢與單一候選顧客自動選取；送出錯誤 scroll 與建立成功後 next actions 區塊尚待下一輪，但導頁後頂部成功提示已補上。
   - admin mobile sidebar 已支援左緣拖拉開啟與左拖關閉，保留既有 trigger / close button 作為備援。
   - admin mobile sidebar 現在在點下導航按鈕時就會立即收起，路由切換後也會維持關閉，避免點選導航後覆蓋新頁；共用 Button 與 sidebar nav button 也已補按壓視覺回饋。
   - `/admin/printing` 已接上列印中心列表、狀態燈、篩選與 failed retry；`/admin/printing/workers` 已接上 Worker 列表、最後心跳、最近錯誤、名稱 / 位置編輯、啟停，以及新增 / 刪除，且燈號會依 `status + lastSeenAt` 顯示在線 / 離線 / 心跳過期。
@@ -103,7 +105,7 @@
 - Admin customer lookup：`GET /api/admin/customers/lookup`。
 - Admin work-order API：create/list/detail/update/status/resolve/bulk-status。
 - Admin print summary API：`GET /api/admin/print-summaries`，目前供 detail 頁讀取列印摘要 read model。
-- Admin work-order create RPC：原子建立 customer、work_order、第一筆 status_history 與 quote_items；route 會先要求非空 `repairCount`，再於 RPC 成功後 best-effort enqueue 第一筆 print job。
+- Admin work-order create RPC：原子建立 customer、work_order、第一筆 status_history 與 quote_items；`paper_order_no` 由 DB 端依 `Asia/Taipei` 年份產生純數字流水號，route 會先要求非空 `repairCount`，再於 RPC 成功後 best-effort enqueue 第一筆 print job。
 - Admin work-order status RPC：原子 append `status_history`、同步 `work_orders.current_status`，並維護 ready/delivered/cancelled timestamp。
 - Admin bulk status API：以 `paperOrderNos` 批量更新狀態，回傳 `requestedCount`、`dedupedCount`、`updatedCount`、`skippedCount` 與逐筆結果；未知錯誤時立即停止後續處理。
 - Login / session UI：`/login`、`/admin`、`/forbidden`、admin middleware、admin layout bootstrap 與 logout action。
@@ -115,8 +117,8 @@
 - Admin work-order list rendering fix：改為顯式 import `work-orders` 目錄下的列表與 badge 元件，排除 Nuxt auto-import 前綴不符造成「總數正確但列表不顯示」的回歸。
 - Admin work-order detail UI：單一路由 detail page、`mode=view|edit|work` query canonicalization、detail data keyed only by id、view mode 只讀區塊、edit mode PATCH 表單、work mode 狀態更新卡與 404/422 分流已建立。
 - Work-order detail 列印摘要：detail 頁已新增列印狀態卡、`created=1` 頂部成功提示、`前往列印中心` deep link，並可在建立列印任務 / 補印時選擇 `工單標籤` 或 `顧客留存聯`。
-- Admin work-order create UI：單頁現場收件建單頁、lookup-first 顧客流程、`intakeDate -> estimatedCompletionDate` 預設規則、初始報價映射、tablet-first F8A/F8B 快捷操作與成功導向 detail 已建立。
-  - Admin work-order create tablet-first F8A/F8B：已加大本頁觸控目標，補工單號 / 顧客手機 / 初始報價 numeric input attributes，新增衝浪板尺寸 quick selector 與 +/- 英寸、預估完成日 quick actions、初始報價 quick amount / 微調、損傷描述與公開 / 內部備註 quick chips，以及 sticky 必填欄位摘要；新增工單頁也已補必填 / 不必填標示、擴充板子顏色選項，並將損傷描述改為選填；未改 API payload、schema 或建單狀態流程。
+- Admin work-order create UI：單頁現場收件建單頁、lookup-first 顧客流程、系統產生純數字工單號顯示、`intakeDate -> estimatedCompletionDate` 預設規則、初始報價映射、tablet-first F8A/F8B 快捷操作與成功導向 detail 已建立。
+  - Admin work-order create tablet-first F8A/F8B：已加大本頁觸控目標，補顧客手機 / 初始報價 numeric input attributes，新增衝浪板尺寸 quick selector 與 +/- 英寸、預估完成日 quick actions、初始報價 quick amount / 微調、損傷描述與公開 / 內部備註 quick chips，以及 sticky 必填欄位摘要；新增工單頁也已補必填 / 不必填標示、擴充板子顏色選項，並將損傷描述改為選填；工單號不再手動輸入，由後端建立時產生。
 - Surfboard 長度分類：`board_length_class` schema、create validation、create/list/detail API mapping 與 admin create/list/detail UI 顯示已建立。
 - Admin bulk status UI：獨立 `/admin/work-orders/bulk-status` 頁面、resolve fan-out preview、共享狀態 select、依狀態分組的快捷操作與最近一次批量結果摘要已建立。
 - Admin scan UI：獨立 `/admin/scan` 頁面、專用 `GET /api/admin/work-orders/lookup` read model、快速備註 endpoint 與 sidebar 入口已建立。
@@ -124,7 +126,7 @@
 - Bulk preview / 工單列表資訊密度升級：`resolve` preview 已補顧客電話、長度分類、顏色、預估完成日與提醒 flags；bulk status 與工單列表都會顯示顏色 swatch。
 - Public customer lookup：`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，使用完整手機號碼驗證、server-generated progress timeline / cancelled state、只讀 repair marks 示意圖、公開店家/費用/注意事項資訊與 MVP in-memory rate limit。
 - Admin dashboard quick entries：已接上工單列表與建單頁入口，排除 create entry 仍停留 disabled placeholder 的不一致狀態。
-- Admin sidebar navigation：已補上 bulk status 入口與加高的新增工單快捷按鈕，讓現場建單與批量操作都不只依賴 dashboard quick entry。
+- Admin sidebar navigation：已補上 bulk status、後台設定入口與加高的新增工單快捷按鈕；後台設定可進入共用表單的測試模式，預填並允許修改 `99` 測試單號。
 - Admin dashboard quick entries：已再補上 bulk status 入口。
 - Admin dashboard live data：`/admin` 已接上真實 summary metrics，第一版顯示互動式處理中工單 breakdown、待取件、逾期與今日新建。
 - Admin responsive breakpoint tuning：sidebar desktop breakpoint 與工單列表 table breakpoint 已同步上移到 `xl`，避免 `768px~1279px` 區間同時顯示固定 sidebar 與 table 造成內容擠壓。
@@ -150,6 +152,7 @@
   - Print snapshot payload：`work_order_label` 現在會建立 `templateVersion: 2` 的 immutable print-ready snapshot，包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived` 與 `repairCount`；`customer_receipt` 會建立 `templateVersion: 1` snapshot，包含 `paperOrderNo`、`intakeDate`、`customerPhone`、`boardTypeLabel`、`paymentReceived`、`repairCount` 與 `publicLookupUrl`。
   - Label renderer 已改成新版 ESC/POS 版面：置中的收件日期、電話 / Paid、大字工單號、維修處數括號與 1D barcode，條碼高度固定 `0x40`。
   - Customer receipt renderer 已依實測版面使用 page mode、CP950 / Big5 中文、QR Code、form feed 與 cut；QR 內容固定使用 `publicLookupUrl`，不帶工單號 query。
+  - 新建 customer receipt 的 `publicLookupUrl` 優先使用 `NUXT_PUBLIC_STATUS_URL`，正式目標為 `https://status.surfboards-reborn.com/repair-status`；既有 immutable snapshot 不回寫。
   - Label renderer 已調整為顯示完整電話，並縮短條碼前後留白，避免單據頭尾多餘空白。
 - Worker raw USB transport：`printer-worker serve` 現在會直接把 ESC/POS raw bytes 寫到 `/dev/usb/lp0`，並在成功/失敗後回報既有 `succeed` / `fail` API。
 - Staging deployment refresh：GitHub `main` 已推送最新列印整合變更；Supabase staging 已套用 print snapshot migration，Vercel staging 已重新部署並更新穩定 alias。
@@ -157,6 +160,9 @@
 - Pi service refresh：Raspberry Pi 上 `boards-reborn-printer-worker.service` 已同步最新 worker 程式並重啟，啟動後已重新訂閱 `printing:worker-wakeup`。
 - Cloud-to-Physical Printing MVP：已完成雲端 Web 建立工單/補印 -> 建立 `print_jobs` -> worker wake-up / claim -> Pi USB raw ESC/POS 實體列印 -> succeeded / failed 回報的端到端流程，現場已可支撐最小可用列印工作流。
 - Production printer cutover：已確認 production Supabase / Vercel / Pi `.env` 串接完成，補上 `print_devices` 缺漏的 `insert` grants 後，`raspi-print-worker-01` 已可在 production 成功 claim job 並回報 `printed`。
+- Production work-order numbering migrations：production Supabase 已套用自動年度純數字工單號、新建錯單刪除與 `99` 測試工單 namespace migrations；正式 Web 部署與 `99` 工單實體列印驗證進行中。
+- Production domain cutover：Vercel Production 已設定 admin/status/app public URLs，四個 custom domains 均維持 verified，並已 live 驗證 admin、status、主網域與 `www` 的 `302` 分流、登入頁放行及舊 `/repair-status` query 保留。
+- Vercel Speed Insights：repo 已安裝 `@vercel/speed-insights@2.0.0` 並啟用 Nuxt module；production 重新部署後即可開始收集 Web Vitals。
 - Local preview asset fix：`pnpm build` 現在會自動修正 Nitro build output 的 public asset link，避免 `pnpm preview` / `node .output/server/index.mjs` 在本機出現 `/_nuxt/*` `500`。
 
 ## 目前焦點
@@ -174,7 +180,7 @@
 - 確認 Raspberry Pi 開機自啟、異常重啟與 `SIGTERM` 收尾在最新 worker 版本下仍正常。
 - 驗證印表機未連接、USB 裝置路徑失效、網路中斷等錯誤情境下的 fail / retry 與人工補救流程。
 - 連續建立 3-5 筆工單，確認每筆都依序建立並列印工單標籤與顧客留存聯，不重複列印、不漏印；同時確認 `work_order_label.barcodeValue` 與 `paper_order_no` 的對應在掃碼流程可直接使用。
-- 實機驗證顧客留存聯 QR Code 會導向 `/repair-status`，且不把工單號或手機寫進 URL query。
+- 實機驗證新建顧客留存聯 QR Code 會導向 `https://status.surfboards-reborn.com/repair-status`，且不把工單號或手機寫進 URL query。
 - 規劃並文件化 `locked` / `printing` stale job recovery、device provisioning 與 worker 更新流程。
 - 上線前需先 drain 或 discard 舊版 `work_order_label` pending jobs，因新版 worker renderer 不保留舊 payload 相容層；部署 `customer_receipt` 後也需確認 production worker 已更新到可 dispatch 新 job type。
 - 掃碼硬體尚未到位前，先維持使用者端查單 / 狀態頁最小可用；拿到條碼槍後再驗證 keyboard wedge 掃碼、掃描後 Enter、自動查詢與批量收件場景。
@@ -212,7 +218,7 @@
 ## 風險與阻塞
 
 - Schema 與 status rules 已寫入 migration；create/list/detail/update/status/resolve/bulk-status、admin print-jobs、print-worker APIs、worker wake-up 與 Pi 實體列印 runtime 已建立，但 production-grade branch discipline、測試環境操作規範與現場異常 runbook 尚未收斂。
-- Admin 單筆 detail/update/status endpoint 保留 UUID path 作為 internal resource identity；現場掃碼或人工輸入紙本工單號時，前端應先呼叫 `GET /api/admin/work-orders/resolve?paperOrderNo=...` 取得 UUID，再呼叫既有 UUID-based endpoint。
+- Admin 單筆 detail/update/status endpoint 保留 UUID path 作為 internal resource identity；現場掃碼或人工輸入工單號時，前端應先呼叫 `GET /api/admin/work-orders/resolve?paperOrderNo=...` 取得 UUID，再呼叫既有 UUID-based endpoint。
 - Docker daemon 已確認可用；本地 `supabase start` 與 `supabase db reset` 已成功跑過。第一次啟動時若遇到 Supabase ECR / CloudFront image 下載 timeout，可改從 Docker Hub 拉同版本 image 後 tag 成 `public.ecr.aws/supabase/*` 名稱再重跑。
 - Public customer lookup 已落地，但目前 rate limit 採 in-memory store，只適用 local / single-instance MVP，未達 production-grade distributed limiter。
 - Staging Supabase / Vercel 基礎部署已完成；`authenticated` table grants 與 `service_role` lookup grants 已推送至 staging，cookie-based `/api/admin/session` 已恢復正常，public lookup 已驗證正確手機 `200`、錯誤手機 `404`、不存在工單 `404` 與 payload 錯誤 `422`。

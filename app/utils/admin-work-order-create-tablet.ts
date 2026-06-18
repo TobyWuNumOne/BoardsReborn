@@ -211,7 +211,6 @@ export const getRequiredFieldSummary = (
   formState: AdminWorkOrderCreateFormState,
 ): RequiredFieldSummary => {
   const requiredFields: Array<{ complete: boolean; label: string }> = [
-    { complete: trimValue(formState.paperOrderNo).length > 0, label: '工單號碼' },
     {
       complete: normalizeTaiwanMobilePhoneInput(formState.customerPhone) !== null,
       label: '顧客手機',

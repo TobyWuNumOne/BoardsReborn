@@ -5,6 +5,7 @@ import {
   getFixedNextSundayDateString,
   getAdminWorkOrderCreateBoardColorButtonClassName,
   hasAdminWorkOrderCreateUnsavedChanges,
+  normalizeAdminWorkOrderCreateMode,
   normalizeAdminWorkOrderCreateFormState,
   resolveAdminCustomerLookupCandidates,
   shouldAutoLookupCustomerPhone,
@@ -12,6 +13,13 @@ import {
 } from '../../app/utils/admin-work-order-create';
 
 describe('admin work-order create helpers', () => {
+  it('enables test mode only for the explicit test query value', () => {
+    expect(normalizeAdminWorkOrderCreateMode({})).toBe('standard');
+    expect(normalizeAdminWorkOrderCreateMode({ mode: 'test' })).toBe('test');
+    expect(normalizeAdminWorkOrderCreateMode({ mode: 'standard' })).toBe('standard');
+    expect(normalizeAdminWorkOrderCreateMode({ mode: ['test'] })).toBe('standard');
+  });
+
   it('defaults estimated completion date from intake date to the following Sunday cycle', () => {
     expect(getFixedNextSundayDateString('2026-04-27')).toBe('2026-05-10');
     expect(getFixedNextSundayDateString('2026-05-03')).toBe('2026-05-10');
@@ -25,7 +33,6 @@ describe('admin work-order create helpers', () => {
   it('builds create payload for new customers and omits quote items when initial quote is blank', () => {
     const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
 
-    formState.paperOrderNo = 'BR-2026-0001';
     formState.customerPhone = '0912-345-678';
     formState.customerModeDecision = 'create';
     formState.customerName = '王小明';
@@ -54,7 +61,6 @@ describe('admin work-order create helpers', () => {
       workOrder: {
         estimatedCompletionDate: '2026-05-10',
         intakeDate: '2026-04-29',
-        paperOrderNo: 'BR-2026-0001',
         paymentReceived: true,
         repairCount: 1,
         repairCountSource: 'manual',
@@ -62,10 +68,36 @@ describe('admin work-order create helpers', () => {
     });
   });
 
+  it('includes an editable 99 number only for test-mode create payloads', () => {
+    const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
+
+    Object.assign(formState, { paperOrderNo: '990001' });
+    formState.customerPhone = '0912345678';
+    formState.customerModeDecision = 'create';
+    formState.customerName = '王小明';
+    formState.boardType = 'SUP';
+    formState.repairCount = '1';
+    formState.repairCountSource = 'manual';
+
+    const result = buildAdminWorkOrderCreatePayload(formState, 'test');
+
+    expect(result.fieldErrors).toEqual({});
+    expect(result.payload).toMatchObject({
+      paperOrderMode: 'test',
+      workOrder: {
+        paperOrderNo: '990001',
+      },
+    });
+
+    Object.assign(formState, { paperOrderNo: '260001' });
+    expect(buildAdminWorkOrderCreatePayload(formState, 'test').fieldErrors).toMatchObject({
+      paperOrderNo: ['測試工單號必須為 99 開頭，且至少包含四位流水號。'],
+    });
+  });
+
   it('builds a single INITIAL quote item and trims OTHER color values', () => {
     const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
 
-    formState.paperOrderNo = 'BR-2026-0002';
     formState.customerPhone = '0912345678';
     formState.customerModeDecision = 'reuse';
     formState.selectedCustomerId = '4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2';
@@ -130,7 +162,6 @@ describe('admin work-order create helpers', () => {
       workOrder: {
         estimatedCompletionDate: '2026-05-10',
         intakeDate: '2026-04-29',
-        paperOrderNo: 'BR-2026-0002',
         paymentReceived: false,
         repairCount: 1,
         repairCountSource: 'auto',
@@ -146,7 +177,6 @@ describe('admin work-order create helpers', () => {
   it('requires boardLengthClass for surfboards and rejects it for non-surfboards', () => {
     const surfboardForm = createAdminWorkOrderCreateInitialFormState('2026-04-29');
 
-    surfboardForm.paperOrderNo = 'BR-2026-0003';
     surfboardForm.customerPhone = '0912345678';
     surfboardForm.customerModeDecision = 'create';
     surfboardForm.customerName = '王小明';
@@ -158,7 +188,6 @@ describe('admin work-order create helpers', () => {
 
     const snowboardForm = createAdminWorkOrderCreateInitialFormState('2026-04-29');
 
-    snowboardForm.paperOrderNo = 'BR-2026-0004';
     snowboardForm.customerPhone = '0912345678';
     snowboardForm.customerModeDecision = 'create';
     snowboardForm.customerName = '王小明';
@@ -189,7 +218,6 @@ describe('admin work-order create helpers', () => {
   it('requires repair count before building the create payload', () => {
     const formState = createAdminWorkOrderCreateInitialFormState('2026-04-29');
 
-    formState.paperOrderNo = 'BR-2026-0005';
     formState.customerPhone = '0912345678';
     formState.customerModeDecision = 'create';
     formState.customerName = '王小明';
@@ -258,7 +286,7 @@ describe('admin work-order create helpers', () => {
       ),
     ).toBe(false);
 
-    formState.paperOrderNo = 'BR-2026-9999';
+    formState.customerPhone = '0912345678';
     expect(
       hasAdminWorkOrderCreateUnsavedChanges(
         baseline,

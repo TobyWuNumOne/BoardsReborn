@@ -403,7 +403,7 @@ const resultSummary = computed(() => `共 ${response.value.pageInfo.total} 筆�
                 v-model="filterForm.q"
                 autocomplete="off"
                 name="q"
-                placeholder="例如 BR-2026-0001"
+                placeholder="例如 260001"
               />
               <FieldError :errors="validationFieldErrors.q" />
             </Field>

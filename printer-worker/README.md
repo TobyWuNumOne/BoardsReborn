@@ -196,7 +196,7 @@ Claimed print job
 - boardTypeLabel: 衝浪板
 - paymentReceived: true
 - repairCount: 6
-- publicLookupUrl: https://boardsreborn.com/repair-status
+- publicLookupUrl: https://status.surfboards-reborn.com/repair-status
 Reported success -> status=printed attemptCount=0 printedAt=...
 ```
 

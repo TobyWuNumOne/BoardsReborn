@@ -22,9 +22,11 @@
 - `implemented` `GET /api/admin/work-orders`：工單列表。
 - `implemented` `GET /api/admin/work-orders/lookup`：掃碼頁單筆工單查詢。
 - `implemented` `GET /api/admin/work-orders/resolve`：用 `paperOrderNo` 解析 internal UUID。
+- `implemented` `GET /api/admin/work-orders/next-paper-order-no`：取得目前估算的下一張系統工單號。
 - `implemented` `POST /api/admin/work-orders`：建立工單。
 - `implemented` `GET /api/admin/work-orders/{id}`：工單詳情。
 - `implemented` `PATCH /api/admin/work-orders/{id}`：更新非狀態欄位。
+- `implemented` `DELETE /api/admin/work-orders/{id}`：刪除新建錯單。
 - `implemented` `POST /api/admin/work-orders/{id}/quick-note`：附加掃碼頁快速內部備註。
 - `implemented` `POST /api/admin/work-orders/{id}/status`：單筆狀態更新。
 - `implemented` `POST /api/admin/work-orders/bulk-status`：批量狀態更新。
@@ -77,7 +79,7 @@ request body 另外必須帶 `deviceKey`。token 無效時回傳 `401`。device 
 
 顧客查詢不需要登入，但必須提供：
 
-- 紙本工單號。
+- 工單號。
 - 完整手機號碼。
 
 Server 應正規化 `customers.phone` 後比對完整台灣手機號碼。
@@ -146,7 +148,7 @@ List response 格式：
 
 `fieldErrors` 統一使用 `Record<string, string[]>` 結構。已知 API 錯誤應由 server-side typed error classes 表示，route handler 不應散落以字串判斷錯誤類型。
 
-第一版 query、body、path validation 失敗一律回 `422 VALIDATION_ERROR`。紙本工單號唯一性衝突回 `409 CONFLICT`。查無 customer 或 work order 回 `404 NOT_FOUND`。
+第一版 query、body、path validation 失敗一律回 `422 VALIDATION_ERROR`。工單號唯一性衝突回 `409 CONFLICT`。查無 customer 或 work order 回 `404 NOT_FOUND`。
 
 ## Admin Session
 
@@ -228,7 +230,7 @@ Admin 單筆 detail / update / status endpoint 使用 `work_orders.id` 作為 in
 Query example：
 
 ```text
-/api/admin/work-orders/lookup?code=BR20260601001
+/api/admin/work-orders/lookup?code=260001
 ```
 
 Response：`200`
@@ -238,7 +240,7 @@ Response：`200`
   "data": {
     "summary": {
       "id": "b1be8b4e-bd70-4b8a-8d45-1bde198c90a4",
-      "paperOrderNo": "BR20260601001",
+      "paperOrderNo": "260001",
       "status": "READY_FOR_PICKUP",
       "receivedAt": "2026-06-01T06:30:00.000Z",
       "estimatedCompletedAt": "2026-06-10",
@@ -302,7 +304,7 @@ Query examples：
 /api/admin/work-orders?overdueEstimatedCompletion=true
 /api/admin/work-orders?pickupOverdue=true
 /api/admin/work-orders?staleReceived=true
-/api/admin/work-orders?q=BR-2026-0001
+/api/admin/work-orders?q=260001
 /api/admin/work-orders?customerPhone=0912345678
 ```
 
@@ -331,7 +333,7 @@ Response：
   "data": [
     {
       "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-      "paperOrderNo": "BR-2026-0001",
+      "paperOrderNo": "260001",
       "customer": {
         "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
         "name": "王小明",
@@ -373,12 +375,12 @@ Response：
 
 ### `GET /api/admin/work-orders/resolve`
 
-依紙本工單號 exact match 查出系統內部工單 UUID。這支 endpoint 用於掃碼、搜尋工單號後進入詳情、批量狀態 preview 或後續更新流程，不做 fuzzy search，也不取代 list API。
+依工單號 exact match 查出系統內部工單 UUID。這支 endpoint 用於掃碼、搜尋工單號後進入詳情、批量狀態 preview 或後續更新流程，不做 fuzzy search，也不取代 list API。
 
 Query example：
 
 ```text
-/api/admin/work-orders/resolve?paperOrderNo=BR-2026-0001
+/api/admin/work-orders/resolve?paperOrderNo=260001
 ```
 
 `paperOrderNo` 會 trim 前後空白，長度必須是 `3..50`。第一版不新增固定格式 regex。查無工單時回 `404 NOT_FOUND`。
@@ -389,7 +391,7 @@ Response：
 {
   "data": {
     "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-    "paperOrderNo": "BR-2026-0001",
+    "paperOrderNo": "260001",
     "currentStatus": "REPAIRING",
     "customer": {
       "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
@@ -409,6 +411,24 @@ Response：
       "staleReceived": false
     },
     "lastUpdatedAt": "2026-04-20T08:30:00.000Z"
+  }
+}
+```
+
+### `GET /api/admin/work-orders/next-paper-order-no`
+
+取得目前估算的下一張系統工單號。這支 endpoint 只供新增工單頁顯示；不保留或佔用單號。正式 `paperOrderNo` 仍以 `POST /api/admin/work-orders` 建立成功後回傳為準。
+
+可選 query `mode=standard|test`，省略時為 `standard`。`test` 回傳現存 `99` 前綴純數字最大流水號 +1；沒有測試工單時為 `990001`，已有 `999999` 時為 `9910000`。未知 query 或其他 mode 回 `422 VALIDATION_ERROR`。
+
+新單號由 database helper 以 `Asia/Taipei` 建單當下年份產生，格式為年份後兩碼 + 至少四位流水號，例如 `260001`。流水號只計算同年前綴的純數字既有工單號，舊 `BR-...` 類型不參與。
+
+Response：
+
+```json
+{
+  "data": {
+    "paperOrderNo": "260001"
   }
 }
 ```
@@ -437,7 +457,6 @@ Request：
     "serialLabel": "A12"
   },
   "workOrder": {
-    "paperOrderNo": "BR-2026-0001",
     "intakeDate": "2026-04-20",
     "damageDescription": "鼻頭裂傷，疑似進水",
     "estimatedCompletionDate": "2026-04-26",
@@ -485,7 +504,6 @@ Request：
     "sizeLabel": "6'2"
   },
   "workOrder": {
-    "paperOrderNo": "BR-2026-0001",
     "intakeDate": "2026-04-20",
     "repairCount": 2,
     "repairCountSource": "manual"
@@ -496,6 +514,8 @@ Request：
 
 `repairCount` / `repairCountSource` 規則：
 
+- `paperOrderMode` 省略時為 `standard`；正式模式的 `workOrder.paperOrderNo` 由 server 產生且 request 不可帶此欄位
+- `paperOrderMode = test` 時，`workOrder.paperOrderNo` 必填且只能符合 `^99[0-9]{4,}$`；格式錯誤回 `422 VALIDATION_ERROR`，重複回 `409 CONFLICT`
 - `POST /api/admin/work-orders` 必須能解析出最終 `repairCount`；若最終值為 `null` 或缺少，回 `422 VALIDATION_ERROR`，`fieldErrors.workOrder.repairCount`
 - `repairCountSource = auto`：建立工單時至少要有一筆 `repairMarks`；server 以 mark 數量為準，不接受「auto 但沒有 mark」的 create payload
 - `repairCountSource = manual`：`repairCount` 必填且必須 >= 1
@@ -507,7 +527,7 @@ Response：`201`
 {
   "data": {
     "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-    "paperOrderNo": "BR-2026-0001",
+    "paperOrderNo": "260001",
     "currentStatus": "RECEIVED",
     "quoteTotalAmount": 500,
     "createdAt": "2026-04-20T08:00:00.000Z"
@@ -516,6 +536,10 @@ Response：`201`
 ```
 
 建立工單前，server 必須先確認可解析出非空 `repairCount`，因為 `work_order_label` 與 `customer_receipt` 都需要完整 print-ready snapshot。若 `repairCount` 缺少，整體建單回 `422 VALIDATION_ERROR`。除這個前置條件外，建工單成功後仍會 best-effort 依序建立 `work_order_label` 與 `customer_receipt` 兩筆 `print_jobs`；enqueue 失敗不回滾工單主資料。
+
+正式工單號在 database transaction 內透過 `get_next_admin_paper_order_no(true)` 產生。該 helper 會依 `Asia/Taipei` 年份後兩碼查詢同年前綴的現存純數字最大流水號並 +1；例如沒有當年工單時為 `260001`，已有 `260004` 時為 `260005`，已有 `269999` 時為 `2610000`。建立時會使用 transaction-level advisory lock 避免併發撞號。若刪除目前最高號，下一張新工單可以重用該號。
+
+正式環境可由後台設定頁進入測試建單模式。測試模式允許 admin 使用頁面預填或手動修改的 `99` 單號；DB 會再次驗證 namespace。測試工單不另存旗標，建立後與一般工單共用列表、詳情、查詢、狀態與兩種初始列印任務。
 
 ### `GET /api/admin/work-orders/{id}`
 
@@ -527,7 +551,7 @@ Response：
 {
   "data": {
     "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-    "paperOrderNo": "BR-2026-0001",
+    "paperOrderNo": "260001",
     "currentStatus": "REPAIRING",
     "customer": {
       "id": "ddf3e1b0-1c86-41a9-a22c-a40231ecf981",
@@ -665,6 +689,29 @@ Response：
 }
 ```
 
+### `DELETE /api/admin/work-orders/{id}`
+
+刪除新建錯單。這是 hard delete，只能由 admin 使用；刪除 `work_orders` 後，資料庫 cascade 會移除該工單的 `status_history`、`quote_items`、`print_jobs`、`work_order_repair_marks` 等關聯資料，但不刪除 `customers`。
+
+允許刪除條件：
+
+- `work_orders.current_status = RECEIVED`
+- 該工單沒有 `locked`、`printing` 或 `printed` 狀態的 `print_jobs`
+
+不符合條件時回 `409 CONFLICT`。查無工單回 `404 NOT_FOUND`。
+
+Response：
+
+```json
+{
+  "data": {
+    "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
+    "paperOrderNo": "260005",
+    "deletedAt": "2026-06-12T06:30:00.000Z"
+  }
+}
+```
+
 ### `POST /api/admin/work-orders/{id}/quick-note`
 
 掃碼頁快速內部備註。這支 endpoint 只接受單一 `note` 欄位，並將內容附加到 `work_orders.internal_note` 尾端，不覆蓋既有內容。
@@ -718,7 +765,7 @@ Response：`201`
   "data": {
     "workOrder": {
       "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-      "paperOrderNo": "BR-2026-0001",
+      "paperOrderNo": "260001",
       "currentStatus": "READY_FOR_PICKUP",
       "readyForPickupAt": "2026-04-20T09:30:00.000Z",
       "deliveredAt": null,
@@ -752,7 +799,7 @@ Request：
 
 ```json
 {
-  "paperOrderNos": ["BR-2026-0001", "BR-2026-0002", "BR-2026-0001", "BR-2026-0003"],
+  "paperOrderNos": ["260001", "260002", "260001", "260003"],
   "status": "REPAIRING",
   "note": "今日統一開工"
 }
@@ -771,13 +818,13 @@ Response：`200`
     "skippedCount": 1,
     "updated": [
       {
-        "paperOrderNo": "BR-2026-0001",
+        "paperOrderNo": "260001",
         "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
         "currentStatus": "REPAIRING",
         "statusHistoryId": "8b1c52b7-5bfd-4ff3-bd69-467963515bc8"
       },
       {
-        "paperOrderNo": "BR-2026-0002",
+        "paperOrderNo": "260002",
         "workOrderId": "d07e4aab-c2ae-4b8b-90a2-5c82e3796a6f",
         "currentStatus": "REPAIRING",
         "statusHistoryId": "c8ab0f5b-2653-433b-8443-0ef1fcd8507e"
@@ -785,7 +832,7 @@ Response：`200`
     ],
     "skipped": [
       {
-        "paperOrderNo": "BR-2026-0003",
+        "paperOrderNo": "260003",
         "reason": "INVALID_STATUS_TRANSITION"
       }
     ]
@@ -821,7 +868,7 @@ Query：
 | -------------- | -------- | ---------------------------- |
 | `status`       | no       | `failed`                     |
 | `workOrderId`  | no       | `4d4ff81c-2b1d-41aa-9fd2...` |
-| `paperOrderNo` | no       | `BR-2026-0001`               |
+| `paperOrderNo` | no       | `260001`               |
 | `page`         | no       | `1`                          |
 | `pageSize`     | no       | `20`                         |
 | `sort`         | no       | `createdAt:desc`             |
@@ -845,7 +892,7 @@ Response：
       "updatedAt": "2026-05-21T10:04:00.000Z",
       "workOrder": {
         "id": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-        "paperOrderNo": "BR-2026-0001"
+        "paperOrderNo": "260001"
       },
       "customer": {
         "name": "王小明"
@@ -886,7 +933,7 @@ Request：
 
 `jobType` 允許：
 
-- `work_order_label`：工單標籤，使用紙本工單號文字與 1D barcode。
+- `work_order_label`：工單標籤，使用工單號文字與 1D barcode。
 - `customer_receipt`：顧客留存聯，使用 CP950 / Big5 中文文字與 QR Code 導向公開查詢頁。
 
 Response：`201`
@@ -1030,7 +1077,7 @@ Response：
       "currentJob": {
         "id": "f126a8fd-13f6-4797-a874-22a397ad25c7",
         "workOrderId": "4d4ff81c-2b1d-41aa-9fd2-7fd43fba4df2",
-        "paperOrderNo": "BR-2026-0001",
+        "paperOrderNo": "260001",
         "status": "locked",
         "lockedAt": "2026-05-22T09:28:00.000Z"
       },
@@ -1351,7 +1398,7 @@ Response：`201`
     "photoType": "SPECIAL_CONDITION",
     "visibility": "INTERNAL",
     "bucket": "repair-photos",
-    "path": "work-orders/BR-2026-0001/20260420-special-condition.jpg",
+    "path": "work-orders/260001/20260420-special-condition.jpg",
     "contentType": "image/jpeg",
     "sizeBytes": 348112,
     "createdAt": "2026-04-20T09:00:00.000Z"
@@ -1371,7 +1418,7 @@ Response：
       "photoType": "SPECIAL_CONDITION",
       "visibility": "INTERNAL",
       "bucket": "repair-photos",
-      "path": "work-orders/BR-2026-0001/20260420-special-condition.jpg",
+      "path": "work-orders/260001/20260420-special-condition.jpg",
       "createdAt": "2026-04-20T09:00:00.000Z"
     }
   ]
@@ -1485,7 +1532,7 @@ Request：
 
 ```json
 {
-  "paperOrderNo": "BR-2026-0001",
+  "paperOrderNo": "260001",
   "phone": "0912345678"
 }
 ```
@@ -1495,7 +1542,7 @@ Response：
 ```json
 {
   "data": {
-    "paperOrderNo": "BR-2026-0001",
+    "paperOrderNo": "260001",
     "boardType": "SURFBOARD",
     "currentStatus": "REPAIRING",
     "statusLabel": "維修中",

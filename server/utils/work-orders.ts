@@ -8,6 +8,7 @@ import {
   type RepairCountSource,
   STALE_RECEIVED_DAYS,
   type CreateWorkOrderInput,
+  type PaperOrderMode,
   type PatchWorkOrderInput,
   type StatusTransitionInput,
   type WorkOrderListQuery,
@@ -678,6 +679,32 @@ const assertCreateResult = (value: unknown) => {
   };
 };
 
+const assertNextPaperOrderNoResult = (value: unknown) => {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new InternalServerError();
+  }
+
+  return value;
+};
+
+const assertDeleteResult = (value: unknown) => {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('id' in value) ||
+    !('paperOrderNo' in value) ||
+    !('deletedAt' in value)
+  ) {
+    throw new InternalServerError();
+  }
+
+  return value as {
+    deletedAt: string;
+    id: string;
+    paperOrderNo: string;
+  };
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -1007,7 +1034,10 @@ export const createAdminWorkOrder = async (
     p_customer_id: input.customerId,
     p_customer_mode: input.customerMode,
     p_quote_items: toJsonObject(input.quoteItems),
-    p_work_order: toJsonObject(input.workOrder),
+    p_work_order: toJsonObject({
+      ...input.workOrder,
+      paperOrderMode: input.paperOrderMode ?? 'standard',
+    }),
   });
 
   if (error) {
@@ -1035,6 +1065,27 @@ export const createAdminWorkOrder = async (
 
   return {
     data: result,
+  };
+};
+
+export const getNextAdminPaperOrderNo = async (
+  supabase: UserScopedSupabaseClient,
+  mode: PaperOrderMode = 'standard',
+) => {
+  const functionName =
+    mode === 'test' ? 'get_next_admin_test_paper_order_no' : 'get_next_admin_paper_order_no';
+  const { data, error } = await supabase.rpc(functionName, {
+    p_lock: false,
+  });
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  return {
+    data: {
+      paperOrderNo: assertNextPaperOrderNoResult(data),
+    },
   };
 };
 
@@ -1550,6 +1601,23 @@ export const patchAdminWorkOrder = async (
       id: data.id,
       updatedAt: data.updated_at,
     },
+  };
+};
+
+export const deleteAdminWorkOrder = async (
+  supabase: UserScopedSupabaseClient,
+  id: string,
+) => {
+  const { data, error } = await supabase.rpc('delete_admin_work_order', {
+    p_work_order_id: id,
+  });
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  return {
+    data: assertDeleteResult(data),
   };
 };
 

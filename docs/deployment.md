@@ -57,6 +57,8 @@ export SUPABASE_ACCESS_TOKEN="<paste-token-in-local-shell-only>"
 | `SUPABASE_SERVICE_ROLE_KEY`     | Supabase service role / secret key   | 否           | server-only elevated key                                                     |
 | `NEXT_PUBLIC_SUPABASE_URL`      | Vercel integration public URL        | 是           | 可直接由 Vercel Supabase integration 匯入；若有 `SUPABASE_URL` 仍可共存      |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel integration public client key | 是           | 可直接由 Vercel Supabase integration 匯入；若有 `SUPABASE_ANON_KEY` 仍可共存 |
+| `NUXT_PUBLIC_ADMIN_URL`         | Production admin origin              | 是           | 正式環境使用 `https://admin.surfboards-reborn.com`；local / staging 留空     |
+| `NUXT_PUBLIC_STATUS_URL`        | Production public lookup origin      | 是           | 正式環境使用 `https://status.surfboards-reborn.com`；QR 優先使用此值         |
 | `NUXT_PUBLIC_APP_URL`           | Vercel staging / preview URL         | 是           | 可手動指定；未設定時會 fallback 到 Vercel deployment URL                     |
 | `ADMIN_EMAIL`                   | 手動建立 admin 時使用                | 否           | 目前 seed 不會自動建立 admin                                                 |
 | `ADMIN_PASSWORD`                | 手動建立 admin 時使用                | 否           | 不要 commit                                                                  |
@@ -74,6 +76,18 @@ export SUPABASE_ACCESS_TOKEN="<paste-token-in-local-shell-only>"
 不要再使用以下錯名：
 
 - `NUXT_PUBLIC_SITE_URL`
+
+### Production domain routing
+
+正式 Vercel product project 必須設定：
+
+```text
+NUXT_PUBLIC_ADMIN_URL=https://admin.surfboards-reborn.com
+NUXT_PUBLIC_STATUS_URL=https://status.surfboards-reborn.com
+NUXT_PUBLIC_APP_URL=https://status.surfboards-reborn.com
+```
+
+Nuxt 會依 host 將 admin、status、主網域與 `www` 導向各自的 canonical route。所有網域導向目前固定使用 `302`，避免瀏覽器或 CDN 在品牌官網切換前保留永久 redirect。一般 preview 與獨立 staging project 不設定 admin/status URL，因此不啟用 production domain routing。
 
 ## Supabase Staging
 
