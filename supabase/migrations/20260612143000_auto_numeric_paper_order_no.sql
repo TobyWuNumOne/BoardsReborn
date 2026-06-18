@@ -193,7 +193,8 @@ begin
   select work_orders.paper_order_no, work_orders.current_status
   into v_paper_order_no, v_status
   from public.work_orders
-  where work_orders.id = p_work_order_id;
+  where work_orders.id = p_work_order_id
+  for update;
 
   if v_paper_order_no is null then
     raise exception 'Work order not found'
@@ -204,6 +205,11 @@ begin
     raise exception 'Only RECEIVED work orders can be deleted'
       using errcode = '23514';
   end if;
+
+  perform 1
+  from public.print_jobs
+  where print_jobs.work_order_id = p_work_order_id
+  for update;
 
   if exists (
     select 1

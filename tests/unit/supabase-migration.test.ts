@@ -100,10 +100,11 @@ const customerReceiptPrintJobSnapshotMigration = readFileSync(
   'utf8',
 );
 const autoNumericPaperOrderNoMigration = readFileSync(
-  resolve(
-    process.cwd(),
-    'supabase/migrations/20260612143000_auto_numeric_paper_order_no.sql',
-  ),
+  resolve(process.cwd(), 'supabase/migrations/20260612143000_auto_numeric_paper_order_no.sql'),
+  'utf8',
+);
+const deleteAdminWorkOrderLockingMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260618161500_delete_admin_work_order_locking.sql'),
   'utf8',
 );
 const testPaperOrderNoMigrationPath = resolve(
@@ -361,7 +362,9 @@ describe('initial Supabase migration', () => {
       'create or replace function public.get_next_admin_paper_order_no',
     );
     expect(autoNumericPaperOrderNoMigration).toContain("timezone('Asia/Taipei', now())");
-    expect(autoNumericPaperOrderNoMigration).toContain("to_char(timezone('Asia/Taipei', now()), 'YY')");
+    expect(autoNumericPaperOrderNoMigration).toContain(
+      "to_char(timezone('Asia/Taipei', now()), 'YY')",
+    );
     expect(autoNumericPaperOrderNoMigration).toContain(
       "pg_advisory_xact_lock(hashtext('work_order_paper_order_no'), v_year_suffix::integer)",
     );
@@ -371,12 +374,8 @@ describe('initial Supabase migration', () => {
     expect(autoNumericPaperOrderNoMigration).toContain(
       "when length(v_next_sequence::text) < 4 then lpad(v_next_sequence::text, 4, '0')",
     );
-    expect(autoNumericPaperOrderNoMigration).toContain(
-      'else v_next_sequence::text',
-    );
-    expect(autoNumericPaperOrderNoMigration).toContain(
-      'return v_year_suffix || v_sequence_label',
-    );
+    expect(autoNumericPaperOrderNoMigration).toContain('else v_next_sequence::text');
+    expect(autoNumericPaperOrderNoMigration).toContain('return v_year_suffix || v_sequence_label');
     expect(autoNumericPaperOrderNoMigration).toContain(
       'v_paper_order_no := public.get_next_admin_paper_order_no(true)',
     );
@@ -387,17 +386,17 @@ describe('initial Supabase migration', () => {
       'create or replace function public.delete_admin_work_order',
     );
     expect(autoNumericPaperOrderNoMigration).toContain(
+      'where work_orders.id = p_work_order_id\n  for update;',
+    );
+    expect(autoNumericPaperOrderNoMigration).toContain(
+      'perform 1\n  from public.print_jobs\n  where print_jobs.work_order_id = p_work_order_id\n  for update;',
+    );
+    expect(autoNumericPaperOrderNoMigration).toContain(
       "v_status <> 'RECEIVED'::public.work_order_status",
     );
-    expect(autoNumericPaperOrderNoMigration).toContain(
-      "'locked'::public.print_job_status",
-    );
-    expect(autoNumericPaperOrderNoMigration).toContain(
-      "'printing'::public.print_job_status",
-    );
-    expect(autoNumericPaperOrderNoMigration).toContain(
-      "'printed'::public.print_job_status",
-    );
+    expect(autoNumericPaperOrderNoMigration).toContain("'locked'::public.print_job_status");
+    expect(autoNumericPaperOrderNoMigration).toContain("'printing'::public.print_job_status");
+    expect(autoNumericPaperOrderNoMigration).toContain("'printed'::public.print_job_status");
   });
 
   it('reserves the 99 namespace for editable test work orders', () => {
@@ -411,7 +410,19 @@ describe('initial Supabase migration', () => {
     expect(testPaperOrderNoMigration).toContain("v_paper_order_mode = 'test'");
     expect(testPaperOrderNoMigration).toContain("v_paper_order_no !~ '^99[0-9]{4,}$'");
     expect(testPaperOrderNoMigration).toContain(
-      "v_paper_order_no := public.get_next_admin_paper_order_no(true)",
+      'v_paper_order_no := public.get_next_admin_paper_order_no(true)',
+    );
+  });
+
+  it('patches delete_admin_work_order for already-applied environments', () => {
+    expect(deleteAdminWorkOrderLockingMigration).toContain(
+      'create or replace function public.delete_admin_work_order',
+    );
+    expect(deleteAdminWorkOrderLockingMigration).toContain(
+      'where work_orders.id = p_work_order_id\n  for update;',
+    );
+    expect(deleteAdminWorkOrderLockingMigration).toContain(
+      'perform 1\n  from public.print_jobs\n  where print_jobs.work_order_id = p_work_order_id\n  for update;',
     );
   });
 
