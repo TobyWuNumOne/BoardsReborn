@@ -8,26 +8,27 @@ This document is the authoritative reference for local development setup, toolch
 
 The scaffold has been verified against the following versions:
 
-| Item               | Version / Rule                              | Notes                                                              |
-| ------------------ | ------------------------------------------- | ------------------------------------------------------------------ |
-| Node.js            | `>=20.19.0`, verified locally at `v20.19.3` | Node 22 not required at this time.                                 |
-| pnpm               | `10.13.1`                                   | `packageManager` field is pinned to this version.                  |
-| Nuxt               | `4.1.1`                                     | Version pinned to avoid newer dependency chains requiring Node 22. |
-| Nitro / Nitropack  | `2.12.6`                                    | Pinned via `pnpm.overrides`.                                       |
-| H3                 | `1.15.11`                                   | Used directly in server API helpers.                               |
-| Nuxt CLI           | `3.28.0`                                    | Pinned via `pnpm.overrides` to avoid peer dependency warnings.     |
-| Vue                | `3.5.32`                                    | Locked by lockfile.                                                |
-| Vue Router         | `4.6.4`                                     | Locked by lockfile.                                                |
-| TypeScript         | `5.9.3`                                     | Locked by lockfile.                                                |
-| Tailwind CSS       | `4.x`                                       | Integrated via `@tailwindcss/vite`.                                |
-| shadcn-vue         | CLI-generated components                    | `components/ui` uses CLI-generated primitives.                     |
-| shadcn-nuxt        | `2.x`                                       | Enables shadcn-vue component auto-import.                          |
-| `@nuxtjs/supabase` | `2.0.5`                                     | Pinned to enable server helpers and DB types alias.                |
-| `@nuxt/eslint`     | `1.15.2`                                    | Nuxt flat ESLint config.                                           |
-| `@nuxt/test-utils` | `3.23.0`                                    | Nuxt test utilities module.                                        |
-| Vitest             | `3.2.4`                                     | Locked by lockfile.                                                |
-| ESLint             | `9.39.4`                                    | Locked by lockfile.                                                |
-| Prettier           | `3.8.3`                                     | Formatting config in `.prettierrc`.                                |
+| Item                     | Version / Rule                              | Notes                                                              |
+| ------------------------ | ------------------------------------------- | ------------------------------------------------------------------ |
+| Node.js                  | `>=20.19.0`, verified locally at `v20.19.3` | Node 22 not required at this time.                                 |
+| pnpm                     | `10.13.1`                                   | `packageManager` field is pinned to this version.                  |
+| Nuxt                     | `4.1.1`                                     | Version pinned to avoid newer dependency chains requiring Node 22. |
+| Nitro / Nitropack        | `2.12.6`                                    | Pinned via `pnpm.overrides`.                                       |
+| H3                       | `1.15.11`                                   | Used directly in server API helpers.                               |
+| Nuxt CLI                 | `3.28.0`                                    | Pinned via `pnpm.overrides` to avoid peer dependency warnings.     |
+| Vue                      | `3.5.32`                                    | Locked by lockfile.                                                |
+| Vue Router               | `4.6.4`                                     | Locked by lockfile.                                                |
+| TypeScript               | `5.9.3`                                     | Locked by lockfile.                                                |
+| Tailwind CSS             | `4.x`                                       | Integrated via `@tailwindcss/vite`.                                |
+| shadcn-vue               | CLI-generated components                    | `components/ui` uses CLI-generated primitives.                     |
+| shadcn-nuxt              | `2.x`                                       | Enables shadcn-vue component auto-import.                          |
+| `@nuxtjs/supabase`       | `2.0.5`                                     | Pinned to enable server helpers and DB types alias.                |
+| `@vercel/speed-insights` | `2.0.0`                                     | Vercel Speed Insights Nuxt module for production web vitals.       |
+| `@nuxt/eslint`           | `1.15.2`                                    | Nuxt flat ESLint config.                                           |
+| `@nuxt/test-utils`       | `3.23.0`                                    | Nuxt test utilities module.                                        |
+| Vitest                   | `3.2.4`                                     | Locked by lockfile.                                                |
+| ESLint                   | `9.39.4`                                    | Locked by lockfile.                                                |
+| Prettier                 | `3.8.3`                                     | Formatting config in `.prettierrc`.                                |
 
 Actual installed resolutions are governed by `package.json` and `pnpm-lock.yaml`. This document does not enumerate every shadcn-vue runtime dependency lockfile version. When upgrading Nuxt, Nitro, Node, Tailwind, shadcn packages, or formatting tools, update this table, re-run `pnpm install`, and at minimum run `pnpm format:check`, `pnpm lint`, `pnpm test`, `pnpm typecheck`, `pnpm build`.
 
@@ -101,6 +102,8 @@ Set these in `.env` or in the deployment platform environment. The repo is compa
 | `SUPABASE_SERVICE_ROLE_KEY`     | Server-only elevated key — Nitro server API use only                       | No           |
 | `NEXT_PUBLIC_SUPABASE_URL`      | Vercel / Next-style public URL alias; overrides `SUPABASE_URL`             | Yes          |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel / Next-style public client key alias; overrides `SUPABASE_ANON_KEY` | Yes          |
+| `NUXT_PUBLIC_ADMIN_URL`         | Production admin origin; leave empty for local and staging                 | Yes          |
+| `NUXT_PUBLIC_STATUS_URL`        | Public customer lookup origin; QR generation prefers this value            | Yes          |
 | `NUXT_PUBLIC_APP_URL`           | Public app URL; falls back to Vercel deployment URL if unset               | Yes          |
 | `ADMIN_EMAIL`                   | Used when seeding or manually creating the first admin account             | No           |
 | `ADMIN_PASSWORD`                | Used when seeding or manually creating the first admin account             | No           |

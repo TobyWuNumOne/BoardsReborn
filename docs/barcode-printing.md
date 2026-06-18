@@ -94,10 +94,11 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 目前 MVP 列印內容策略：
 
 - 工單標籤 `work_order_label` 仍以工單號、日期、電話、付款狀態與維修處數等精簡 receipt 內容為主；1D barcode payload 維持 ASCII-only
-- 顧客留存聯 `customer_receipt` 是獨立 print job，使用 CP950 / Big5 中文文字與 QR Code 導向公開查詢頁 `/repair-status`
+- 顧客留存聯 `customer_receipt` 是獨立 print job，使用 CP950 / Big5 中文文字與 QR Code 導向 `https://status.surfboards-reborn.com/repair-status`；不把工單號或手機放入 URL
 - enqueue `print_jobs` 時就建立 immutable print-ready snapshot，worker 不再自行推導 repair count
 - `work_order_label` snapshot 目前使用 `templateVersion = 2`，至少包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount`
 - `customer_receipt` snapshot 目前使用 `templateVersion = 1`，至少包含 `paperOrderNo`、`intakeDate`、`customerPhone`、`boardTypeLabel`、`paymentReceived`、`repairCount`、`publicLookupUrl`
+- `publicLookupUrl` 優先由 `NUXT_PUBLIC_STATUS_URL` 產生；未設定時才 fallback 到 `NUXT_PUBLIC_APP_URL`。既有 print job snapshot 維持 immutable，不回寫舊 URL。
 - 列印置中的收件日期、電話 / 付款狀態、大字工單號、維修處數括號與同一個工單號的 1D barcode
 - 1D barcode height 固定 `0x40`
 - 1D barcode 優先評估 `Code39` 或 `Code128`

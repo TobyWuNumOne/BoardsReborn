@@ -47,6 +47,14 @@
 
 - `/repair-status`
 
+Production domain routing：
+
+- `admin.surfboards-reborn.com` 承載 `/admin/**`、`/login` 與 `/forbidden`。
+- `status.surfboards-reborn.com` 承載 `/repair-status` 與 `/repair-status/**`。
+- `surfboards-reborn.com` 與 `www.surfboards-reborn.com` 暫時以 `302` 導向 status 查詢入口；舊 `/repair-status` path 與 query 會保留。
+- 跨網域導向保留 path 與 query；client-side navigation 在可取得時也保留 hash。SSR 首次請求不保證 hash，因為瀏覽器不會把 fragment 傳給 server。
+- localhost、staging、preview 與其他未知 host 不套用 production domain routing。
+
 第一版仍暫不建立獨立的 `/admin/customers`、`/admin/quotes`、`/admin/photos`。列印則例外拆成：
 
 - `/admin/printing`：列印中心，從任務視角看列印紀錄、狀態與 retry
@@ -80,6 +88,7 @@
 ## Public Lookup
 
 - `/repair-status` 是顧客查進度頁，不需要登入。
+- 顧客留存聯 QR Code 固定導向 `https://status.surfboards-reborn.com/repair-status`，不預帶工單號或手機。
 - 第一版使用：
   - 工單號
   - 完整台灣手機號碼

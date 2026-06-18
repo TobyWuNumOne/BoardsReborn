@@ -174,6 +174,10 @@ describe('print job validation', () => {
 });
 
 describe('print job services', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('lists admin print jobs with pagination and nested response mapping', async () => {
     const client = {
       from() {
@@ -275,6 +279,13 @@ describe('print job services', () => {
   });
 
   it('calls admin and worker print job RPCs with the expected payloads', async () => {
+    vi.stubGlobal('useRuntimeConfig', () => ({
+      public: {
+        appUrl: 'https://legacy.surfboards-reborn.com/',
+        statusUrl: 'https://status.surfboards-reborn.com/',
+      },
+    }));
+
     const calls: Array<{ args: Record<string, unknown>; name: string }> = [];
     const client = {
       rpc(name: string, args: Record<string, unknown>) {
@@ -430,7 +441,7 @@ describe('print job services', () => {
       args: {
         p_created_by_user_id: 'user-1',
         p_job_type: 'work_order_label',
-        p_public_lookup_url: 'http://localhost:3000/repair-status',
+        p_public_lookup_url: 'https://status.surfboards-reborn.com/repair-status',
         p_work_order_id: 'work-order-1',
       },
       name: 'create_admin_print_job',
