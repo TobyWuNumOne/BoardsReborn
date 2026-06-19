@@ -92,7 +92,7 @@ export const PUBLIC_BOARD_REPAIR_INFO: Record<BoardType, PublicBoardRepairInfo> 
 export const PUBLIC_REPAIR_NOTICE_ITEMS = [
   '補板前請仔細檢查板子，將待補位置圈寫至補板單，上方留下姓名與電話，以便報價與聯繫。',
   `補板費請於完成報價後三日內完成轉帳付款。（銀行代號：${PUBLIC_REPAIR_SHOP_INFO.bankCode} 帳號：${PUBLIC_REPAIR_SHOP_INFO.bankAccount}）`,
-  '付完款後才會進入修補排程，我們不主動通知修補進度，請主動於預估時程內來電確認維修進度，再電話預約時間取板。',
+  '付完款後才會進入修補排程，我們不主動通知修補進度，請主動於預估時程內透過官方 LINE 確認維修進度，並預約取板時間。',
   '調色不保證百分百無色差，對色差極度敏銳者，請謹慎考慮。',
   '通知修理工作完成日起算 14 日內，請將板子領回；超過 14 日不領者，每周加收 NT$200 寄板費，費用累計超過補板費用時，板子將以補板費價格出售。',
 ] as const;
