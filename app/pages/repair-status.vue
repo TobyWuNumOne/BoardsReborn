@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import {
-  BanknoteIcon,
-  ClockIcon,
-  MapPinIcon,
-  PhoneCallIcon,
-  RotateCcwIcon,
-  SearchIcon,
-} from 'lucide-vue-next';
+import { BanknoteIcon, ClockIcon, MapPinIcon, RotateCcwIcon, SearchIcon } from 'lucide-vue-next';
 import { cn } from '@/lib/utils';
 import type {
   PublicApiErrorEnvelope,
@@ -238,9 +231,8 @@ const lookupPublicWorkOrder = async () => {
 
           <CardContent class="space-y-4">
             <Button as-child class="h-12 w-full text-base">
-              <a :href="PUBLIC_REPAIR_SHOP_INFO.phoneHref">
-                <PhoneCallIcon class="size-5" />
-                撥打 {{ PUBLIC_REPAIR_SHOP_INFO.phone }}
+              <a :href="PUBLIC_REPAIR_SHOP_INFO.officialLineHref" rel="noreferrer" target="_blank">
+                前往 {{ PUBLIC_REPAIR_SHOP_INFO.officialLineLabel }}
               </a>
             </Button>
 
@@ -299,13 +291,16 @@ const lookupPublicWorkOrder = async () => {
                   {{ PUBLIC_REPAIR_SHOP_INFO.pickupReminder }}
                 </h2>
                 <p class="text-sm leading-6 text-muted-foreground">
-                  取板前請先確認維修是否完工，再來電預約取板時間。
+                  取板前請先確認維修是否完工，再透過官方 LINE 預約取板時間。
                 </p>
               </div>
               <Button as-child class="h-11 w-full sm:w-auto">
-                <a :href="PUBLIC_REPAIR_SHOP_INFO.phoneHref">
-                  <PhoneCallIcon class="size-4" />
-                  {{ PUBLIC_REPAIR_SHOP_INFO.phone }}
+                <a
+                  :href="PUBLIC_REPAIR_SHOP_INFO.officialLineHref"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  前往 {{ PUBLIC_REPAIR_SHOP_INFO.officialLineLabel }}
                 </a>
               </Button>
             </div>

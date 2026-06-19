@@ -11,7 +11,7 @@
 
 ## 目前快照
 
-- 最後更新：2026-06-18
+- 最後更新：2026-06-19
 - 目前階段：Cloud-to-Physical Printing MVP 已完成；admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up、worker claim/report 與 Raspberry Pi USB raw ESC/POS 實體列印皆已打通，並已支援工單標籤與顧客留存聯分開排隊列印；下一階段聚焦真實場景穩定化、branch / environment discipline 與掃碼硬體補齊
 - 整體狀態：進行中
 - 現況摘要：
@@ -23,7 +23,7 @@
   - `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎；`/admin/work-orders` 已可查詢、篩選、排序與分頁，`/admin/work-orders/[id]` 已提供 `mode=view|edit|work` detail route，且 `mode=edit` 已接上 PATCH、repair marks 編輯與新建錯單刪除；`/admin/work-orders/new` 已接上 lookup-first 現場建單流程、後端純數字工單號產生、99 前綴測試建單模式、tablet-first F8A/F8B 快捷操作與 Konva repair marks modal；`/admin/settings` 已提供測試工單入口；`/admin/work-orders/bulk-status` 已接上 preview 搜尋與批量狀態更新；`/admin/scan` 已接上單張掃碼 lookup 與第一版快速操作。
   - `board_length_class` 已加入 schema 與 admin create/list/detail；衝浪板建單需選短板 / 中尺寸 / 長板，既有 legacy null 在 UI 顯示為 `—`。
   - `board_color` 已加入 `admin_work_order_list` projection 與 admin resolve preview；工單列表與 bulk status preview 會顯示顏色 swatch + label。
-  - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、repair marks 示意圖、公開備註、最近更新時間，以及紙本維修單上的公開店家資訊、取板預約電話 CTA、板型對應費用參考與補板注意事項。
+  - `/repair-status` 已接上 public customer lookup API，顯示公開進度、預估完成日、初始報價、repair marks 示意圖、公開備註、最近更新時間，以及紙本維修單上的公開店家資訊、取板預約官方 LINE CTA、板型對應費用參考與補板注意事項。
   - Production domain routing 已在 Nuxt 全域 route middleware 落地並部署：admin、status、主網域與 `www` 依 canonical route 以 `302` 分流；localhost、staging、preview 與未知 host 不受影響。Vercel 原有的 `www -> root` 永久 redirect 已移除，避免繞過 Nuxt 規則。
   - Vercel Speed Insights 已接入 Nuxt module；正式站重新部署並開始回傳 Web Vitals 後，可直接在 Vercel Speed Insights dashboard 觀測資料。
   - `work_orders` 現在已新增 `repair_count` / `repair_count_source`，並新增 `work_order_repair_marks` 結構化標記表；create/detail/patch/public lookup contract 已同步支援，且建單前必須先解析出非空 `repairCount`。
@@ -124,7 +124,7 @@
 - Admin scan UI：獨立 `/admin/scan` 頁面、專用 `GET /api/admin/work-orders/lookup` read model、快速備註 endpoint 與 sidebar 入口已建立。
 - Bulk status 掃碼工作流：preview 與 recent batch result 已聚焦狀態核對，不再顯示列印摘要或補印操作，避免干擾掃碼批量作業。
 - Bulk preview / 工單列表資訊密度升級：`resolve` preview 已補顧客電話、長度分類、顏色、預估完成日與提醒 flags；bulk status 與工單列表都會顯示顏色 swatch。
-- Public customer lookup：`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，使用完整手機號碼驗證、server-generated progress timeline / cancelled state、只讀 repair marks 示意圖、公開店家/費用/注意事項資訊與 MVP in-memory rate limit。
+- Public customer lookup：`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，使用完整手機號碼驗證、server-generated progress timeline / cancelled state、只讀 repair marks 示意圖、公開店家/費用/注意事項資訊、官方 LINE 取板 CTA 與 MVP in-memory rate limit。
 - Admin dashboard quick entries：已接上工單列表與建單頁入口，排除 create entry 仍停留 disabled placeholder 的不一致狀態。
 - Admin sidebar navigation：已補上 bulk status、後台設定入口與加高的新增工單快捷按鈕；後台設定可進入共用表單的測試模式，預填並允許修改 `99` 測試單號。
 - Admin dashboard quick entries：已再補上 bulk status 入口。

@@ -24,10 +24,10 @@ export const PUBLIC_REPAIR_SHOP_INFO = {
   bankAccount: '5425899016440',
   bankCode: '006',
   businessHours: '週一～五 8AM~17PM / 週六、日 7AM~12PM',
+  officialLineHref: 'https://lin.ee/9KhX6kf',
+  officialLineLabel: '官方 LINE',
   ownerName: '李小龍',
-  phone: '0936811575',
-  phoneHref: 'tel:0936811575',
-  pickupReminder: '取板務必請先來電預約',
+  pickupReminder: '取板務必請先透過官方 LINE 預約',
   shopName: '板再生維修',
 } as const;
 
