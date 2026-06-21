@@ -868,7 +868,7 @@ Query：
 | -------------- | -------- | ---------------------------- |
 | `status`       | no       | `failed`                     |
 | `workOrderId`  | no       | `4d4ff81c-2b1d-41aa-9fd2...` |
-| `paperOrderNo` | no       | `260001`               |
+| `paperOrderNo` | no       | `260001`                     |
 | `page`         | no       | `1`                          |
 | `pageSize`     | no       | `20`                         |
 | `sort`         | no       | `createdAt:desc`             |
@@ -935,6 +935,7 @@ Request：
 
 - `work_order_label`：工單標籤，使用工單號文字與 1D barcode。
 - `customer_receipt`：顧客留存聯，使用 CP950 / Big5 中文文字與 QR Code 導向公開查詢頁。
+- `customer_receipt` 普通補印：已綁定 Customer建立 `repair_status` QR；未綁定 Customer必須存在同工單 active pending token，否則回 `409 LINE_BIND_TOKEN_REQUIRED`，不得自動發卡。
 
 Response：`201`
 
@@ -1309,7 +1310,7 @@ Response：
 - claim 成功後寫入 `status = locked`、`lockedAt`、`lockedBy`、`printDeviceId`
 - `payload` 是 immutable print snapshot；worker 只消費，不可自行 normalize customer name、phone、board type 或 work order number
 - `work_order_label` payload 使用 `templateVersion = 2`，包含 `barcodeValue` 並由 worker 印 1D barcode
-- `customer_receipt` payload 使用 `templateVersion = 1`，包含 `boardTypeLabel` 與 `publicLookupUrl`，由 worker 印 QR Code
+- 新建 `customer_receipt` DB payload 使用 `templateVersion = 2`，保存 `qrKind` 與可選 `lineBindTokenId`，不保存 plaintext token或完整 LIFF URL。Print Worker claim response才暫時加入 renderer既有欄位 `publicLookupUrl`；舊 v1 payload照原值回傳且不回寫。
 
 ### `POST /api/print-worker/jobs/{id}/succeed`
 
@@ -1620,3 +1621,84 @@ Request rules：
 - Supabase Storage bucket/path。
 - `status_history` 完整明細。
 - 管理者或員工資訊。
+
+## LINE MVP API
+
+PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoints 仍為 planned / not implemented。所有 endpoint 使用本文件既有 error envelope 與 request ID 規則。
+
+### Planned endpoints
+
+| Endpoint                                           | Auth                       | Purpose                                                         |
+| -------------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| `GET /api/public/line-bind/token?t=...`            | Public token               | Resolve pending / used / expired / revoked token 與安全工單摘要 |
+| `POST /api/public/line-bind/confirm`               | LIFF ID token + bind token | 驗證 LINE 身分並原子建立綁定                                    |
+| `POST /api/admin/work-orders/{id}/line-bind-token` | Admin                      | 重新發卡；撤銷其他 pending token                                |
+| `DELETE /api/admin/customers/{id}/line-binding`    | Admin                      | hard delete 綁定並撤銷 pending token                            |
+| `GET /api/admin/work-orders/{id}/line-status`      | Admin                      | 查詢綁定、好友、latest token 與最近通知狀態                     |
+| `POST /api/internal/line-jobs/process`             | Server Bearer secret       | claim、prepare、send、retry、skip LINE jobs                     |
+| `POST /api/webhooks/line`                          | LINE signature             | 處理最小 follow / unfollow event                                |
+
+### `POST /api/admin/work-orders/{id}/line-bind-token`
+
+- Auth：admin。
+- Body：空 JSON object；未知欄位回 `422 VALIDATION_ERROR`。
+- 以原子 RPC 確認 Customer 尚未綁定、撤銷舊 pending token並建立 30 天效期的新 token。
+- 成功回 `201`：`{ data: { id, expiresAt, liffUrl, revokedTokenCount } }`。
+- 不回 plaintext token / `token_hash`，不建立 print job。
+- 已綁定回 `409 CUSTOMER_ALREADY_BOUND`；工單不存在回 `404 NOT_FOUND`。
+
+### `DELETE /api/admin/customers/{id}/line-binding`
+
+- Auth：admin。
+- 原子 hard delete binding、撤銷 pending token並將尚未送出的 pending jobs標記為 `skipped / no_active_line_binding`。
+- `processing` jobs不強制改寫。
+- 成功回 `{ data: { customerId, unlinkedAt, revokedTokenCount, skippedPendingJobCount } }`。
+- 無有效綁定回 `404 NO_ACTIVE_LINE_BINDING`；Customer 不存在回 `404 NOT_FOUND`。
+
+### `GET /api/admin/work-orders/{id}/line-status`
+
+- Auth：admin。
+- 回傳 `workOrderId`、`customerId`、binding / notification status、latest token state與最近 5 筆 jobs。
+- `notificationStatus` 為 `notifyable`、`not_notifyable` 或 `unknown`。
+- latest token status為 `pending`、`used`、`expired`、`revoked` 或 `none`。
+- 不查詢或回傳 `line_user_id`、`token_hash`、plaintext token、recipient、prepared payload或 LINE secrets。
+
+### `POST /api/public/line-bind/resolve`
+
+- Body：`{ token }`，strict validation。
+- 設定 `Cache-Control: no-store`；套用 public rate limit。
+- `pending / used / expired / revoked` 均回 `200`，內容只包含 token state、是否可綁定、效期、binding state及工單號/板型。
+- Invalid token回 `404 TOKEN_INVALID`。
+- 不回姓名、電話、報價、維修內容或 LINE profile。
+
+### `POST /api/public/line-bind/confirm`
+
+- Body：`{ token, idToken, accessToken? }`；不接受 `line_user_id` 或前端 profile。
+- Server先向 LINE Platform驗證 ID token；optional access token另外驗證 channel/profile identity與 friendship status。外部 HTTP完成後才呼叫 DB transaction。
+- 成功 outcome為 `linked` 或 `already_linked`；回工單號、通知狀態、token used time、`/repair-status` 與官方 LINE URL。
+- 支援 `TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_ACCESS_TOKEN_INVALID`、`LINE_PLATFORM_UNAVAILABLE`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`VALIDATION_ERROR`、`TOO_MANY_REQUESTS`。
+- ID/access token只存在 request記憶體，不儲存、不記錄。
+
+### Contract rules
+
+- Token resolve 不消耗 token。`used_at` 只能由 confirm 成功 transaction 設定。
+- Confirm request 只接受 bind token 與 LINE ID token；不得信任 client 傳入的 `line_user_id` 或 profile。
+- Confirm 若 LINE 已綁同一 Customer，回 idempotent success；若任一方已綁其他對象，拒絕且不得覆蓋。
+- Admin 發卡回傳可列印的 LIFF URL，但不得在 DB、`print_jobs.payload` 或 log 持久化明文 token。
+- Internal processor 以 `Authorization: Bearer <LINE_JOB_PROCESSOR_SECRET>` 驗證；secret 不得放 query string、public runtime config、response 或 log。
+- Webhook 必須先以 raw request body 與 `LINE_CHANNEL_SECRET` 驗證 `x-line-signature`，才可更新 `is_friend` / `blocked_at`。
+- LINE Login channel 與 Messaging API channel 必須位於同一 Provider，且 Login channel 必須連結官方帳號。
+- LINE push 回應 accepted / HTTP 200 只能使 job 成為 `succeeded`，語意是「平台已接受」，不是「顧客已讀或已送達」。
+
+### Planned errors
+
+LINE routes 必須使用既有 error envelope，並至少定義：`TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`CUSTOMER_ALREADY_BOUND`、`NO_ACTIVE_LINE_BINDING`、`LINE_NOT_NOTIFYABLE`、`JOB_ALREADY_EXISTS`、`INTERNAL_UNAUTHORIZED`。
+
+### Processor contract constraints
+
+- Supabase Cron 每分鐘呼叫 internal endpoint；MVP 不依賴 Vercel Hobby Cron 的分鐘級排程。
+- Worker 每批原子 claim 有上限的 pending jobs，使用 lock timeout 回收 stale processing jobs，外部 LINE call 不包在 DB transaction。
+- 第一次 send 前重新依 `customer_id` 解析有效綁定；確認可通知後才凍結 recipient、payload 與 retry key。
+- 同一 job 的所有 retry 固定使用同一 `X-Line-Retry-Key`。
+- 無綁定或不可通知時回寫 `skipped`，不得呼叫 LINE。
+- READY job 成功結果 transaction 同時以 `coalesce(notified_at, sent_at)` 維護 `work_orders.notified_at`。

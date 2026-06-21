@@ -101,7 +101,7 @@ Admin UI / Work-order create
 
 - `work_order_label` 使用 1D barcode，`customer_receipt` 使用 QR Code 導向公開查詢頁 `/repair-status`
 - worker 只消費 snapshot，不可自行推導 repair count，也不可自行 normalize phone 或 work order number
-- server enqueue 端負責生成 `displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount`、`boardTypeLabel` 與 `publicLookupUrl` snapshot 欄位
+- server enqueue 端負責生成列印文字欄位；新 `customer_receipt` snapshot只保存 `qrKind` 與可選 `lineBindTokenId`，claim時才暫時生成 `publicLookupUrl`
 
 ## 建單與補印規則
 
@@ -248,7 +248,7 @@ repo 內的 `/printer-worker` 子專案目前同時提供三種 runtime：
 - 預設 cut command 使用 `\x1D\x56\x42\x05`
 - 若 receipt 模板加入中文可讀文字，renderer 必須先送 `FS &` / `\x1C\x26` 啟用中文模式，再用 `text.encode("cp950", errors="replace")` 編碼文字
 - `barcodeValue` 必須保持 ASCII-only，且只作為 1D barcode payload；不可對 barcode content 使用 CP950 編碼
-- `customer_receipt` renderer 使用 page mode、CP950 中文、QR Code、form feed 與 cut；QR 內容使用 snapshot 的 `publicLookupUrl`
+- `customer_receipt` renderer 使用 page mode、CP950 中文、QR Code、form feed 與 cut；QR 內容使用 claim response暫時注入的 `publicLookupUrl`
 
 ## Raspberry Pi 穩定化下一階段
 

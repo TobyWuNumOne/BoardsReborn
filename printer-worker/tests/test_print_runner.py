@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sys
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 import unittest
 
@@ -11,7 +13,7 @@ if str(WORKER_ROOT) not in sys.path:
 
 from client import PrintJob
 from config import Settings
-from print_runner import handle_claimed_print_job
+from print_runner import handle_claimed_print_job, summarize_job
 
 
 class FakeClient:
@@ -119,6 +121,32 @@ class HandleClaimedPrintJobTest(unittest.TestCase):
         self.assertEqual(renderer_calls, [("work_order_label", self.job.payload)])
         self.assertEqual(transport_calls, [b"rendered"])
         self.assertEqual(client.success_calls, ["job-1"])
+
+    def test_summary_does_not_log_temporary_qr_url(self) -> None:
+        token = "temporary-line-bind-token"
+        job = PrintJob(
+            attempt_count=0,
+            created_at="2026-06-05T00:00:00.000Z",
+            id="job-2",
+            job_type="customer_receipt",
+            locked_at="2026-06-05T00:00:01.000Z",
+            max_attempts=3,
+            payload={
+                "paperOrderNo": "260001",
+                "publicLookupUrl": f"https://liff.line.me/test?t={token}",
+                "qrKind": "line_bind",
+                "templateVersion": 2,
+            },
+            work_order_id="work-order-1",
+        )
+        output = StringIO()
+
+        with redirect_stdout(output):
+            summarize_job(job)
+
+        self.assertNotIn(token, output.getvalue())
+        self.assertNotIn("publicLookupUrl", output.getvalue())
+        self.assertIn("qrKind: line_bind", output.getvalue())
 
 
 if __name__ == "__main__":
