@@ -451,6 +451,8 @@ TypeScript 名稱：`PrintJobType`
 - 撤銷：`revoke_pending_line_bind_tokens` 以相同 Customer row lock 撤銷該顧客所有 pending token，回傳受影響筆數。
 - Admin 發卡：`issue_admin_line_bind_token` 從工單解析 Customer、鎖定 Customer、拒絕已有有效綁定的 Customer，並原子撤銷舊 pending token與建立新 token；不建立 print job。
 - Admin 解除：`unlink_admin_customer_line_binding` 原子 hard delete 有效 binding、撤銷 pending token，並只將 `pending` LINE jobs 改為 `skipped / no_active_line_binding`；`processing` job不強制改寫。
+- Public confirm：LINE Platform驗證必須先在 server完成；`confirm_public_line_binding` 才鎖定 token/Customer、檢查狀態與雙向唯一、建立或冪等確認 binding、消耗 token並寫入單一 Outbox job。Conflict outcome會提交 token revoke後由 server轉成 API error；其他 DB / Outbox錯誤會 rollback整筆 transaction。
+- Public confirm job selection：工單為 `READY_FOR_PICKUP` 且 `notified_at is null` 時只建立 `work_order_ready_for_pickup`；其他新綁定建立 `line_binding_success`。`already_linked` 不重複建立 job。
 - Confirm：鎖定並驗證 token、檢查雙向唯一性、建立綁定、設定 `used_at`、撤銷其他 pending token，必須在同一 transaction。
 - 解除綁定：hard delete account 並撤銷同 Customer pending token，必須在同一 transaction。
 - 建單：工單成功優先；發卡或 `work_order_received` enqueue 失敗不回滾工單。

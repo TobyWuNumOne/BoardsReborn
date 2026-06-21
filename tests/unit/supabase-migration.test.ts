@@ -119,6 +119,10 @@ const adminLineBindingManagementMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621065543_admin_line_binding_management.sql'),
   'utf8',
 );
+const publicLineBindingConfirmMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621091907_public_line_binding_confirm.sql'),
+  'utf8',
+);
 const testPaperOrderNoMigrationPath = resolve(
   process.cwd(),
   'supabase/migrations/20260618110000_test_work_order_numbers.sql',
@@ -624,5 +628,29 @@ describe('initial Supabase migration', () => {
       "and status = 'processing'::public.line_job_status",
     );
     expect(adminLineBindingManagementMigration).not.toContain('binding_history');
+  });
+
+  it('adds an atomic public LINE confirm transaction with outbox selection', () => {
+    expect(publicLineBindingConfirmMigration).toContain(
+      'create or replace function public.confirm_public_line_binding',
+    );
+    expect(publicLineBindingConfirmMigration).toContain('for update');
+    expect(publicLineBindingConfirmMigration).toContain("'line_conflict'");
+    expect(publicLineBindingConfirmMigration).toContain("'customer_conflict'");
+    expect(publicLineBindingConfirmMigration).toContain('update public.line_bind_tokens');
+    expect(publicLineBindingConfirmMigration).toContain(
+      'insert into public.customer_line_accounts',
+    );
+    expect(publicLineBindingConfirmMigration).toContain('insert into public.line_jobs');
+    expect(publicLineBindingConfirmMigration).toContain(
+      "current_status = 'READY_FOR_PICKUP'::public.work_order_status",
+    );
+    expect(publicLineBindingConfirmMigration).toContain(
+      "'work_order_ready_for_pickup'::public.line_job_type",
+    );
+    expect(publicLineBindingConfirmMigration).toContain(
+      "'line_binding_success'::public.line_job_type",
+    );
+    expect(publicLineBindingConfirmMigration).not.toContain('http');
   });
 });

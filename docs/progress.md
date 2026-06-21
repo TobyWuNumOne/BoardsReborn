@@ -12,16 +12,17 @@
 ## 目前快照
 
 - 最後更新：2026-06-21
-- 目前階段：Cloud-to-Physical Printing MVP 已完成；LINE 官方帳號串接已完成 PR 1 至 PR 5。Admin LINE 發卡、解除綁定與狀態查詢 API 已建立；Public LIFF API、LIFF 頁面、webhook、Outbox processor、Cron、條件式留存聯 QR 與 admin UI 仍未實作。
+- 目前階段：Cloud-to-Physical Printing MVP 已完成；LINE 官方帳號串接已完成 PR 1 至 PR 6。Public token resolve/confirm、LINE server verification、confirm transaction與 `/line/order-gate` 已建立；webhook、Outbox processor、Cron、條件式留存聯 QR 與 admin UI仍未實作。
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
   - LINE MVP 的產品、domain、API、frontend、printing、安全與環境變數設計基線已寫入文件；目前狀態為 planned / not implemented，不代表 production 已配置 LINE secrets 或任何 LINE route 可用。
   - LINE schema foundation 已建立：`customer_line_accounts`、`line_bind_tokens`、`line_jobs`、三個 LINE enums、雙向 1:1 / pending token / dedupe / retry constraints、claim/reclaim/history indexes、admin-scoped RLS 與 service-role grants。這只代表資料層可用，不代表 LINE workflow 已上線。
-  - status production domain 已允許 `/line/order-gate` 與其 query/hash 原地停留，不再被 domain middleware 導回 `/repair-status`；order-gate Vue page 尚未建立，現階段 404 是預期行為。
-  - LINE bind token service 已建立 server-only HMAC / SHA-256 helpers、LIFF URL 重建、token 狀態解析與原子 issue / revoke RPC。DB 只保存 hash；目前只有 Admin API 使用，Public LIFF API 尚未實作。
+  - status production domain 已允許 `/line/order-gate` 與其 query/hash 原地停留，不再被 domain middleware 導回 `/repair-status`；order-gate Vue page 已建立。
+  - LINE bind token service 已建立 server-only HMAC / SHA-256 helpers、LIFF URL 重建、token 狀態解析與原子 issue / revoke RPC。DB 只保存 hash；Admin API 與 Public LIFF API 均已使用此服務。
   - Admin LINE API 已建立：工單重新發卡、Customer 解除綁定與工單 LINE 狀態查詢。解除綁定會 hard delete binding、撤銷 pending token並 skip pending jobs；目前沒有對應 Admin UI。
+  - Public LIFF綁定流程已建立：order-gate只顯示工單號/板型，server向 LINE Platform驗證 ID/access token後才進 DB transaction；成功建立 binding與單一 Outbox job，conflict revoke token，Outbox失敗 rollback。
   - `server/api/` 已有 admin session、customer lookup、public lookup、work-order create/list/detail/update/status/resolve/bulk-status，以及 admin / print-worker 列印 handlers 與 `print-devices` 管理 handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - 前端已導入 Tailwind CSS v4、shadcn-vue primitives、`shadcn-nuxt` 與 SSR width baseline。
@@ -95,18 +96,18 @@
 - Customer lookup flow：done。`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。
 - Production workflow 與部署硬化：pending。Staging Supabase / Vercel 基礎部署已完成；正式 production cutover、production Auth 設定與部署硬化尚未完成。
 - Cloud-to-Physical Printing MVP：done。雲端 Web 建立工單、建立 `print_job`、worker wake-up / claim、Raspberry Pi `/dev/usb/lp0` raw ESC/POS 實體列印、成功/失敗回報與 retry flow 已完成，已跨過「雲端系統控制現場硬體」的關鍵門檻。
-- LINE Official Account MVP：in progress。PR 1 至 PR 5 已完成；Public API、LIFF、列印、webhook、processor、status/create integration 與 admin UI 尚未開始。
+- LINE Official Account MVP：in progress。PR 1 至 PR 6 已完成；列印、webhook、processor、status/create integration 與 admin UI 尚未開始。
 
 ## LINE MVP 12 PR 路線圖
 
-本路線圖不得被解讀為整體 LINE 功能已實作。當前完成 PR 1 至 PR 5；下一步是 PR 6。
+本路線圖不得被解讀為整體 LINE 功能已實作。當前完成 PR 1 至 PR 6；下一步是 PR 7。
 
 - [x] PR 1 Docs only：同步產品決策、schema / API 設計基線、frontend、printing、安全、setup 與進度文件。
 - [x] PR 2 Database migration：新增 LINE tables、enum、constraints、RLS、indexes 與 generated database types。
 - [x] PR 3 Domain routing：讓 status domain 允許 `/line/order-gate`。
 - [x] PR 4 Token service：發卡、HMAC、hash、resolve、revoke 與 active pending token 重建能力。
 - [x] PR 5 Admin API：重新發卡、解除綁定、查詢工單 LINE 狀態。
-- [ ] PR 6 Order-gate / LIFF：resolve token、confirm binding、成功與錯誤 UX。
+- [x] PR 6 Order-gate / LIFF：resolve token、confirm binding、成功與錯誤 UX。
 - [ ] PR 7 Receipt printing：未綁定印 LIFF QR、已綁定印 `/repair-status`，並保留發卡失敗 fallback。
 - [ ] PR 8 Webhook：follow / unfollow signature 驗證與好友狀態更新。
 - [ ] PR 9 `line_jobs` processor：claim、prepare、send、retry、skip、`notified_at` 與 Supabase Cron。

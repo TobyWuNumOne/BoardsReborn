@@ -90,6 +90,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     lineBindTokenSecret: process.env.LINE_BIND_TOKEN_SECRET || '',
+    lineLoginChannelId: process.env.LINE_LOGIN_CHANNEL_ID || '',
+    lineLoginChannelSecret: process.env.LINE_LOGIN_CHANNEL_SECRET || '',
     supabaseSecretKey: supabaseSecretKey || '',
     printAgentToken: process.env.PRINT_AGENT_TOKEN || '',
     adminEmail: process.env.ADMIN_EMAIL || '',
@@ -98,6 +100,7 @@ export default defineNuxtConfig({
       adminUrl: publicAdminUrl,
       appUrl: publicAppUrl,
       liffId: publicLiffId,
+      lineOfficialUrl: process.env.NUXT_PUBLIC_LINE_OFFICIAL_URL || '',
       statusUrl: publicStatusUrl,
     },
   },

@@ -846,6 +846,17 @@ export type Database = {
         Args: { p_device_key: string; p_stale_lock_seconds?: number };
         Returns: Json;
       };
+      confirm_public_line_binding: {
+        Args: {
+          p_display_name?: string;
+          p_friendship_checked?: boolean;
+          p_is_friend?: boolean;
+          p_line_user_id: string;
+          p_picture_url?: string;
+          p_token_hash: string;
+        };
+        Returns: Json;
+      };
       create_admin_print_job: {
         Args: {
           p_created_by_user_id?: string;

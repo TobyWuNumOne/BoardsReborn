@@ -1662,6 +1662,22 @@ PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoin
 - latest token status為 `pending`、`used`、`expired`、`revoked` 或 `none`。
 - 不查詢或回傳 `line_user_id`、`token_hash`、plaintext token、recipient、prepared payload或 LINE secrets。
 
+### `POST /api/public/line-bind/resolve`
+
+- Body：`{ token }`，strict validation。
+- 設定 `Cache-Control: no-store`；套用 public rate limit。
+- `pending / used / expired / revoked` 均回 `200`，內容只包含 token state、是否可綁定、效期、binding state及工單號/板型。
+- Invalid token回 `404 TOKEN_INVALID`。
+- 不回姓名、電話、報價、維修內容或 LINE profile。
+
+### `POST /api/public/line-bind/confirm`
+
+- Body：`{ token, idToken, accessToken? }`；不接受 `line_user_id` 或前端 profile。
+- Server先向 LINE Platform驗證 ID token；optional access token另外驗證 channel/profile identity與 friendship status。外部 HTTP完成後才呼叫 DB transaction。
+- 成功 outcome為 `linked` 或 `already_linked`；回工單號、通知狀態、token used time、`/repair-status` 與官方 LINE URL。
+- 支援 `TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_ACCESS_TOKEN_INVALID`、`LINE_PLATFORM_UNAVAILABLE`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`VALIDATION_ERROR`、`TOO_MANY_REQUESTS`。
+- ID/access token只存在 request記憶體，不儲存、不記錄。
+
 ### Contract rules
 
 - Token resolve 不消耗 token。`used_at` 只能由 confirm 成功 transaction 設定。
