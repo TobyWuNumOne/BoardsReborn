@@ -61,6 +61,7 @@ export const resolveDomainRedirect = ({
   const isAdminAccessPath =
     isAdminPath || current.pathname === '/login' || current.pathname === '/forbidden';
   const isPublicLookupPath = isPathWithin(current.pathname, '/repair-status');
+  const isLineOrderGatePath = isPathWithin(current.pathname, '/line/order-gate');
 
   if (currentHostname === adminHostname) {
     if (current.pathname === '/') {
@@ -83,7 +84,7 @@ export const resolveDomainRedirect = ({
       return createRedirect(`/repair-status${current.search}${current.hash}`, false);
     }
 
-    if (isPublicLookupPath) {
+    if (isPublicLookupPath || isLineOrderGatePath) {
       return null;
     }
 

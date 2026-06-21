@@ -73,6 +73,40 @@ describe('domain routing', () => {
     });
   });
 
+  it('allows the LINE order gate on the status domain without consuming its token query', () => {
+    expect(
+      resolveDomainRedirect({
+        ...routingConfig,
+        currentUrl: 'https://status.surfboards-reborn.com/line/order-gate',
+      }),
+    ).toBeNull();
+    expect(
+      resolveDomainRedirect({
+        ...routingConfig,
+        currentUrl: 'https://status.surfboards-reborn.com/line/order-gate?t=bind-token#confirm',
+      }),
+    ).toBeNull();
+  });
+
+  it('keeps the LINE order gate status-only without changing admin or root routing', () => {
+    expect(
+      resolveDomainRedirect({
+        ...routingConfig,
+        currentUrl: 'https://admin.surfboards-reborn.com/line/order-gate?t=bind-token',
+      }),
+    ).toEqual({ external: false, location: '/admin', redirectCode: 302 });
+    expect(
+      resolveDomainRedirect({
+        ...routingConfig,
+        currentUrl: 'https://surfboards-reborn.com/line/order-gate?t=bind-token',
+      }),
+    ).toEqual({
+      external: true,
+      location: 'https://status.surfboards-reborn.com/repair-status',
+      redirectCode: 302,
+    });
+  });
+
   it('routes root and www domains while preserving legacy lookup path queries', () => {
     expect(
       resolveDomainRedirect({
