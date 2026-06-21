@@ -22,7 +22,7 @@ def summarize_job(job: PrintJob) -> None:
     print(f"- boardTypeLabel: {payload.get('boardTypeLabel', '—')}")
     print(f"- paymentReceived: {payload.get('paymentReceived', '—')}")
     print(f"- repairCount: {payload.get('repairCount', '—')}")
-    print(f"- publicLookupUrl: {payload.get('publicLookupUrl', '—')}")
+    print(f"- qrKind: {payload.get('qrKind', 'legacy')}")
 
 
 def _format_failure_message(error: Exception) -> str:

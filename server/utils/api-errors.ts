@@ -13,6 +13,7 @@ export type ApiErrorCode =
   | 'LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER'
   | 'LINE_ID_TOKEN_INVALID'
   | 'LINE_PLATFORM_UNAVAILABLE'
+  | 'LINE_BIND_TOKEN_REQUIRED'
   | 'NO_ACTIVE_LINE_BINDING'
   | 'TOKEN_EXPIRED'
   | 'TOKEN_INVALID'
@@ -151,6 +152,16 @@ export class LineAlreadyBoundToOtherCustomerError extends ApiError {
 export class CustomerAlreadyBoundToOtherLineError extends ApiError {
   constructor(message = 'This customer is already bound to another LINE account.') {
     super({ code: 'CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE', message, statusCode: 409 });
+  }
+}
+
+export class LineBindTokenRequiredError extends ApiError {
+  constructor() {
+    super({
+      code: 'LINE_BIND_TOKEN_REQUIRED',
+      message: '請先重新發行 LINE 綁定 QR Code，再建立留存聯補印。',
+      statusCode: 409,
+    });
   }
 }
 

@@ -125,7 +125,7 @@ Legacy aliases still supported:
 
 `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` must never be passed to the client, appear in public runtime config, or be written to logs. `PRINT_WORKER_TOKEN` must remain server-side and within the Print Worker environment only. `PRINT_AGENT_TOKEN` is kept only as a temporary legacy alias.
 
-LINE variables are planned and unused until the corresponding LINE PRs land. `LINE_BIND_TOKEN_SECRET` and `LINE_JOB_PROCESSOR_SECRET` must be independent high-entropy secrets. Losing or rotating `LINE_BIND_TOKEN_SECRET` invalidates reconstruction of existing pending bind URLs; revoke those rows and issue new tokens. Never place LINE server secrets in query strings, public runtime config, responses, or logs.
+LINE binding and receipt-printing variables are used by PR 4 to PR 7; processor variables remain reserved until PR 9. `LINE_BIND_TOKEN_SECRET` and `LINE_JOB_PROCESSOR_SECRET` must be independent high-entropy secrets. Losing or rotating `LINE_BIND_TOKEN_SECRET` invalidates reconstruction of existing pending bind URLs; revoke those rows and issue new tokens. Never place LINE server secrets in query strings, public runtime config, responses, or logs.
 
 Before enabling the production minute-level Supabase Cron in PR 9, verify:
 

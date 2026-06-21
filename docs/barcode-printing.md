@@ -97,8 +97,8 @@ Worker 使用 `Authorization: Bearer <PRINT_WORKER_TOKEN>` 呼叫 Nuxt API，並
 - 顧客留存聯 `customer_receipt` 是獨立 print job，使用 CP950 / Big5 中文文字與 QR Code 導向 `https://status.surfboards-reborn.com/repair-status`；不把工單號或手機放入 URL
 - enqueue `print_jobs` 時就建立 immutable print-ready snapshot，worker 不再自行推導 repair count
 - `work_order_label` snapshot 目前使用 `templateVersion = 2`，至少包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount`
-- `customer_receipt` snapshot 目前使用 `templateVersion = 1`，至少包含 `paperOrderNo`、`intakeDate`、`customerPhone`、`boardTypeLabel`、`paymentReceived`、`repairCount`、`publicLookupUrl`
-- `publicLookupUrl` 優先由 `NUXT_PUBLIC_STATUS_URL` 產生；未設定時才 fallback 到 `NUXT_PUBLIC_APP_URL`。既有 print job snapshot 維持 immutable，不回寫舊 URL。
+- 新建 `customer_receipt` snapshot 使用 `templateVersion = 2`，保存列印文字欄位、`qrKind` 與可選 `lineBindTokenId`；DB payload不保存 plaintext token或完整 LIFF URL。
+- Print Worker claim / dispatch時，Nuxt才將 `qrKind` 解析成暫時 `publicLookupUrl`。`repair_status` 優先使用 `NUXT_PUBLIC_STATUS_URL`；`line_bind` 由 token row UUID + server secret重建。既有 v1 snapshot維持 immutable並照原 URL列印。
 - 列印置中的收件日期、電話 / 付款狀態、大字工單號、維修處數括號與同一個工單號的 1D barcode
 - 1D barcode height 固定 `0x40`
 - 1D barcode 優先評估 `Code39` 或 `Code128`
@@ -151,9 +151,9 @@ Renderer 規則：
 - 建立工單不要求同步列印成功。
 - work-order detail / create success / bulk-status 只顯示列印摘要與 deep link；完整列印操作仍集中在 `/admin/printing`。
 
-### LINE 條件式留存聯 QR（planned / not implemented）
+### LINE 條件式留存聯 QR（implemented）
 
-目前已落地的 `customer_receipt` snapshot 仍固定使用 `/repair-status`，且 immutable，不回寫。後續 LINE PR 只影響新建立的留存聯任務：
+PR 7 已落地條件式 `customer_receipt` QR，且不回寫既有 immutable snapshot：
 
 - Customer 未綁定 LINE：建立 active `line_bind_token`，QR 使用 LIFF bind URL。
 - Customer 已綁定 LINE：不發 token，QR 使用 `/repair-status`。

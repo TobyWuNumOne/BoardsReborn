@@ -116,7 +116,7 @@ python worker.py serve
 - `boardTypeLabel`
 - `paymentReceived`
 - `repairCount`
-- `publicLookupUrl`
+- `publicLookupUrl`（只存在 claim response / Worker記憶體；新 v2 DB snapshot不持久化此欄位）
 
 ## Label template
 
@@ -139,7 +139,7 @@ python worker.py serve
 - CP950 / Big5 中文文字
 - `BoardsReborn 板再生維修收件單`
 - 收件日、工單號、電話、板型、維修處數、付款狀態
-- QR Code，內容固定使用 `publicLookupUrl`
+- QR Code使用 claim response暫時提供的 `publicLookupUrl`；Worker不得把該 URL寫入 log
 - 取板提醒 footer
 - form feed、standard mode、cut command `\x1D\x56\x42\x05`
 

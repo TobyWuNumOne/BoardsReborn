@@ -99,6 +99,10 @@ const customerReceiptPrintJobSnapshotMigration = readFileSync(
   ),
   'utf8',
 );
+const lineReceiptPrintingMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621094508_line_receipt_printing.sql'),
+  'utf8',
+);
 const autoNumericPaperOrderNoMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260612143000_auto_numeric_paper_order_no.sql'),
   'utf8',
@@ -524,6 +528,15 @@ describe('initial Supabase migration', () => {
     );
     expect(customerReceiptPrintJobSnapshotMigration).toContain(
       'grant execute on function public.create_admin_print_job(uuid, public.print_job_type, uuid, text) to authenticated',
+    );
+  });
+
+  it('stores only non-sensitive LINE receipt QR metadata', () => {
+    expect(lineReceiptPrintingMigration).toContain("'qrKind', p_qr_kind");
+    expect(lineReceiptPrintingMigration).toContain("'lineBindTokenId', p_line_bind_token_id");
+    expect(lineReceiptPrintingMigration).not.toContain("'publicLookupUrl'");
+    expect(lineReceiptPrintingMigration).toContain(
+      'line_bind_tokens.work_order_id = p_work_order_id',
     );
   });
 

@@ -935,6 +935,7 @@ Request：
 
 - `work_order_label`：工單標籤，使用工單號文字與 1D barcode。
 - `customer_receipt`：顧客留存聯，使用 CP950 / Big5 中文文字與 QR Code 導向公開查詢頁。
+- `customer_receipt` 普通補印：已綁定 Customer建立 `repair_status` QR；未綁定 Customer必須存在同工單 active pending token，否則回 `409 LINE_BIND_TOKEN_REQUIRED`，不得自動發卡。
 
 Response：`201`
 
@@ -1309,7 +1310,7 @@ Response：
 - claim 成功後寫入 `status = locked`、`lockedAt`、`lockedBy`、`printDeviceId`
 - `payload` 是 immutable print snapshot；worker 只消費，不可自行 normalize customer name、phone、board type 或 work order number
 - `work_order_label` payload 使用 `templateVersion = 2`，包含 `barcodeValue` 並由 worker 印 1D barcode
-- `customer_receipt` payload 使用 `templateVersion = 1`，包含 `boardTypeLabel` 與 `publicLookupUrl`，由 worker 印 QR Code
+- 新建 `customer_receipt` DB payload 使用 `templateVersion = 2`，保存 `qrKind` 與可選 `lineBindTokenId`，不保存 plaintext token或完整 LIFF URL。Print Worker claim response才暫時加入 renderer既有欄位 `publicLookupUrl`；舊 v1 payload照原值回傳且不回寫。
 
 ### `POST /api/print-worker/jobs/{id}/succeed`
 

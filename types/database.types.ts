@@ -861,7 +861,8 @@ export type Database = {
         Args: {
           p_created_by_user_id?: string;
           p_job_type?: Database['public']['Enums']['print_job_type'];
-          p_public_lookup_url?: string;
+          p_line_bind_token_id?: string;
+          p_qr_kind?: string;
           p_work_order_id: string;
         };
         Returns: Json;
