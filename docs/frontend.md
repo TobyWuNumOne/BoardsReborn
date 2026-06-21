@@ -520,3 +520,15 @@ Table 欄位順序：
 1. 與甲方確認第一版 admin 前端雛形後，整理並執行第二版 UI / UX 細節調整。
 2. 盤點列印流程與 detail / create / bulk status 之間的前端銜接。
 3. 規劃掃碼 / print flow 在現場批量操作頁的後續整合。
+
+## LINE MVP Frontend（planned / not implemented）
+
+- 新增 `/line/order-gate` 作為 LIFF 綁定頁；status domain 必須允許此路徑，不可被 domain routing 導回 `/repair-status`。
+- 未綁定顧客的留存聯以 `https://liff.line.me/{LIFF_ID}?t={token}` 進入綁定；已綁定顧客留存聯仍指向 `/repair-status`。
+- 加官方帳號不是綁定必要條件，但 order-gate 與綁定成功畫面必須明確引導加入官方 LINE。
+- UI 必須分開顯示「已綁定」與「可通知」。後台可通知狀態至少區分可通知、尚未加好友 / 未知、已封鎖，以及最近發送只獲 LINE API accepted。
+- Pending token 顯示工單安全摘要與主要綁定 action；expired、revoked、invalid 顯示聯絡店家重新發卡。
+- Used token 若 Customer 仍有有效綁定，顯示「已綁定」與前往查詢 CTA；若綁定已解除，只顯示憑證失效並要求聯絡店家重新發卡。
+- 綁定成功頁不得假設可以免驗證查詢。由於 `/repair-status` 仍要求工單號與完整電話，成功頁顯示成功狀態、加入好友 CTA、工單號與「前往查詢」按鈕；不得把完整電話放進 URL。
+- Admin 工單詳情規劃顯示綁定狀態、LINE 暱稱、好友 / 可通知狀態、latest token、最近 job 狀態、重新發卡與解除綁定。MVP 不重工 Customer 詳情頁。
+- 顧客端不提供解除綁定。解除綁定與重新發卡必須是 admin 明確操作並有確認文案。

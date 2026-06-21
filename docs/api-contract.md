@@ -868,7 +868,7 @@ Query：
 | -------------- | -------- | ---------------------------- |
 | `status`       | no       | `failed`                     |
 | `workOrderId`  | no       | `4d4ff81c-2b1d-41aa-9fd2...` |
-| `paperOrderNo` | no       | `260001`               |
+| `paperOrderNo` | no       | `260001`                     |
 | `page`         | no       | `1`                          |
 | `pageSize`     | no       | `20`                         |
 | `sort`         | no       | `createdAt:desc`             |
@@ -1620,3 +1620,43 @@ Request rules：
 - Supabase Storage bucket/path。
 - `status_history` 完整明細。
 - 管理者或員工資訊。
+
+## LINE MVP API 基線（planned / not implemented）
+
+本節是後續 PR 的 contract 基線，尚無對應 route。實作時仍須使用本文件既有 error envelope 與 request ID 規則。
+
+### Planned endpoints
+
+| Endpoint                                           | Auth                       | Purpose                                                         |
+| -------------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| `GET /api/public/line-bind/token?t=...`            | Public token               | Resolve pending / used / expired / revoked token 與安全工單摘要 |
+| `POST /api/public/line-bind/confirm`               | LIFF ID token + bind token | 驗證 LINE 身分並原子建立綁定                                    |
+| `POST /api/admin/work-orders/{id}/line-bind-token` | Admin                      | 重新發卡；撤銷其他 pending token                                |
+| `DELETE /api/admin/customers/{id}/line-binding`    | Admin                      | hard delete 綁定並撤銷 pending token                            |
+| `GET /api/admin/work-orders/{id}/line-status`      | Admin                      | 查詢綁定、好友、latest token 與最近通知狀態                     |
+| `POST /api/internal/line-jobs/process`             | Server Bearer secret       | claim、prepare、send、retry、skip LINE jobs                     |
+| `POST /api/webhooks/line`                          | LINE signature             | 處理最小 follow / unfollow event                                |
+
+### Contract rules
+
+- Token resolve 不消耗 token。`used_at` 只能由 confirm 成功 transaction 設定。
+- Confirm request 只接受 bind token 與 LINE ID token；不得信任 client 傳入的 `line_user_id` 或 profile。
+- Confirm 若 LINE 已綁同一 Customer，回 idempotent success；若任一方已綁其他對象，拒絕且不得覆蓋。
+- Admin 發卡回傳可列印的 LIFF URL，但不得在 DB、`print_jobs.payload` 或 log 持久化明文 token。
+- Internal processor 以 `Authorization: Bearer <LINE_JOB_PROCESSOR_SECRET>` 驗證；secret 不得放 query string、public runtime config、response 或 log。
+- Webhook 必須先以 raw request body 與 `LINE_CHANNEL_SECRET` 驗證 `x-line-signature`，才可更新 `is_friend` / `blocked_at`。
+- LINE Login channel 與 Messaging API channel 必須位於同一 Provider，且 Login channel 必須連結官方帳號。
+- LINE push 回應 accepted / HTTP 200 只能使 job 成為 `succeeded`，語意是「平台已接受」，不是「顧客已讀或已送達」。
+
+### Planned errors
+
+LINE routes 必須使用既有 error envelope，並至少定義：`TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`CUSTOMER_ALREADY_BOUND`、`NO_ACTIVE_LINE_BINDING`、`LINE_NOT_NOTIFYABLE`、`JOB_ALREADY_EXISTS`、`INTERNAL_UNAUTHORIZED`。
+
+### Processor contract constraints
+
+- Supabase Cron 每分鐘呼叫 internal endpoint；MVP 不依賴 Vercel Hobby Cron 的分鐘級排程。
+- Worker 每批原子 claim 有上限的 pending jobs，使用 lock timeout 回收 stale processing jobs，外部 LINE call 不包在 DB transaction。
+- 第一次 send 前重新依 `customer_id` 解析有效綁定；確認可通知後才凍結 recipient、payload 與 retry key。
+- 同一 job 的所有 retry 固定使用同一 `X-Line-Retry-Key`。
+- 無綁定或不可通知時回寫 `skipped`，不得呼叫 LINE。
+- READY job 成功結果 transaction 同時以 `coalesce(notified_at, sent_at)` 維護 `work_orders.notified_at`。

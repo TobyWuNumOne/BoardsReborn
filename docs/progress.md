@@ -11,12 +11,13 @@
 
 ## 目前快照
 
-- 最後更新：2026-06-19
-- 目前階段：Cloud-to-Physical Printing MVP 已完成；admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up、worker claim/report 與 Raspberry Pi USB raw ESC/POS 實體列印皆已打通，並已支援工單標籤與顧客留存聯分開排隊列印；下一階段聚焦真實場景穩定化、branch / environment discipline 與掃碼硬體補齊
+- 最後更新：2026-06-21
+- 目前階段：Cloud-to-Physical Printing MVP 已完成；LINE 官方帳號串接進入 12 PR 路線圖，目前只完成 PR 1 Docs Only。LINE schema、API、LIFF、webhook、Outbox processor、Cron、條件式留存聯 QR 與 admin UI 均尚未實作。
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
+  - LINE MVP 的產品、domain、API、frontend、printing、安全與環境變數設計基線已寫入文件；目前狀態為 planned / not implemented，不代表 production 已配置 LINE secrets 或任何 LINE route 可用。
   - `server/api/` 已有 admin session、customer lookup、public lookup、work-order create/list/detail/update/status/resolve/bulk-status，以及 admin / print-worker 列印 handlers 與 `print-devices` 管理 handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - 前端已導入 Tailwind CSS v4、shadcn-vue primitives、`shadcn-nuxt` 與 SSR width baseline。
@@ -90,6 +91,26 @@
 - Customer lookup flow：done。`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。
 - Production workflow 與部署硬化：pending。Staging Supabase / Vercel 基礎部署已完成；正式 production cutover、production Auth 設定與部署硬化尚未完成。
 - Cloud-to-Physical Printing MVP：done。雲端 Web 建立工單、建立 `print_job`、worker wake-up / claim、Raspberry Pi `/dev/usb/lp0` raw ESC/POS 實體列印、成功/失敗回報與 retry flow 已完成，已跨過「雲端系統控制現場硬體」的關鍵門檻。
+- LINE Official Account MVP：planned / not implemented。PR 1 文件與設計基線已同步；PR 2 之後的 migration、routing、token、API、LIFF、列印、webhook、processor、status/create integration 與 admin UI 尚未開始。
+
+## LINE MVP 12 PR 路線圖
+
+本路線圖不得被解讀為已實作功能。當前只完成 PR 1；下一步是 PR 2。
+
+- [x] PR 1 Docs only：同步產品決策、schema / API 設計基線、frontend、printing、安全、setup 與進度文件。
+- [ ] PR 2 Database migration：新增 LINE tables、enum、constraints、RLS、indexes 與 generated database types。
+- [ ] PR 3 Domain routing：讓 status domain 允許 `/line/order-gate`。
+- [ ] PR 4 Token service：發卡、HMAC、hash、resolve、revoke 與 active pending token 重建能力。
+- [ ] PR 5 Admin API：重新發卡、解除綁定、查詢工單 LINE 狀態。
+- [ ] PR 6 Order-gate / LIFF：resolve token、confirm binding、成功與錯誤 UX。
+- [ ] PR 7 Receipt printing：未綁定印 LIFF QR、已綁定印 `/repair-status`，並保留發卡失敗 fallback。
+- [ ] PR 8 Webhook：follow / unfollow signature 驗證與好友狀態更新。
+- [ ] PR 9 `line_jobs` processor：claim、prepare、send、retry、skip、`notified_at` 與 Supabase Cron。
+- [ ] PR 10 Status update integration：`READY_FOR_PICKUP` 狀態 transaction 自動 enqueue。
+- [ ] PR 11 Work order create integration：已綁定顧客 enqueue `work_order_received`；失敗不阻斷建單。
+- [ ] PR 12 Admin UI：工單詳情顯示 LINE 綁定、好友、token 與通知狀態。
+
+PR 9 啟用 production Cron 前，必須先完成 LINE secrets、Supabase Vault、同 Provider / channel linking、LIFF production endpoint 與 status-domain routing checklist。MVP 使用 Supabase Cron 每分鐘呼叫 Nuxt internal endpoint，不使用 Vercel Hobby Cron 做分鐘級通知。
 
 ## 已完成
 

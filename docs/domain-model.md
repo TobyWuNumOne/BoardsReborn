@@ -409,3 +409,46 @@ TypeScript 名稱：`PrintJobType`
 - 管理端 user-scoped Supabase client 需要 `authenticated` role 具備對應 table / view privileges，並由 RLS policies 與 Nuxt admin gate 共同限制實際操作。
 - private Realtime broadcast topic 的 join 授權也由 `realtime.messages` RLS policy 控制；本 repo 的 printing topics 限制為 `printing:*` 且僅允許 `admin_profiles` 使用者加入。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。
+
+## LINE MVP 資料模型基線（planned / not implemented）
+
+以下 schema 只代表下一輪 migration 的設計基線；目前資料庫尚無這些 table、enum、constraint、index 或 policy。
+
+### `customer_line_accounts`
+
+- 只表示目前有效的 LINE 綁定，不保留綁定 history。
+- `customer_id` 與 `line_user_id` 各自必須 unique，強制 `1 Customer : 1 LINE` 與 `1 LINE : 1 Customer`。
+- 規劃欄位包含 `id`、`customer_id`、`line_user_id`、`display_name`、`picture_url`、`linked_at`、`last_seen_at`、`is_friend`、`blocked_at`、`created_at`、`updated_at`。
+- 綁定與好友狀態分離；`is_friend` / `blocked_at` 由最小 follow / unfollow webhook 維護。
+- 解除綁定只允許 admin，並 hard delete 該列。顧客端不可解除，也不可由 confirm flow 自動覆蓋其他綁定。
+- RLS 預設 deny direct client access；public LIFF、webhook 與 worker 流程只能透過 server-side transaction / service boundary 存取。
+
+### `line_bind_tokens`
+
+- 每次發卡建立新 row；TTL 固定 30 天，一次性、可撤銷且不可重用。
+- 規劃欄位包含 `id`、`token_hash`、`customer_id`、`work_order_id`、`expires_at`、`used_at`、`revoked_at`、`created_by`、`created_at`、`updated_at`。
+- DB 只儲存 `token_hash`。明文 token 由 `token row UUID + LINE_BIND_TOKEN_SECRET` 透過 deterministic HMAC 產生，server 可對 active pending row 重建相同 token 與 LIFF URL。
+- `used_at` 只表示綁定權限已成功消耗；必須在 LINE 身分驗證與 `customer_line_accounts` 寫入成功後，於同一 transaction 設定。
+- 發新 token、綁定成功或解除綁定時，必須撤銷同 Customer 其他 pending token。
+- Secret 遺失或輪替後，既有 pending token 視為不可補印，只能撤銷並重新發卡。
+- 明文 token 不得持久化到 `print_jobs.payload`、其他 table 或 log；允許出現在使用者持有的 LIFF URL 與 Server 到 Print Worker 的暫時 response 中。
+- 需要 unique `token_hash`，並為 active token resolve、Customer pending token 與 work order latest token 查詢建立適當 index。
+
+### `line_jobs`
+
+- Outbox job type 僅規劃 `line_binding_success`、`work_order_received`、`work_order_ready_for_pickup`。
+- 狀態至少涵蓋 `pending`、`processing`、`succeeded`、`failed`、`skipped`；保留 attempts、available/lock、error、recipient、payload、retry key 與時間欄位。
+- 自動事件必須有 stable dedupe key；每張工單只建立一次自動 `work_order_ready_for_pickup` job。未來手動補發不得重用自動 dedupe key。
+- pending job 第一次實際送出前，worker 先以 `customer_id` 重新解析目前有效綁定與可通知狀態，再凍結 recipient、payload 與 retry key。後續 retry 使用相同 `X-Line-Retry-Key`。
+- 無有效綁定或不可通知時標記 `skipped`。LINE API accepted 只表示平台接受 request，不表示顧客實際收到。
+- `work_order_ready_for_pickup` job 成功後，以 `coalesce(work_orders.notified_at, line_jobs.sent_at)` 維護 `work_orders.notified_at`。
+- MVP 暫不執行 retention；used/revoked/expired token 與終態 job 暫時保留。
+
+### Transaction 與一致性邊界
+
+- 發卡：建立新 token 並撤銷同 Customer 其他 pending token，必須在同一 transaction。
+- Confirm：鎖定並驗證 token、檢查雙向唯一性、建立綁定、設定 `used_at`、撤銷其他 pending token，必須在同一 transaction。
+- 解除綁定：hard delete account 並撤銷同 Customer pending token，必須在同一 transaction。
+- 建單：工單成功優先；發卡或 `work_order_received` enqueue 失敗不回滾工單。
+- READY：狀態 history、`current_status` / timestamp side effects 與符合條件的 outbox insert 必須在同一 DB transaction；dedupe conflict 是 no-op，其他 insert error 可回滾狀態更新。
+- Job claim 與送出結果各自使用短 transaction；外部 LINE request 不放在 DB transaction 內。

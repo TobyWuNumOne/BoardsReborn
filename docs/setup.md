@@ -108,6 +108,14 @@ Set these in `.env` or in the deployment platform environment. The repo is compa
 | `ADMIN_EMAIL`                   | Used when seeding or manually creating the first admin account             | No           |
 | `ADMIN_PASSWORD`                | Used when seeding or manually creating the first admin account             | No           |
 | `PRINT_WORKER_TOKEN`            | Bearer token for Print Worker → Nuxt API calls                             | No           |
+| `LINE_CHANNEL_SECRET`           | Messaging API webhook signature verification                               | No           |
+| `LINE_CHANNEL_ACCESS_TOKEN`     | Server-side Messaging API authorization                                    | No           |
+| `LINE_LOGIN_CHANNEL_ID`         | Server-side LINE ID token audience / verification                          | No           |
+| `LINE_LOGIN_CHANNEL_SECRET`     | Server-side LINE Login channel secret                                      | No           |
+| `NUXT_PUBLIC_LIFF_ID`           | Browser-safe LIFF app ID                                                   | Yes          |
+| `NUXT_PUBLIC_LINE_OFFICIAL_URL` | Browser-safe official LINE add-friend URL                                  | Yes          |
+| `LINE_BIND_TOKEN_SECRET`        | HMAC secret used with token row UUID to derive bind tokens                 | No           |
+| `LINE_JOB_PROCESSOR_SECRET`     | Bearer secret for Supabase Cron → Nuxt internal processor                  | No           |
 
 Legacy aliases still supported:
 
@@ -116,6 +124,17 @@ Legacy aliases still supported:
 - `PRINT_AGENT_TOKEN`
 
 `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` must never be passed to the client, appear in public runtime config, or be written to logs. `PRINT_WORKER_TOKEN` must remain server-side and within the Print Worker environment only. `PRINT_AGENT_TOKEN` is kept only as a temporary legacy alias.
+
+LINE variables are planned and unused until the corresponding LINE PRs land. `LINE_BIND_TOKEN_SECRET` and `LINE_JOB_PROCESSOR_SECRET` must be independent high-entropy secrets. Losing or rotating `LINE_BIND_TOKEN_SECRET` invalidates reconstruction of existing pending bind URLs; revoke those rows and issue new tokens. Never place LINE server secrets in query strings, public runtime config, responses, or logs.
+
+Before enabling the production minute-level Supabase Cron in PR 9, verify:
+
+- LINE Login and Messaging API channels are under the same Provider.
+- LINE Login channel is linked to the official account and LIFF is created.
+- Production LIFF endpoint and status-domain `/line/order-gate` routing are valid.
+- All LINE server secrets are configured in the deployment environment.
+- Supabase Vault holds the internal processor credential used by Cron.
+- Vercel Hobby Cron is not used for minute-level LINE processing; Supabase Cron calls the Nuxt internal endpoint every minute with a Bearer secret.
 
 ### `printer-worker` connectivity worker
 

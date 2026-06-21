@@ -151,6 +151,19 @@ Renderer 規則：
 - 建立工單不要求同步列印成功。
 - work-order detail / create success / bulk-status 只顯示列印摘要與 deep link；完整列印操作仍集中在 `/admin/printing`。
 
+### LINE 條件式留存聯 QR（planned / not implemented）
+
+目前已落地的 `customer_receipt` snapshot 仍固定使用 `/repair-status`，且 immutable，不回寫。後續 LINE PR 只影響新建立的留存聯任務：
+
+- Customer 未綁定 LINE：建立 active `line_bind_token`，QR 使用 LIFF bind URL。
+- Customer 已綁定 LINE：不發 token，QR 使用 `/repair-status`。
+- 自動發卡失敗：工單仍建立成功，該次留存聯 fallback 到 `/repair-status`，後台顯示可重新發卡。
+- 普通補印沿用未使用、未過期、未撤銷的 active pending token；重新發卡是另一個明確 admin action，並撤銷舊 pending token。
+- 明文 token 由 `token row UUID + LINE_BIND_TOKEN_SECRET` 以 HMAC 重建，DB 只存 `token_hash`。
+- `print_jobs.payload` 不得持久化明文 token 或完整 LIFF bind URL。可持久化非機密 token row reference / QR target kind；Nuxt 在 Worker claim / dispatch 時重建 URL，僅於 response 與列印記憶體中短暫存在。
+- `LINE_BIND_TOKEN_SECRET` 遺失或輪替時，舊 pending token 不可補印，只能重新發卡。
+- LIFF URL 是顧客持有的一次性 bearer credential；不得寫入 application log、錯誤訊息或其他持久化欄位。
+
 ## 樹莓派定位
 
 樹莓派適合作為本地列印中樞：
