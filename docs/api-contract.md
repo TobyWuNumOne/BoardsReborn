@@ -1621,9 +1621,9 @@ Request rules：
 - `status_history` 完整明細。
 - 管理者或員工資訊。
 
-## LINE MVP API 基線（planned / not implemented）
+## LINE MVP API
 
-本節是後續 PR 的 contract 基線，尚無對應 route。實作時仍須使用本文件既有 error envelope 與 request ID 規則。
+PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoints 仍為 planned / not implemented。所有 endpoint 使用本文件既有 error envelope 與 request ID 規則。
 
 ### Planned endpoints
 
@@ -1636,6 +1636,31 @@ Request rules：
 | `GET /api/admin/work-orders/{id}/line-status`      | Admin                      | 查詢綁定、好友、latest token 與最近通知狀態                     |
 | `POST /api/internal/line-jobs/process`             | Server Bearer secret       | claim、prepare、send、retry、skip LINE jobs                     |
 | `POST /api/webhooks/line`                          | LINE signature             | 處理最小 follow / unfollow event                                |
+
+### `POST /api/admin/work-orders/{id}/line-bind-token`
+
+- Auth：admin。
+- Body：空 JSON object；未知欄位回 `422 VALIDATION_ERROR`。
+- 以原子 RPC 確認 Customer 尚未綁定、撤銷舊 pending token並建立 30 天效期的新 token。
+- 成功回 `201`：`{ data: { id, expiresAt, liffUrl, revokedTokenCount } }`。
+- 不回 plaintext token / `token_hash`，不建立 print job。
+- 已綁定回 `409 CUSTOMER_ALREADY_BOUND`；工單不存在回 `404 NOT_FOUND`。
+
+### `DELETE /api/admin/customers/{id}/line-binding`
+
+- Auth：admin。
+- 原子 hard delete binding、撤銷 pending token並將尚未送出的 pending jobs標記為 `skipped / no_active_line_binding`。
+- `processing` jobs不強制改寫。
+- 成功回 `{ data: { customerId, unlinkedAt, revokedTokenCount, skippedPendingJobCount } }`。
+- 無有效綁定回 `404 NO_ACTIVE_LINE_BINDING`；Customer 不存在回 `404 NOT_FOUND`。
+
+### `GET /api/admin/work-orders/{id}/line-status`
+
+- Auth：admin。
+- 回傳 `workOrderId`、`customerId`、binding / notification status、latest token state與最近 5 筆 jobs。
+- `notificationStatus` 為 `notifyable`、`not_notifyable` 或 `unknown`。
+- latest token status為 `pending`、`used`、`expired`、`revoked` 或 `none`。
+- 不查詢或回傳 `line_user_id`、`token_hash`、plaintext token、recipient、prepared payload或 LINE secrets。
 
 ### Contract rules
 

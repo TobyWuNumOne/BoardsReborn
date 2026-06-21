@@ -7,6 +7,8 @@ export type ApiErrorCode =
   | 'TOO_MANY_REQUESTS'
   | 'VALIDATION_ERROR'
   | 'CONFLICT'
+  | 'CUSTOMER_ALREADY_BOUND'
+  | 'NO_ACTIVE_LINE_BINDING'
   | 'INVALID_STATUS_TRANSITION'
   | 'STORAGE_UPLOAD_FAILED'
   | 'PRINT_JOB_NOT_CLAIMED'
@@ -74,6 +76,18 @@ export class ValidationError extends ApiError {
 export class ConflictError extends ApiError {
   constructor(message = 'Resource conflict.') {
     super({ code: 'CONFLICT', message, statusCode: 409 });
+  }
+}
+
+export class CustomerAlreadyBoundError extends ApiError {
+  constructor(message = 'Customer already has an active LINE binding.') {
+    super({ code: 'CUSTOMER_ALREADY_BOUND', message, statusCode: 409 });
+  }
+}
+
+export class NoActiveLineBindingError extends ApiError {
+  constructor(message = 'Customer has no active LINE binding.') {
+    super({ code: 'NO_ACTIVE_LINE_BINDING', message, statusCode: 404 });
   }
 }
 

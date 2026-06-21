@@ -1,8 +1,10 @@
 import {
   ConflictError,
+  CustomerAlreadyBoundError,
   ForbiddenError,
   InternalServerError,
   NotFoundError,
+  NoActiveLineBindingError,
   ValidationError,
 } from './api-errors';
 
@@ -20,6 +22,17 @@ const includesErrorText = (error: SupabaseLikeError, text: string): boolean =>
   [error.message, error.details, error.hint].some((value) => value?.includes(text));
 
 export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
+  if (
+    error.code === '23514' &&
+    includesErrorText(error, 'Customer already has active LINE binding')
+  ) {
+    throw new CustomerAlreadyBoundError();
+  }
+
+  if (error.code === 'P0002' && includesErrorText(error, 'No active LINE binding')) {
+    throw new NoActiveLineBindingError();
+  }
+
   if (error.code === '23505' && includesConstraint(error, 'work_orders_paper_order_no_key')) {
     throw new ConflictError('Paper order number already exists.');
   }
@@ -95,9 +108,7 @@ export const throwMappedSupabaseError = (error: SupabaseLikeError): never => {
 
   if (error.code === '23514' && includesErrorText(error, 'Invalid test paper order number')) {
     throw new ValidationError({
-      'workOrder.paperOrderNo': [
-        'Must start with 99 and include at least four sequence digits.',
-      ],
+      'workOrder.paperOrderNo': ['Must start with 99 and include at least four sequence digits.'],
     });
   }
 

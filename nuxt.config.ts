@@ -48,6 +48,7 @@ const publicAdminUrl = readFirstNonEmpty(process.env.NUXT_PUBLIC_ADMIN_URL) || '
 const publicStatusUrl =
   readFirstNonEmpty(process.env.NUXT_PUBLIC_STATUS_URL, process.env.NUXT_PUBLIC_APP_URL) ||
   publicAppUrl;
+const publicLiffId = readFirstNonEmpty(process.env.NUXT_PUBLIC_LIFF_ID) || '';
 const supabaseCookieSecure = (() => {
   try {
     return new URL(publicAppUrl).protocol === 'https:';
@@ -88,6 +89,7 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    lineBindTokenSecret: process.env.LINE_BIND_TOKEN_SECRET || '',
     supabaseSecretKey: supabaseSecretKey || '',
     printAgentToken: process.env.PRINT_AGENT_TOKEN || '',
     adminEmail: process.env.ADMIN_EMAIL || '',
@@ -95,6 +97,7 @@ export default defineNuxtConfig({
     public: {
       adminUrl: publicAdminUrl,
       appUrl: publicAppUrl,
+      liffId: publicLiffId,
       statusUrl: publicStatusUrl,
     },
   },

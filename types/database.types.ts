@@ -888,6 +888,42 @@ export type Database = {
         Args: { p_lock?: boolean };
         Returns: string;
       };
+      issue_admin_line_bind_token: {
+        Args: {
+          p_created_by?: string;
+          p_token_hash: string;
+          p_token_id: string;
+          p_work_order_id: string;
+        };
+        Returns: Json;
+      };
+      issue_line_bind_token: {
+        Args: {
+          p_created_by?: string;
+          p_customer_id: string;
+          p_token_hash: string;
+          p_token_id: string;
+          p_work_order_id: string;
+        };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          customer_id: string;
+          expires_at: string;
+          id: string;
+          revoked_at: string | null;
+          token_hash: string;
+          updated_at: string;
+          used_at: string | null;
+          work_order_id: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'line_bind_tokens';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       mark_print_job_failed: {
         Args: { p_device_key: string; p_error: string; p_print_job_id: string };
         Returns: Json;
@@ -905,6 +941,10 @@ export type Database = {
         Args: { p_print_job_id: string; p_requested_by_user_id?: string };
         Returns: Json;
       };
+      revoke_pending_line_bind_tokens: {
+        Args: { p_customer_id: string };
+        Returns: number;
+      };
       to_printable_ascii: { Args: { p_value: string }; Returns: string };
       transition_admin_work_order_status: {
         Args: {
@@ -915,6 +955,10 @@ export type Database = {
           p_status: Database['public']['Enums']['work_order_status'];
           p_work_order_id: string;
         };
+        Returns: Json;
+      };
+      unlink_admin_customer_line_binding: {
+        Args: { p_customer_id: string };
         Returns: Json;
       };
     };

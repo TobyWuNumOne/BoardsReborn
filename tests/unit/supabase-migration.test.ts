@@ -111,6 +111,14 @@ const lineMvpFoundationMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621062329_line_mvp_foundation.sql'),
   'utf8',
 );
+const lineBindTokenRpcsMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621064536_line_bind_token_rpcs.sql'),
+  'utf8',
+);
+const adminLineBindingManagementMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621065543_admin_line_binding_management.sql'),
+  'utf8',
+);
 const testPaperOrderNoMigrationPath = resolve(
   process.cwd(),
   'supabase/migrations/20260618110000_test_work_order_numbers.sql',
@@ -566,5 +574,55 @@ describe('initial Supabase migration', () => {
     expect(lineMvpFoundationMigration).toContain(
       'grant select, insert, update, delete on table public.line_jobs to service_role',
     );
+  });
+
+  it('adds atomic LINE bind token issue and revoke RPCs', () => {
+    expect(lineBindTokenRpcsMigration).toContain(
+      'create or replace function public.issue_line_bind_token',
+    );
+    expect(lineBindTokenRpcsMigration).toContain(
+      'create or replace function public.revoke_pending_line_bind_tokens',
+    );
+    expect(lineBindTokenRpcsMigration).toContain('security invoker');
+    expect(lineBindTokenRpcsMigration).toContain('from public.customers');
+    expect(lineBindTokenRpcsMigration).toContain('for update');
+    expect(lineBindTokenRpcsMigration).toContain('update public.line_bind_tokens');
+    expect(lineBindTokenRpcsMigration).toContain('insert into public.line_bind_tokens');
+    expect(lineBindTokenRpcsMigration).toContain("statement_timestamp() + interval '30 days'");
+    expect(lineBindTokenRpcsMigration).not.toContain('plaintext');
+    expect(lineBindTokenRpcsMigration).not.toContain('LINE_BIND_TOKEN_SECRET');
+    expect(lineBindTokenRpcsMigration).toContain(
+      'revoke all on function public.issue_line_bind_token',
+    );
+    expect(lineBindTokenRpcsMigration).toContain(
+      'grant execute on function public.issue_line_bind_token',
+    );
+  });
+
+  it('adds atomic admin LINE issue and unlink transactions', () => {
+    expect(adminLineBindingManagementMigration).toContain(
+      'create or replace function public.issue_admin_line_bind_token',
+    );
+    expect(adminLineBindingManagementMigration).toContain(
+      'create or replace function public.unlink_admin_customer_line_binding',
+    );
+    expect(adminLineBindingManagementMigration).toContain('security invoker');
+    expect(adminLineBindingManagementMigration).toContain('for update');
+    expect(adminLineBindingManagementMigration).toContain(
+      'Customer already has active LINE binding',
+    );
+    expect(adminLineBindingManagementMigration).toContain(
+      'delete from public.customer_line_accounts',
+    );
+    expect(adminLineBindingManagementMigration).toContain(
+      "status = 'skipped'::public.line_job_status",
+    );
+    expect(adminLineBindingManagementMigration).toContain(
+      "and status = 'pending'::public.line_job_status",
+    );
+    expect(adminLineBindingManagementMigration).not.toContain(
+      "and status = 'processing'::public.line_job_status",
+    );
+    expect(adminLineBindingManagementMigration).not.toContain('binding_history');
   });
 });
