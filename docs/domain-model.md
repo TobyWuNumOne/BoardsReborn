@@ -410,15 +410,15 @@ TypeScript 名稱：`PrintJobType`
 - private Realtime broadcast topic 的 join 授權也由 `realtime.messages` RLS policy 控制；本 repo 的 printing topics 限制為 `printing:*` 且僅允許 `admin_profiles` 使用者加入。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。
 
-## LINE MVP 資料模型基線（planned / not implemented）
+## LINE MVP 資料模型（schema implemented，workflow not implemented）
 
-以下 schema 只代表下一輪 migration 的設計基線；目前資料庫尚無這些 table、enum、constraint、index 或 policy。
+以下 enum、table、constraint、index、RLS 與 grants 已由 `20260621062329_line_mvp_foundation.sql` 建立。Token service、API、LIFF、webhook、processor 與狀態整合仍未實作。
 
 ### `customer_line_accounts`
 
 - 只表示目前有效的 LINE 綁定，不保留綁定 history。
 - `customer_id` 與 `line_user_id` 各自必須 unique，強制 `1 Customer : 1 LINE` 與 `1 LINE : 1 Customer`。
-- 規劃欄位包含 `id`、`customer_id`、`line_user_id`、`display_name`、`picture_url`、`linked_at`、`last_seen_at`、`is_friend`、`blocked_at`、`created_at`、`updated_at`。
+- 欄位包含 `id`、`customer_id`、`line_user_id`、`display_name`、`picture_url`、`linked_at`、`last_seen_at`、`is_friend`、`blocked_at`、`created_at`、`updated_at`。
 - 綁定與好友狀態分離；`is_friend` / `blocked_at` 由最小 follow / unfollow webhook 維護。
 - 解除綁定只允許 admin，並 hard delete 該列。顧客端不可解除，也不可由 confirm flow 自動覆蓋其他綁定。
 - RLS 預設 deny direct client access；public LIFF、webhook 與 worker 流程只能透過 server-side transaction / service boundary 存取。
@@ -426,7 +426,7 @@ TypeScript 名稱：`PrintJobType`
 ### `line_bind_tokens`
 
 - 每次發卡建立新 row；TTL 固定 30 天，一次性、可撤銷且不可重用。
-- 規劃欄位包含 `id`、`token_hash`、`customer_id`、`work_order_id`、`expires_at`、`used_at`、`revoked_at`、`created_by`、`created_at`、`updated_at`。
+- 欄位包含 `id`、`token_hash`、`customer_id`、`work_order_id`、`expires_at`、`used_at`、`revoked_at`、`created_by`、`created_at`、`updated_at`。
 - DB 只儲存 `token_hash`。明文 token 由 `token row UUID + LINE_BIND_TOKEN_SECRET` 透過 deterministic HMAC 產生，server 可對 active pending row 重建相同 token 與 LIFF URL。
 - `used_at` 只表示綁定權限已成功消耗；必須在 LINE 身分驗證與 `customer_line_accounts` 寫入成功後，於同一 transaction 設定。
 - 發新 token、綁定成功或解除綁定時，必須撤銷同 Customer 其他 pending token。
@@ -436,7 +436,8 @@ TypeScript 名稱：`PrintJobType`
 
 ### `line_jobs`
 
-- Outbox job type 僅規劃 `line_binding_success`、`work_order_received`、`work_order_ready_for_pickup`。
+- `line_job_type` 目前只包含 `line_binding_success`、`work_order_received`、`work_order_ready_for_pickup`。
+- `line_job_status` 包含 `pending`、`processing`、`succeeded`、`failed`、`skipped`；`line_job_skip_reason` 包含 `no_active_line_binding`、`line_not_notifyable`。
 - 狀態至少涵蓋 `pending`、`processing`、`succeeded`、`failed`、`skipped`；保留 attempts、available/lock、error、recipient、payload、retry key 與時間欄位。
 - 自動事件必須有 stable dedupe key；每張工單只建立一次自動 `work_order_ready_for_pickup` job。未來手動補發不得重用自動 dedupe key。
 - pending job 第一次實際送出前，worker 先以 `customer_id` 重新解析目前有效綁定與可通知狀態，再凍結 recipient、payload 與 retry key。後續 retry 使用相同 `X-Line-Retry-Key`。

@@ -49,6 +49,56 @@ export type Database = {
         };
         Relationships: [];
       };
+      customer_line_accounts: {
+        Row: {
+          blocked_at: string | null;
+          created_at: string;
+          customer_id: string;
+          display_name: string | null;
+          id: string;
+          is_friend: boolean;
+          last_seen_at: string | null;
+          line_user_id: string;
+          linked_at: string;
+          picture_url: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          blocked_at?: string | null;
+          created_at?: string;
+          customer_id: string;
+          display_name?: string | null;
+          id?: string;
+          is_friend?: boolean;
+          last_seen_at?: string | null;
+          line_user_id: string;
+          linked_at?: string;
+          picture_url?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          blocked_at?: string | null;
+          created_at?: string;
+          customer_id?: string;
+          display_name?: string | null;
+          id?: string;
+          is_friend?: boolean;
+          last_seen_at?: string | null;
+          line_user_id?: string;
+          linked_at?: string;
+          picture_url?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'customer_line_accounts_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: true;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       customers: {
         Row: {
           created_at: string;
@@ -78,6 +128,155 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      line_bind_tokens: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          customer_id: string;
+          expires_at: string;
+          id: string;
+          revoked_at: string | null;
+          token_hash: string;
+          updated_at: string;
+          used_at: string | null;
+          work_order_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          customer_id: string;
+          expires_at: string;
+          id?: string;
+          revoked_at?: string | null;
+          token_hash: string;
+          updated_at?: string;
+          used_at?: string | null;
+          work_order_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          customer_id?: string;
+          expires_at?: string;
+          id?: string;
+          revoked_at?: string | null;
+          token_hash?: string;
+          updated_at?: string;
+          used_at?: string | null;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'line_bind_tokens_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'line_bind_tokens_work_order_customer_fk';
+            columns: ['work_order_id', 'customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'admin_work_order_list';
+            referencedColumns: ['id', 'customer_id'];
+          },
+          {
+            foreignKeyName: 'line_bind_tokens_work_order_customer_fk';
+            columns: ['work_order_id', 'customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'work_orders';
+            referencedColumns: ['id', 'customer_id'];
+          },
+        ];
+      };
+      line_jobs: {
+        Row: {
+          attempts: number;
+          available_at: string;
+          created_at: string;
+          customer_id: string;
+          dedupe_key: string | null;
+          id: string;
+          job_type: Database['public']['Enums']['line_job_type'];
+          last_error: string | null;
+          locked_at: string | null;
+          locked_by: string | null;
+          max_attempts: number;
+          payload: Json | null;
+          recipient_line_user_id: string | null;
+          retry_key: string | null;
+          sent_at: string | null;
+          skip_reason: Database['public']['Enums']['line_job_skip_reason'] | null;
+          status: Database['public']['Enums']['line_job_status'];
+          updated_at: string;
+          work_order_id: string | null;
+        };
+        Insert: {
+          attempts?: number;
+          available_at?: string;
+          created_at?: string;
+          customer_id: string;
+          dedupe_key?: string | null;
+          id?: string;
+          job_type: Database['public']['Enums']['line_job_type'];
+          last_error?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          max_attempts?: number;
+          payload?: Json | null;
+          recipient_line_user_id?: string | null;
+          retry_key?: string | null;
+          sent_at?: string | null;
+          skip_reason?: Database['public']['Enums']['line_job_skip_reason'] | null;
+          status?: Database['public']['Enums']['line_job_status'];
+          updated_at?: string;
+          work_order_id?: string | null;
+        };
+        Update: {
+          attempts?: number;
+          available_at?: string;
+          created_at?: string;
+          customer_id?: string;
+          dedupe_key?: string | null;
+          id?: string;
+          job_type?: Database['public']['Enums']['line_job_type'];
+          last_error?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          max_attempts?: number;
+          payload?: Json | null;
+          recipient_line_user_id?: string | null;
+          retry_key?: string | null;
+          sent_at?: string | null;
+          skip_reason?: Database['public']['Enums']['line_job_skip_reason'] | null;
+          status?: Database['public']['Enums']['line_job_status'];
+          updated_at?: string;
+          work_order_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'line_jobs_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'line_jobs_work_order_customer_fk';
+            columns: ['work_order_id', 'customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'admin_work_order_list';
+            referencedColumns: ['id', 'customer_id'];
+          },
+          {
+            foreignKeyName: 'line_jobs_work_order_customer_fk';
+            columns: ['work_order_id', 'customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'work_orders';
+            referencedColumns: ['id', 'customer_id'];
+          },
+        ];
       };
       photos: {
         Row: {
@@ -345,113 +544,6 @@ export type Database = {
           },
         ];
       };
-      work_orders: {
-        Row: {
-          board_brand: string | null;
-          board_color: string | null;
-          board_length_class: Database['public']['Enums']['board_length_class'] | null;
-          board_model: string | null;
-          board_serial_label: string | null;
-          board_size_label: string | null;
-          board_type: Database['public']['Enums']['board_type'];
-          cancelled_at: string | null;
-          created_at: string;
-          current_status: Database['public']['Enums']['work_order_status'];
-          customer_confirmed_at: string | null;
-          customer_id: string;
-          damage_description: string | null;
-          delivered_at: string | null;
-          estimated_completion_date: string | null;
-          id: string;
-          intake_date: string;
-          internal_note: string | null;
-          notified_at: string | null;
-          paper_order_no: string;
-          payment_received: boolean;
-          payment_received_at: string | null;
-          picked_up_at: string | null;
-          pickup_note: string | null;
-          public_note: string | null;
-          repair_count: number | null;
-          repair_count_source: Database['public']['Enums']['repair_count_source'];
-          ready_for_pickup_at: string | null;
-          storage_fee_warning_after_days: number;
-          updated_at: string;
-        };
-        Insert: {
-          board_brand?: string | null;
-          board_color?: string | null;
-          board_length_class?: Database['public']['Enums']['board_length_class'] | null;
-          board_model?: string | null;
-          board_serial_label?: string | null;
-          board_size_label?: string | null;
-          board_type: Database['public']['Enums']['board_type'];
-          cancelled_at?: string | null;
-          created_at?: string;
-          current_status?: Database['public']['Enums']['work_order_status'];
-          customer_confirmed_at?: string | null;
-          customer_id: string;
-          damage_description?: string | null;
-          delivered_at?: string | null;
-          estimated_completion_date?: string | null;
-          id?: string;
-          intake_date: string;
-          internal_note?: string | null;
-          notified_at?: string | null;
-          paper_order_no: string;
-          payment_received?: boolean;
-          payment_received_at?: string | null;
-          picked_up_at?: string | null;
-          pickup_note?: string | null;
-          public_note?: string | null;
-          repair_count?: number | null;
-          repair_count_source?: Database['public']['Enums']['repair_count_source'];
-          ready_for_pickup_at?: string | null;
-          storage_fee_warning_after_days?: number;
-          updated_at?: string;
-        };
-        Update: {
-          board_brand?: string | null;
-          board_color?: string | null;
-          board_length_class?: Database['public']['Enums']['board_length_class'] | null;
-          board_model?: string | null;
-          board_serial_label?: string | null;
-          board_size_label?: string | null;
-          board_type?: Database['public']['Enums']['board_type'];
-          cancelled_at?: string | null;
-          created_at?: string;
-          current_status?: Database['public']['Enums']['work_order_status'];
-          customer_confirmed_at?: string | null;
-          customer_id?: string;
-          damage_description?: string | null;
-          delivered_at?: string | null;
-          estimated_completion_date?: string | null;
-          id?: string;
-          intake_date?: string;
-          internal_note?: string | null;
-          notified_at?: string | null;
-          paper_order_no?: string;
-          payment_received?: boolean;
-          payment_received_at?: string | null;
-          picked_up_at?: string | null;
-          pickup_note?: string | null;
-          public_note?: string | null;
-          repair_count?: number | null;
-          repair_count_source?: Database['public']['Enums']['repair_count_source'];
-          ready_for_pickup_at?: string | null;
-          storage_fee_warning_after_days?: number;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'work_orders_customer_id_fkey';
-            columns: ['customer_id'];
-            isOneToOne: false;
-            referencedRelation: 'customers';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
       work_order_repair_marks: {
         Row: {
           board_side: Database['public']['Enums']['repair_mark_board_side'];
@@ -505,6 +597,113 @@ export type Database = {
             columns: ['work_order_id'];
             isOneToOne: false;
             referencedRelation: 'work_orders';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      work_orders: {
+        Row: {
+          board_brand: string | null;
+          board_color: string | null;
+          board_length_class: Database['public']['Enums']['board_length_class'] | null;
+          board_model: string | null;
+          board_serial_label: string | null;
+          board_size_label: string | null;
+          board_type: Database['public']['Enums']['board_type'];
+          cancelled_at: string | null;
+          created_at: string;
+          current_status: Database['public']['Enums']['work_order_status'];
+          customer_confirmed_at: string | null;
+          customer_id: string;
+          damage_description: string | null;
+          delivered_at: string | null;
+          estimated_completion_date: string | null;
+          id: string;
+          intake_date: string;
+          internal_note: string | null;
+          notified_at: string | null;
+          paper_order_no: string;
+          payment_received: boolean;
+          payment_received_at: string | null;
+          picked_up_at: string | null;
+          pickup_note: string | null;
+          public_note: string | null;
+          ready_for_pickup_at: string | null;
+          repair_count: number | null;
+          repair_count_source: Database['public']['Enums']['repair_count_source'];
+          storage_fee_warning_after_days: number;
+          updated_at: string;
+        };
+        Insert: {
+          board_brand?: string | null;
+          board_color?: string | null;
+          board_length_class?: Database['public']['Enums']['board_length_class'] | null;
+          board_model?: string | null;
+          board_serial_label?: string | null;
+          board_size_label?: string | null;
+          board_type: Database['public']['Enums']['board_type'];
+          cancelled_at?: string | null;
+          created_at?: string;
+          current_status?: Database['public']['Enums']['work_order_status'];
+          customer_confirmed_at?: string | null;
+          customer_id: string;
+          damage_description?: string | null;
+          delivered_at?: string | null;
+          estimated_completion_date?: string | null;
+          id?: string;
+          intake_date: string;
+          internal_note?: string | null;
+          notified_at?: string | null;
+          paper_order_no: string;
+          payment_received?: boolean;
+          payment_received_at?: string | null;
+          picked_up_at?: string | null;
+          pickup_note?: string | null;
+          public_note?: string | null;
+          ready_for_pickup_at?: string | null;
+          repair_count?: number | null;
+          repair_count_source?: Database['public']['Enums']['repair_count_source'];
+          storage_fee_warning_after_days?: number;
+          updated_at?: string;
+        };
+        Update: {
+          board_brand?: string | null;
+          board_color?: string | null;
+          board_length_class?: Database['public']['Enums']['board_length_class'] | null;
+          board_model?: string | null;
+          board_serial_label?: string | null;
+          board_size_label?: string | null;
+          board_type?: Database['public']['Enums']['board_type'];
+          cancelled_at?: string | null;
+          created_at?: string;
+          current_status?: Database['public']['Enums']['work_order_status'];
+          customer_confirmed_at?: string | null;
+          customer_id?: string;
+          damage_description?: string | null;
+          delivered_at?: string | null;
+          estimated_completion_date?: string | null;
+          id?: string;
+          intake_date?: string;
+          internal_note?: string | null;
+          notified_at?: string | null;
+          paper_order_no?: string;
+          payment_received?: boolean;
+          payment_received_at?: string | null;
+          picked_up_at?: string | null;
+          pickup_note?: string | null;
+          public_note?: string | null;
+          ready_for_pickup_at?: string | null;
+          repair_count?: number | null;
+          repair_count_source?: Database['public']['Enums']['repair_count_source'];
+          storage_fee_warning_after_days?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'work_orders_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
             referencedColumns: ['id'];
           },
         ];
@@ -641,6 +840,8 @@ export type Database = {
       };
     };
     Functions: {
+      build_print_barcode_value: { Args: { p_value: string }; Returns: string };
+      build_print_phone_value: { Args: { p_value: string }; Returns: string };
       claim_next_print_job: {
         Args: { p_device_key: string; p_stale_lock_seconds?: number };
         Returns: Json;
@@ -695,6 +896,7 @@ export type Database = {
         Args: { p_device_key: string; p_print_job_id: string };
         Returns: Json;
       };
+      mask_print_phone: { Args: { p_value: string }; Returns: string };
       normalize_tw_mobile_phone: {
         Args: { raw_phone: string };
         Returns: string;
@@ -703,6 +905,7 @@ export type Database = {
         Args: { p_print_job_id: string; p_requested_by_user_id?: string };
         Returns: Json;
       };
+      to_printable_ascii: { Args: { p_value: string }; Returns: string };
       transition_admin_work_order_status: {
         Args: {
           p_changed_by_user_id?: string;
@@ -719,6 +922,9 @@ export type Database = {
       board_length_class: 'SHORTBOARD' | 'MID_LENGTH' | 'LONGBOARD';
       board_type: 'SURFBOARD' | 'SUP' | 'SNOWBOARD';
       label_language: 'TSPL' | 'ZPL' | 'EPL' | 'DPL';
+      line_job_skip_reason: 'no_active_line_binding' | 'line_not_notifyable';
+      line_job_status: 'pending' | 'processing' | 'succeeded' | 'failed' | 'skipped';
+      line_job_type: 'line_binding_success' | 'work_order_received' | 'work_order_ready_for_pickup';
       photo_type: 'INTAKE' | 'IN_PROGRESS' | 'SPECIAL_CONDITION' | 'COMPLETION';
       photo_visibility: 'INTERNAL' | 'PUBLIC';
       print_device_status: 'active' | 'inactive' | 'error';
@@ -1410,12 +1616,17 @@ export const Constants = {
       board_length_class: ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'],
       board_type: ['SURFBOARD', 'SUP', 'SNOWBOARD'],
       label_language: ['TSPL', 'ZPL', 'EPL', 'DPL'],
+      line_job_skip_reason: ['no_active_line_binding', 'line_not_notifyable'],
+      line_job_status: ['pending', 'processing', 'succeeded', 'failed', 'skipped'],
+      line_job_type: ['line_binding_success', 'work_order_received', 'work_order_ready_for_pickup'],
       photo_type: ['INTAKE', 'IN_PROGRESS', 'SPECIAL_CONDITION', 'COMPLETION'],
       photo_visibility: ['INTERNAL', 'PUBLIC'],
       print_device_status: ['active', 'inactive', 'error'],
       print_job_status: ['pending', 'locked', 'printing', 'printed', 'failed', 'cancelled'],
       print_job_type: ['work_order_label', 'customer_receipt'],
       quote_item_type: ['INITIAL', 'ADDITIONAL', 'ADJUSTMENT'],
+      repair_count_source: ['auto', 'manual'],
+      repair_mark_board_side: ['front', 'back'],
       work_order_status: [
         'RECEIVED',
         'DRYING',

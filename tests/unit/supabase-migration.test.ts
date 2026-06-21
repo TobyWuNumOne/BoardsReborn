@@ -107,6 +107,10 @@ const deleteAdminWorkOrderLockingMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260618161500_delete_admin_work_order_locking.sql'),
   'utf8',
 );
+const lineMvpFoundationMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621062329_line_mvp_foundation.sql'),
+  'utf8',
+);
 const testPaperOrderNoMigrationPath = resolve(
   process.cwd(),
   'supabase/migrations/20260618110000_test_work_order_numbers.sql',
@@ -508,6 +512,59 @@ describe('initial Supabase migration', () => {
     );
     expect(customerReceiptPrintJobSnapshotMigration).toContain(
       'grant execute on function public.create_admin_print_job(uuid, public.print_job_type, uuid, text) to authenticated',
+    );
+  });
+
+  it('adds the LINE MVP enums and relational tables', () => {
+    expect(lineMvpFoundationMigration).toContain('create type public.line_job_type as enum');
+    expect(lineMvpFoundationMigration).toContain('create type public.line_job_status as enum');
+    expect(lineMvpFoundationMigration).toContain('create type public.line_job_skip_reason as enum');
+    expect(lineMvpFoundationMigration).toContain('create table public.customer_line_accounts');
+    expect(lineMvpFoundationMigration).toContain('create table public.line_bind_tokens');
+    expect(lineMvpFoundationMigration).toContain('create table public.line_jobs');
+  });
+
+  it('enforces LINE binding, token, and job uniqueness in the database', () => {
+    expect(lineMvpFoundationMigration).toContain('work_orders_id_customer_id_key');
+    expect(lineMvpFoundationMigration).toContain('customer_line_accounts_customer_id_key');
+    expect(lineMvpFoundationMigration).toContain('customer_line_accounts_line_user_id_key');
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_token_hash_key');
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_one_pending_per_customer_idx');
+    expect(lineMvpFoundationMigration).toContain('where used_at is null and revoked_at is null');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_retry_key_key');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_dedupe_key_idx');
+    expect(lineMvpFoundationMigration).toContain('where dedupe_key is not null');
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_work_order_customer_fk');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_work_order_customer_fk');
+  });
+
+  it('adds LINE claim, reclaim, token, and history indexes', () => {
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_customer_created_at_idx');
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_work_order_created_at_idx');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_pending_claim_idx');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_processing_reclaim_idx');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_customer_created_at_idx');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_work_order_created_at_idx');
+  });
+
+  it('protects LINE tables with admin-scoped RLS and explicit grants', () => {
+    for (const table of ['customer_line_accounts', 'line_bind_tokens', 'line_jobs']) {
+      expect(lineMvpFoundationMigration).toContain(
+        `alter table public.${table} enable row level security`,
+      );
+    }
+    expect(lineMvpFoundationMigration).toContain('from public.admin_profiles');
+    expect(lineMvpFoundationMigration).toContain('auth.uid()');
+    expect(lineMvpFoundationMigration).not.toContain('to authenticated\nusing (true)');
+    expect(lineMvpFoundationMigration).not.toContain('to anon');
+    expect(lineMvpFoundationMigration).toContain(
+      'grant select, insert, update, delete on table public.customer_line_accounts to authenticated',
+    );
+    expect(lineMvpFoundationMigration).toContain(
+      'grant select, insert, update, delete on table public.line_bind_tokens to service_role',
+    );
+    expect(lineMvpFoundationMigration).toContain(
+      'grant select, insert, update, delete on table public.line_jobs to service_role',
     );
   });
 });
