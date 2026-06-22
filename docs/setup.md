@@ -136,6 +136,8 @@ Before enabling the production minute-level Supabase Cron, verify:
 - Supabase Vault holds the internal processor credential used by Cron.
 - Vercel Hobby Cron is not used for minute-level LINE processing; Supabase Cron calls the Nuxt internal endpoint every minute with a Bearer secret.
 
+Staging Vault / Cron已於2026-06-22完成release smoke：每分鐘schedule active、Cron run succeeded、`pg_net`回HTTP 200。這不代表production Cron已啟用。完整自動驗證結果、人工待辦與production gate見 [LINE MVP Release Verification](line-release-verification.md)。
+
 Production Cron is intentionally not created by the repo migration because its endpoint and credential are environment-specific. After deploying PR 9:
 
 ```sql
