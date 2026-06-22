@@ -10,7 +10,7 @@
 - 目前 `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎。
 - `/admin` 已接上 dashboard live data，第一版顯示處理中工單 breakdown、管理 summary 與 quick entries。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
-- `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation，列印摘要卡可建立工單標籤或顧客留存聯補印任務。
+- `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation，列印摘要卡可建立工單標籤或顧客留存聯補印任務，LINE 卡片可查綁定/通知/token/job狀態並執行發卡或店家端解除。
 - `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API，並已補 tablet-first F8A/F8B 快捷輸入、sticky 必填摘要，以及 Konva repair marks modal。
 - `/admin/work-orders/bulk-status` 已實作第一版批量狀態頁，採 preview 搜尋、共享狀態與依狀態分組的快捷操作。
 - `/admin/scan` 已實作第一版掃碼查詢頁，支援單張工單 lookup、付款 / 交件 / 狀態更新 / 快速備註與完整工單導頁。
@@ -166,6 +166,16 @@ Production domain routing：
 - `PATCH /api/admin/work-orders/{id}`
 - `POST /api/admin/work-orders/{id}/status`
 - `POST /api/admin/work-orders/{id}/quick-note`
+
+工單詳情 LINE 卡片使用：
+
+- `GET /api/admin/work-orders/{id}/line-status`
+- `POST /api/admin/work-orders/{id}/line-bind-token`
+- `DELETE /api/admin/customers/{customerId}/line-binding`
+
+卡片只顯示 server回傳的安全摘要，不顯示 LINE user ID、token hash、recipient或 prepared payload。發卡成功的 LIFF URL只保留在目前頁面記憶體並提供複製；不自動建立 print job。解除綁定必須先確認，成功後顯示撤銷 token與 skipped pending job數量並 refetch狀態。
+
+建單與單筆狀態更新 response的 `lineNotification` 以 toast補充顯示：enqueue成功是 success；無綁定、已存在或已通知是 info；enqueue失敗是 warning但不得蓋掉主流程成功；`NOT_READY_FOR_PICKUP`不顯示。
 
 列印中心與 Worker 管理使用：
 

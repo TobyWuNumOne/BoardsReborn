@@ -2,6 +2,8 @@
 import { parseDate } from '@internationalized/date';
 import { CalendarIcon, MapPinnedIcon, Trash2Icon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
+import type { AdminLineNotificationSummary } from '~/utils/admin-line';
+import { getAdminLineNotificationFeedback } from '~/utils/admin-line';
 import type {
   AdminPrintSummaryItem,
   AdminPrintSummaryResponse,
@@ -961,8 +963,9 @@ const submitWorkForm = async () => {
   isSubmittingWorkForm.value = true;
 
   try {
-    await getRequestFetch()<{
+    const response = await getRequestFetch()<{
       data: {
+        lineNotification: AdminLineNotificationSummary;
         statusHistory: {
           changedAt: string | null;
           id: string | null;
@@ -993,6 +996,10 @@ const submitWorkForm = async () => {
     }
 
     toast.success(`狀態已更新為「${getWorkOrderStatusLabel(payload.status)}」`);
+    const lineFeedback = getAdminLineNotificationFeedback(response.data.lineNotification);
+    if (lineFeedback?.tone === 'warning') toast.warning(lineFeedback.message);
+    else if (lineFeedback?.tone === 'info') toast.info(lineFeedback.message);
+    else if (lineFeedback?.tone === 'success') toast.success(lineFeedback.message);
   } catch (submitError) {
     const statusCode = getApiErrorStatusCode(submitError);
 
@@ -1628,6 +1635,8 @@ if (import.meta.client) {
               </template>
             </CardContent>
           </Card>
+
+          <WorkOrderLineStatusCard :work-order-id="detail.id" />
 
           <Card>
             <CardHeader>

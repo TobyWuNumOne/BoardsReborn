@@ -107,6 +107,18 @@ const lineWebhookFriendshipMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621103853_line_webhook_friendship_status.sql'),
   'utf8',
 );
+const lineJobsProcessorMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260622082705_line_jobs_processor.sql'),
+  'utf8',
+);
+const readyLineNotificationMigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations/20260622090538_ready_line_notification.sql',
+);
+const receivedLineNotificationMigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations/20260622095620_work_order_received_line_notification.sql',
+);
 const autoNumericPaperOrderNoMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260612143000_auto_numeric_paper_order_no.sql'),
   'utf8',
@@ -552,6 +564,67 @@ describe('initial Supabase migration', () => {
       'customer_line_accounts_friendship_checked_at_valid',
     );
     expect(lineWebhookFriendshipMigration).not.toContain('create policy');
+  });
+
+  it('adds atomic LINE job claim, prepare and result transactions', () => {
+    expect(lineJobsProcessorMigration).toContain("rename value 'processing' to 'locked'");
+    expect(lineJobsProcessorMigration).toContain(
+      "add value if not exists 'recipient_binding_changed'",
+    );
+    expect(lineJobsProcessorMigration).toContain('prepared_messages jsonb');
+    expect(lineJobsProcessorMigration).toContain('first_attempt_at timestamptz');
+    expect(lineJobsProcessorMigration).toContain('for update skip locked');
+    expect(lineJobsProcessorMigration).toContain(
+      'create or replace function public.claim_line_jobs',
+    );
+    expect(lineJobsProcessorMigration).toContain(
+      'create or replace function public.prepare_line_job',
+    );
+    expect(lineJobsProcessorMigration).toContain(
+      'create or replace function public.record_line_job_result',
+    );
+    expect(lineJobsProcessorMigration).toContain(
+      'notified_at = coalesce(work_orders.notified_at, v_sent_at)',
+    );
+    expect(lineJobsProcessorMigration).not.toContain('create policy');
+  });
+
+  it('enqueues the READY LINE outbox event inside the status transition transaction', () => {
+    expect(existsSync(readyLineNotificationMigrationPath)).toBe(true);
+    const readyLineNotificationMigration = readFileSync(readyLineNotificationMigrationPath, 'utf8');
+
+    expect(readyLineNotificationMigration).toContain(
+      'create or replace function public.transition_admin_work_order_status',
+    );
+    expect(readyLineNotificationMigration).toContain(
+      "'work_order_ready_for_pickup:' || p_work_order_id::text",
+    );
+    expect(readyLineNotificationMigration).toContain('insert into public.line_jobs');
+    expect(readyLineNotificationMigration).toContain('on conflict (dedupe_key)');
+    expect(readyLineNotificationMigration).toContain("'NO_ACTIVE_LINE_BINDING'");
+    expect(readyLineNotificationMigration).toContain("'ALREADY_NOTIFIED'");
+    expect(readyLineNotificationMigration).toContain("'JOB_ALREADY_EXISTS'");
+    expect(readyLineNotificationMigration).toContain("'NOT_READY_FOR_PICKUP'");
+    expect(readyLineNotificationMigration).not.toContain('line_user_id');
+    expect(readyLineNotificationMigration).not.toContain('phone');
+  });
+
+  it('adds a best-effort work-order received enqueue transaction', () => {
+    expect(existsSync(receivedLineNotificationMigrationPath)).toBe(true);
+    const receivedMigration = readFileSync(receivedLineNotificationMigrationPath, 'utf8');
+
+    expect(receivedMigration).toContain(
+      'create or replace function public.enqueue_work_order_received_line_job',
+    );
+    expect(receivedMigration).toContain("'work_order_received:' || p_work_order_id::text");
+    expect(receivedMigration).toContain("'work_order_received'::public.line_job_type");
+    expect(receivedMigration).toContain('insert into public.line_jobs');
+    expect(receivedMigration).toContain('on conflict (dedupe_key)');
+    expect(receivedMigration).toContain("'NO_ACTIVE_LINE_BINDING'");
+    expect(receivedMigration).toContain("'JOB_ALREADY_EXISTS'");
+    expect(receivedMigration).not.toContain('line_user_id');
+    expect(receivedMigration).not.toContain('phone');
+    expect(receivedMigration).not.toContain('token');
   });
 
   it('adds the LINE MVP enums and relational tables', () => {

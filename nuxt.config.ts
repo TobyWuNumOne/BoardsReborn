@@ -94,6 +94,7 @@ export default defineNuxtConfig({
     lineLoginChannelSecret: process.env.LINE_LOGIN_CHANNEL_SECRET || '',
     lineChannelSecret: process.env.LINE_CHANNEL_SECRET || '',
     lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+    lineJobProcessorSecret: process.env.LINE_JOB_PROCESSOR_SECRET || '',
     supabaseSecretKey: supabaseSecretKey || '',
     printAgentToken: process.env.PRINT_AGENT_TOKEN || '',
     adminEmail: process.env.ADMIN_EMAIL || '',

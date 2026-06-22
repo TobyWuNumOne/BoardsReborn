@@ -842,6 +842,13 @@ describe('work order print job enqueue', () => {
           });
         }
 
+        if (name === 'enqueue_work_order_received_line_job') {
+          return Promise.resolve({
+            data: { enqueued: false, reason: 'NO_ACTIVE_LINE_BINDING' },
+            error: null,
+          });
+        }
+
         return Promise.resolve({
           data: {
             attemptCount: 0,
@@ -891,6 +898,10 @@ describe('work order print job enqueue', () => {
         paperOrderNo: '990001',
         quoteTotalAmount: 0,
       },
+      lineNotification: {
+        enqueued: false,
+        reason: 'NO_ACTIVE_LINE_BINDING',
+      },
     });
 
     expect(calls.map((call) => call.name)).toEqual([
@@ -905,6 +916,7 @@ describe('work order print job enqueue', () => {
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
+      'enqueue_work_order_received_line_job',
     ]);
     expect(calls[0]?.args.p_work_order).toMatchObject({
       paperOrderMode: 'test',
@@ -1000,6 +1012,10 @@ describe('work order print job enqueue', () => {
         id: 'work-order-1',
         paperOrderNo: 'BR-2026-0001',
         quoteTotalAmount: 0,
+      },
+      lineNotification: {
+        enqueued: false,
+        reason: 'ENQUEUE_FAILED',
       },
     });
 

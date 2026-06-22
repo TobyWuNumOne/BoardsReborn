@@ -24,7 +24,8 @@ export type ApiErrorCode =
   | 'STORAGE_UPLOAD_FAILED'
   | 'PRINT_JOB_NOT_CLAIMED'
   | 'PRINT_JOB_ALREADY_CLAIMED'
-  | 'INTERNAL_SERVER_ERROR';
+  | 'INTERNAL_SERVER_ERROR'
+  | 'INTERNAL_UNAUTHORIZED';
 
 export type FieldErrors = Record<string, string[]>;
 
@@ -185,6 +186,12 @@ export class InvalidStatusTransitionError extends ApiError {
 export class InternalServerError extends ApiError {
   constructor(message = 'Internal server error.') {
     super({ code: 'INTERNAL_SERVER_ERROR', message, statusCode: 500 });
+  }
+}
+
+export class InternalUnauthorizedError extends ApiError {
+  constructor(message = 'Internal authentication failed.') {
+    super({ code: 'INTERNAL_UNAUTHORIZED', message, statusCode: 401 });
   }
 }
 
