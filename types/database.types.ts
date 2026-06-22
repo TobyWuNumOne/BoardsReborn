@@ -55,6 +55,7 @@ export type Database = {
           created_at: string;
           customer_id: string;
           display_name: string | null;
+          friendship_checked_at: string | null;
           id: string;
           is_friend: boolean;
           last_seen_at: string | null;
@@ -68,6 +69,7 @@ export type Database = {
           created_at?: string;
           customer_id: string;
           display_name?: string | null;
+          friendship_checked_at?: string | null;
           id?: string;
           is_friend?: boolean;
           last_seen_at?: string | null;
@@ -81,6 +83,7 @@ export type Database = {
           created_at?: string;
           customer_id?: string;
           display_name?: string | null;
+          friendship_checked_at?: string | null;
           id?: string;
           is_friend?: boolean;
           last_seen_at?: string | null;
@@ -197,6 +200,7 @@ export type Database = {
           created_at: string;
           customer_id: string;
           dedupe_key: string | null;
+          first_attempt_at: string | null;
           id: string;
           job_type: Database['public']['Enums']['line_job_type'];
           last_error: string | null;
@@ -204,6 +208,7 @@ export type Database = {
           locked_by: string | null;
           max_attempts: number;
           payload: Json | null;
+          prepared_messages: Json | null;
           recipient_line_user_id: string | null;
           retry_key: string | null;
           sent_at: string | null;
@@ -218,6 +223,7 @@ export type Database = {
           created_at?: string;
           customer_id: string;
           dedupe_key?: string | null;
+          first_attempt_at?: string | null;
           id?: string;
           job_type: Database['public']['Enums']['line_job_type'];
           last_error?: string | null;
@@ -225,6 +231,7 @@ export type Database = {
           locked_by?: string | null;
           max_attempts?: number;
           payload?: Json | null;
+          prepared_messages?: Json | null;
           recipient_line_user_id?: string | null;
           retry_key?: string | null;
           sent_at?: string | null;
@@ -239,6 +246,7 @@ export type Database = {
           created_at?: string;
           customer_id?: string;
           dedupe_key?: string | null;
+          first_attempt_at?: string | null;
           id?: string;
           job_type?: Database['public']['Enums']['line_job_type'];
           last_error?: string | null;
@@ -246,6 +254,7 @@ export type Database = {
           locked_by?: string | null;
           max_attempts?: number;
           payload?: Json | null;
+          prepared_messages?: Json | null;
           recipient_line_user_id?: string | null;
           retry_key?: string | null;
           sent_at?: string | null;
@@ -842,6 +851,14 @@ export type Database = {
     Functions: {
       build_print_barcode_value: { Args: { p_value: string }; Returns: string };
       build_print_phone_value: { Args: { p_value: string }; Returns: string };
+      claim_line_jobs: {
+        Args: {
+          p_batch_size?: number;
+          p_locked_by: string;
+          p_stale_lock_seconds?: number;
+        };
+        Returns: Json;
+      };
       claim_next_print_job: {
         Args: { p_device_key: string; p_stale_lock_seconds?: number };
         Returns: Json;
@@ -891,6 +908,10 @@ export type Database = {
           p_topic: string;
         };
         Returns: undefined;
+      };
+      enqueue_work_order_received_line_job: {
+        Args: { p_work_order_id: string };
+        Returns: Json;
       };
       get_next_admin_paper_order_no: {
         Args: { p_lock?: boolean };
@@ -949,6 +970,21 @@ export type Database = {
         Args: { raw_phone: string };
         Returns: string;
       };
+      prepare_line_job: {
+        Args: { p_job_id: string; p_locked_by: string };
+        Returns: Json;
+      };
+      record_line_job_result: {
+        Args: {
+          p_available_at?: string;
+          p_error?: string;
+          p_job_id: string;
+          p_locked_by: string;
+          p_result: string;
+          p_sent_at?: string;
+        };
+        Returns: Json;
+      };
       retry_admin_print_job: {
         Args: { p_print_job_id: string; p_requested_by_user_id?: string };
         Returns: Json;
@@ -978,8 +1014,11 @@ export type Database = {
       board_length_class: 'SHORTBOARD' | 'MID_LENGTH' | 'LONGBOARD';
       board_type: 'SURFBOARD' | 'SUP' | 'SNOWBOARD';
       label_language: 'TSPL' | 'ZPL' | 'EPL' | 'DPL';
-      line_job_skip_reason: 'no_active_line_binding' | 'line_not_notifyable';
-      line_job_status: 'pending' | 'processing' | 'succeeded' | 'failed' | 'skipped';
+      line_job_skip_reason:
+        | 'no_active_line_binding'
+        | 'line_not_notifyable'
+        | 'recipient_binding_changed';
+      line_job_status: 'pending' | 'locked' | 'succeeded' | 'failed' | 'skipped';
       line_job_type: 'line_binding_success' | 'work_order_received' | 'work_order_ready_for_pickup';
       photo_type: 'INTAKE' | 'IN_PROGRESS' | 'SPECIAL_CONDITION' | 'COMPLETION';
       photo_visibility: 'INTERNAL' | 'PUBLIC';
@@ -1672,8 +1711,12 @@ export const Constants = {
       board_length_class: ['SHORTBOARD', 'MID_LENGTH', 'LONGBOARD'],
       board_type: ['SURFBOARD', 'SUP', 'SNOWBOARD'],
       label_language: ['TSPL', 'ZPL', 'EPL', 'DPL'],
-      line_job_skip_reason: ['no_active_line_binding', 'line_not_notifyable'],
-      line_job_status: ['pending', 'processing', 'succeeded', 'failed', 'skipped'],
+      line_job_skip_reason: [
+        'no_active_line_binding',
+        'line_not_notifyable',
+        'recipient_binding_changed',
+      ],
+      line_job_status: ['pending', 'locked', 'succeeded', 'failed', 'skipped'],
       line_job_type: ['line_binding_success', 'work_order_received', 'work_order_ready_for_pickup'],
       photo_type: ['INTAKE', 'IN_PROGRESS', 'SPECIAL_CONDITION', 'COMPLETION'],
       photo_visibility: ['INTERNAL', 'PUBLIC'],

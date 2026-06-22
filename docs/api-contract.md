@@ -531,11 +531,22 @@ Response：`201`
     "currentStatus": "RECEIVED",
     "quoteTotalAmount": 500,
     "createdAt": "2026-04-20T08:00:00.000Z"
+  },
+  "lineNotification": {
+    "enqueued": true,
+    "jobId": "06f1dfc9-60bf-4f69-a2cf-2bdbe311f551"
   }
 }
 ```
 
 建立工單前，server 必須先確認可解析出非空 `repairCount`，因為 `work_order_label` 與 `customer_receipt` 都需要完整 print-ready snapshot。若 `repairCount` 缺少，整體建單回 `422 VALIDATION_ERROR`。除這個前置條件外，建工單成功後仍會 best-effort 依序建立 `work_order_label` 與 `customer_receipt` 兩筆 `print_jobs`；enqueue 失敗不回滾工單主資料。
+
+兩筆初始列印 enqueue 完成後，server 會以獨立 transaction best-effort 建立
+`work_order_received` LINE job。`lineNotification` 永遠存在；未建立時回
+`NO_ACTIVE_LINE_BINDING`、`JOB_ALREADY_EXISTS` 或 `ENQUEUE_FAILED`。這些 reason 都不會讓 create
+API 失敗或回滾工單/列印流程。自動 dedupe key 固定為
+`work_order_received:{workOrderId}`；payload 只包含工單/Customer ID、工單號、event type 與建立時間，
+不包含 LINE user ID、電話或 token。
 
 正式工單號在 database transaction 內透過 `get_next_admin_paper_order_no(true)` 產生。該 helper 會依 `Asia/Taipei` 年份後兩碼查詢同年前綴的現存純數字最大流水號並 +1；例如沒有當年工單時為 `260001`，已有 `260004` 時為 `260005`，已有 `269999` 時為 `2610000`。建立時會使用 transaction-level advisory lock 避免併發撞號。若刪除目前最高號，下一張新工單可以重用該號。
 
@@ -777,10 +788,20 @@ Response：`201`
       "status": "READY_FOR_PICKUP",
       "changedAt": "2026-04-20T09:30:00.000Z",
       "note": "已完成，等待取件"
+    },
+    "lineNotification": {
+      "enqueued": true,
+      "jobId": "06f1dfc9-60bf-4f69-a2cf-2bdbe311f551"
     }
   }
 }
 ```
+
+`lineNotification` 永遠存在。未建立 job 時 `enqueued=false`，並回傳
+`NOT_READY_FOR_PICKUP`、`NO_ACTIVE_LINE_BINDING`、`ALREADY_NOTIFIED` 或
+`JOB_ALREADY_EXISTS`。這些原因不影響狀態更新成功；dedupe conflict 視為
+`JOB_ALREADY_EXISTS`。READY outbox insert 與 status history/current status/timestamp 位於同一 DB
+transaction，只有非 dedupe insert error 會讓狀態更新 rollback。
 
 若雪板進入 `DRYING`，回傳 `422 VALIDATION_ERROR`，`fieldErrors.status` 說明不可轉換。
 
@@ -790,6 +811,10 @@ Response：`201`
 - 進入 `DELIVERED` 時，維護 `work_orders.delivered_at` 與 `work_orders.picked_up_at`，若已有值則保留第一次時間。
 - 進入 `CANCELLED` 時，維護 `work_orders.cancelled_at`，若已有值則保留第一次時間。
 - 狀態可重複 append，例如 `REPAIRING` 到 `REPAIRING` 可用於補充事件備註。
+- `READY_FOR_PICKUP` 自動 job 的 dedupe key 固定為
+  `work_order_ready_for_pickup:{workOrderId}`；重複 READY 備註仍 append history，但不重複 enqueue。
+- Outbox payload 只包含工單/Customer ID、工單號、狀態、event type 與發生時間，不包含
+  LINE user ID、電話或 token。
 
 ### `POST /api/admin/work-orders/bulk-status`
 
@@ -1624,7 +1649,7 @@ Request rules：
 
 ## LINE MVP API
 
-PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoints 仍為 planned / not implemented。所有 endpoint 使用本文件既有 error envelope 與 request ID 規則。
+Admin、Public LIFF與最小 follow/unfollow webhook已實作；internal processor仍為 planned / not implemented。所有 endpoint使用既有 error envelope與 request ID規則。
 
 ### Planned endpoints
 
@@ -1679,6 +1704,14 @@ PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoin
 - 支援 `TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_ACCESS_TOKEN_INVALID`、`LINE_PLATFORM_UNAVAILABLE`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`VALIDATION_ERROR`、`TOO_MANY_REQUESTS`。
 - ID/access token只存在 request記憶體，不儲存、不記錄。
 
+### `POST /api/webhooks/line`
+
+- 不需產品使用者 auth；必須先以未修改的 raw request body與 private `LINE_CHANNEL_SECRET`驗證 `x-line-signature`，成功後才 parse JSON。
+- 空 events、非 follow/unfollow event、非 user source與查無 binding均回 `200 { data: { accepted: true } }`。
+- `follow` 設定 `is_friend = true`、`blocked_at = null`；`unfollow` 設定 `is_friend = false`、`blocked_at = now()`；兩者均更新 `friendship_checked_at`。
+- Signature缺失或不符回 `401 LINE_WEBHOOK_SIGNATURE_INVALID`。DB更新失敗回 `500 INTERNAL_SERVER_ERROR`，允許 LINE redelivery。
+- 不記錄 raw body、signature或 LINE user ID。
+
 ### Contract rules
 
 - Token resolve 不消耗 token。`used_at` 只能由 confirm 成功 transaction 設定。
@@ -1692,13 +1725,15 @@ PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoin
 
 ### Planned errors
 
-LINE routes 必須使用既有 error envelope，並至少定義：`TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`CUSTOMER_ALREADY_BOUND`、`NO_ACTIVE_LINE_BINDING`、`LINE_NOT_NOTIFYABLE`、`JOB_ALREADY_EXISTS`、`INTERNAL_UNAUTHORIZED`。
+LINE routes 必須使用既有 error envelope，並至少定義：`TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_WEBHOOK_SIGNATURE_INVALID`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`CUSTOMER_ALREADY_BOUND`、`NO_ACTIVE_LINE_BINDING`、`LINE_NOT_NOTIFYABLE`、`JOB_ALREADY_EXISTS`、`INTERNAL_UNAUTHORIZED`。
 
 ### Processor contract constraints
 
 - Supabase Cron 每分鐘呼叫 internal endpoint；MVP 不依賴 Vercel Hobby Cron 的分鐘級排程。
-- Worker 每批原子 claim 有上限的 pending jobs，使用 lock timeout 回收 stale processing jobs，外部 LINE call 不包在 DB transaction。
+- `POST /api/internal/line-jobs/process`只接受 private Bearer secret，固定每批最多 20筆。成功回 `{ data: { claimed, succeeded, retried, failed, skipped } }`。
+- Worker每批原子 claim due pending jobs並回收超過5分鐘的 stale locked jobs；外部 LINE call不包在 DB transaction。
 - 第一次 send 前重新依 `customer_id` 解析有效綁定；確認可通知後才凍結 recipient、payload 與 retry key。
 - 同一 job 的所有 retry 固定使用同一 `X-Line-Retry-Key`。
-- 無綁定或不可通知時回寫 `skipped`，不得呼叫 LINE。
+- 無綁定、已知不可通知或 retry時 recipient改變，分別回寫 `no_active_line_binding`、`line_not_notifyable`、`recipient_binding_changed`，不得呼叫 LINE。
+- LINE push `2xx`與帶 `x-line-accepted-request-id`的同 retry-key `409`視為 succeeded；timeout、`429`、`5xx`進 retry；其他 `4xx` failed。超過 max attempts或首次嘗試24小時後不得再送。
 - READY job 成功結果 transaction 同時以 `coalesce(notified_at, sent_at)` 維護 `work_orders.notified_at`。

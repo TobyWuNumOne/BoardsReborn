@@ -125,9 +125,9 @@ Legacy aliases still supported:
 
 `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` must never be passed to the client, appear in public runtime config, or be written to logs. `PRINT_WORKER_TOKEN` must remain server-side and within the Print Worker environment only. `PRINT_AGENT_TOKEN` is kept only as a temporary legacy alias.
 
-LINE binding and receipt-printing variables are used by PR 4 to PR 7; processor variables remain reserved until PR 9. `LINE_BIND_TOKEN_SECRET` and `LINE_JOB_PROCESSOR_SECRET` must be independent high-entropy secrets. Losing or rotating `LINE_BIND_TOKEN_SECRET` invalidates reconstruction of existing pending bind URLs; revoke those rows and issue new tokens. Never place LINE server secrets in query strings, public runtime config, responses, or logs.
+LINE binding, receipt printing, webhook與 processor variables已由 PR 4至 PR 9使用。`LINE_BIND_TOKEN_SECRET` and `LINE_JOB_PROCESSOR_SECRET` must be independent high-entropy secrets. Losing or rotating `LINE_BIND_TOKEN_SECRET` invalidates reconstruction of existing pending bind URLs; revoke those rows and issue new tokens. Never place LINE server secrets in query strings, public runtime config, responses, or logs.
 
-Before enabling the production minute-level Supabase Cron in PR 9, verify:
+Before enabling the production minute-level Supabase Cron, verify:
 
 - LINE Login and Messaging API channels are under the same Provider.
 - LINE Login channel is linked to the official account and LIFF is created.
@@ -135,6 +135,36 @@ Before enabling the production minute-level Supabase Cron in PR 9, verify:
 - All LINE server secrets are configured in the deployment environment.
 - Supabase Vault holds the internal processor credential used by Cron.
 - Vercel Hobby Cron is not used for minute-level LINE processing; Supabase Cron calls the Nuxt internal endpoint every minute with a Bearer secret.
+
+Production Cron is intentionally not created by the repo migration because its endpoint and credential are environment-specific. After deploying PR 9:
+
+```sql
+select vault.create_secret(
+  'https://your-production-domain.example/api/internal/line-jobs/process',
+  'line_job_processor_url'
+);
+select vault.create_secret('replace-with-processor-secret', 'line_job_processor_secret');
+
+select cron.schedule(
+  'boardsreborn-line-jobs-every-minute',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url := (select decrypted_secret from vault.decrypted_secrets where name = 'line_job_processor_url'),
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || (
+        select decrypted_secret from vault.decrypted_secrets where name = 'line_job_processor_secret'
+      )
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 25000
+  );
+  $$
+);
+```
+
+Confirm the job in `cron.job`, inspect `cron.job_run_details` and `net._http_response`, then manually invoke the endpoint once before enabling the schedule. Never paste the decrypted secret into the cron command itself.
 
 ### `printer-worker` connectivity worker
 

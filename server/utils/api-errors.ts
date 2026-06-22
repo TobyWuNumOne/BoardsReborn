@@ -14,6 +14,7 @@ export type ApiErrorCode =
   | 'LINE_ID_TOKEN_INVALID'
   | 'LINE_PLATFORM_UNAVAILABLE'
   | 'LINE_BIND_TOKEN_REQUIRED'
+  | 'LINE_WEBHOOK_SIGNATURE_INVALID'
   | 'NO_ACTIVE_LINE_BINDING'
   | 'TOKEN_EXPIRED'
   | 'TOKEN_INVALID'
@@ -23,7 +24,8 @@ export type ApiErrorCode =
   | 'STORAGE_UPLOAD_FAILED'
   | 'PRINT_JOB_NOT_CLAIMED'
   | 'PRINT_JOB_ALREADY_CLAIMED'
-  | 'INTERNAL_SERVER_ERROR';
+  | 'INTERNAL_SERVER_ERROR'
+  | 'INTERNAL_UNAUTHORIZED';
 
 export type FieldErrors = Record<string, string[]>;
 
@@ -165,6 +167,12 @@ export class LineBindTokenRequiredError extends ApiError {
   }
 }
 
+export class LineWebhookSignatureInvalidError extends ApiError {
+  constructor(message = 'LINE webhook signature is invalid.') {
+    super({ code: 'LINE_WEBHOOK_SIGNATURE_INVALID', message, statusCode: 401 });
+  }
+}
+
 export class InvalidStatusTransitionError extends ApiError {
   constructor(message = 'Invalid status transition.') {
     super({
@@ -178,6 +186,12 @@ export class InvalidStatusTransitionError extends ApiError {
 export class InternalServerError extends ApiError {
   constructor(message = 'Internal server error.') {
     super({ code: 'INTERNAL_SERVER_ERROR', message, statusCode: 500 });
+  }
+}
+
+export class InternalUnauthorizedError extends ApiError {
+  constructor(message = 'Internal authentication failed.') {
+    super({ code: 'INTERNAL_UNAUTHORIZED', message, statusCode: 401 });
   }
 }
 

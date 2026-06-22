@@ -97,7 +97,7 @@
 
 ## LINE Integration Rules
 
-- LINE PR 1 至 PR 7 已實作；webhook、通知 processor、Cron、status/create notification integration與 admin UI仍不得宣稱已完成。
+- LINE PR 1 至 PR 12 已實作；production Cron仍未啟用，手動補發與其他非目標功能仍不得宣稱完成。
 - 綁定基數必須是 `1 LINE : 1 Customer` 與 `1 Customer : 1 LINE`；confirm 不得覆蓋既有其他綁定。
 - 顧客端不可解除綁定。解除只能由 admin hard delete，目前不建立完整 binding history 或 audit subsystem。
 - 明文 bind token 必須由 `token row UUID + LINE_BIND_TOKEN_SECRET` 以 deterministic HMAC 產生；DB 只存 hash。

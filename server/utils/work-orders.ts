@@ -16,6 +16,7 @@ import {
 import type { ServiceRoleSupabaseClient, UserScopedSupabaseClient } from './supabase-clients';
 import type { Database, Json } from '../../types/database.types';
 import { enqueueInitialPrintJobForWorkOrder } from './print-jobs';
+import { enqueueWorkOrderReceivedLineNotification } from './work-order-line-notifications';
 
 type AdminWorkOrderListRow = Database['public']['Views']['admin_work_order_list']['Row'];
 type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
@@ -709,13 +710,29 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export const mapStatusTransitionResult = (value: unknown) => {
-  if (!isRecord(value) || !isRecord(value.workOrder) || !isRecord(value.statusHistory)) {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.workOrder) ||
+    !isRecord(value.statusHistory) ||
+    !isRecord(value.lineNotification)
+  ) {
     throw new InternalServerError();
   }
 
-  const { statusHistory, workOrder } = value;
+  const { lineNotification, statusHistory, workOrder } = value;
+
+  const validLineNotification =
+    (lineNotification.enqueued === true && typeof lineNotification.jobId === 'string') ||
+    (lineNotification.enqueued === false &&
+      [
+        'NOT_READY_FOR_PICKUP',
+        'NO_ACTIVE_LINE_BINDING',
+        'ALREADY_NOTIFIED',
+        'JOB_ALREADY_EXISTS',
+      ].includes(String(lineNotification.reason)));
 
   if (
+    !validLineNotification ||
     typeof workOrder.id !== 'string' ||
     typeof workOrder.paperOrderNo !== 'string' ||
     typeof workOrder.currentStatus !== 'string' ||
@@ -732,6 +749,16 @@ export const mapStatusTransitionResult = (value: unknown) => {
   }
 
   return value as {
+    lineNotification:
+      | { enqueued: true; jobId: string }
+      | {
+          enqueued: false;
+          reason:
+            | 'NOT_READY_FOR_PICKUP'
+            | 'NO_ACTIVE_LINE_BINDING'
+            | 'ALREADY_NOTIFIED'
+            | 'JOB_ALREADY_EXISTS';
+        };
     statusHistory: {
       changedAt: string;
       id: string;
@@ -1062,9 +1089,11 @@ export const createAdminWorkOrder = async (
   }
 
   await enqueueInitialPrintJobForWorkOrder(supabase, result.id, userId);
+  const lineNotification = await enqueueWorkOrderReceivedLineNotification(supabase, result.id);
 
   return {
     data: result,
+    lineNotification,
   };
 };
 
@@ -1604,10 +1633,7 @@ export const patchAdminWorkOrder = async (
   };
 };
 
-export const deleteAdminWorkOrder = async (
-  supabase: UserScopedSupabaseClient,
-  id: string,
-) => {
+export const deleteAdminWorkOrder = async (supabase: UserScopedSupabaseClient, id: string) => {
   const { data, error } = await supabase.rpc('delete_admin_work_order', {
     p_work_order_id: id,
   });

@@ -410,15 +410,15 @@ TypeScript 名稱：`PrintJobType`
 - private Realtime broadcast topic 的 join 授權也由 `realtime.messages` RLS policy 控制；本 repo 的 printing topics 限制為 `printing:*` 且僅允許 `admin_profiles` 使用者加入。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。
 
-## LINE MVP 資料模型（schema implemented，workflow not implemented）
+## LINE MVP 資料模型（PR 1 至 PR 12 implemented）
 
-以下 enum、table、constraint、index、RLS 與 grants 已由 `20260621062329_line_mvp_foundation.sql` 建立。Token service、API、LIFF、webhook、processor 與狀態整合仍未實作。
+基礎 enum、table、constraint、index、RLS與 grants已建立；Token service、Admin/Public API、LIFF、條件式列印、最小 webhook、Processor、READY status通知、建單收件通知與工單詳情 Admin UI均已實作。Production Cron仍未啟用。
 
 ### `customer_line_accounts`
 
 - 只表示目前有效的 LINE 綁定，不保留綁定 history。
 - `customer_id` 與 `line_user_id` 各自必須 unique，強制 `1 Customer : 1 LINE` 與 `1 LINE : 1 Customer`。
-- 欄位包含 `id`、`customer_id`、`line_user_id`、`display_name`、`picture_url`、`linked_at`、`last_seen_at`、`is_friend`、`blocked_at`、`created_at`、`updated_at`。
+- 欄位包含 `id`、`customer_id`、`line_user_id`、`display_name`、`picture_url`、`linked_at`、`last_seen_at`、`friendship_checked_at`、`is_friend`、`blocked_at`、`created_at`、`updated_at`。
 - 綁定與好友狀態分離；`is_friend` / `blocked_at` 由最小 follow / unfollow webhook 維護。
 - 解除綁定只允許 admin，並 hard delete 該列。顧客端不可解除，也不可由 confirm flow 自動覆蓋其他綁定。
 - RLS 預設 deny direct client access；public LIFF、webhook 與 worker 流程只能透過 server-side transaction / service boundary 存取。
@@ -437,12 +437,13 @@ TypeScript 名稱：`PrintJobType`
 ### `line_jobs`
 
 - `line_job_type` 目前只包含 `line_binding_success`、`work_order_received`、`work_order_ready_for_pickup`。
-- `line_job_status` 包含 `pending`、`processing`、`succeeded`、`failed`、`skipped`；`line_job_skip_reason` 包含 `no_active_line_binding`、`line_not_notifyable`。
-- 狀態至少涵蓋 `pending`、`processing`、`succeeded`、`failed`、`skipped`；保留 attempts、available/lock、error、recipient、payload、retry key 與時間欄位。
+- `line_job_status` 包含 `pending`、`locked`、`succeeded`、`failed`、`skipped`；`line_job_skip_reason` 包含 `no_active_line_binding`、`line_not_notifyable`、`recipient_binding_changed`。
+- Processor欄位包含 attempts、available/lock、error、frozen recipient、`prepared_messages`、retry key與 `first_attempt_at`；`payload`仍是 enqueue時的內部事件資料，不作為 LINE request payload。
 - 自動事件必須有 stable dedupe key；每張工單只建立一次自動 `work_order_ready_for_pickup` job。未來手動補發不得重用自動 dedupe key。
 - pending job 第一次實際送出前，worker 先以 `customer_id` 重新解析目前有效綁定與可通知狀態，再凍結 recipient、payload 與 retry key。後續 retry 使用相同 `X-Line-Retry-Key`。
 - 無有效綁定或不可通知時標記 `skipped`。LINE API accepted 只表示平台接受 request，不表示顧客實際收到。
 - `work_order_ready_for_pickup` job 成功後，以 `coalesce(work_orders.notified_at, line_jobs.sent_at)` 維護 `work_orders.notified_at`。
+- `claim_line_jobs` 原子 claim最多 20 筆 due pending或超過 5 分鐘的 stale locked jobs；`prepare_line_job`重新解析 binding並凍結 send資料；`record_line_job_result`處理 success/retry/failure與 READY `notified_at`。三者各自 commit，LINE HTTP不在 DB transaction內。
 - MVP 暫不執行 retention；used/revoked/expired token 與終態 job 暫時保留。
 
 ### Transaction 與一致性邊界
@@ -450,11 +451,12 @@ TypeScript 名稱：`PrintJobType`
 - 發卡：`issue_line_bind_token` 以 Customer row lock 序列化同一顧客的發卡，並在同一 transaction 撤銷其他 pending token、建立 30 天效期的新 row。RPC 只接收 SHA-256 hash，不接收 plaintext 或 HMAC secret。
 - 撤銷：`revoke_pending_line_bind_tokens` 以相同 Customer row lock 撤銷該顧客所有 pending token，回傳受影響筆數。
 - Admin 發卡：`issue_admin_line_bind_token` 從工單解析 Customer、鎖定 Customer、拒絕已有有效綁定的 Customer，並原子撤銷舊 pending token與建立新 token；不建立 print job。
-- Admin 解除：`unlink_admin_customer_line_binding` 原子 hard delete 有效 binding、撤銷 pending token，並只將 `pending` LINE jobs 改為 `skipped / no_active_line_binding`；`processing` job不強制改寫。
+- Admin 解除：`unlink_admin_customer_line_binding` 原子 hard delete有效 binding、撤銷 pending token，並只將 `pending` LINE jobs改為 `skipped / no_active_line_binding`；`locked` job不強制改寫，由 prepare重新驗證。
 - Public confirm：LINE Platform驗證必須先在 server完成；`confirm_public_line_binding` 才鎖定 token/Customer、檢查狀態與雙向唯一、建立或冪等確認 binding、消耗 token並寫入單一 Outbox job。Conflict outcome會提交 token revoke後由 server轉成 API error；其他 DB / Outbox錯誤會 rollback整筆 transaction。
 - Public confirm job selection：工單為 `READY_FOR_PICKUP` 且 `notified_at is null` 時只建立 `work_order_ready_for_pickup`；其他新綁定建立 `line_binding_success`。`already_linked` 不重複建立 job。
 - Confirm：鎖定並驗證 token、檢查雙向唯一性、建立綁定、設定 `used_at`、撤銷其他 pending token，必須在同一 transaction。
 - 解除綁定：hard delete account 並撤銷同 Customer pending token，必須在同一 transaction。
-- 建單：工單成功優先；發卡或 `work_order_received` enqueue 失敗不回滾工單。
+- 建單：核心工單 transaction、初始列印 best-effort與 `work_order_received` enqueue依序分離。LINE enqueue只在 Customer已有 active binding時執行，固定 dedupe key為 `work_order_received:{work_order_id}`；無綁定、dedupe或其他 insert error分別回 summary，均不回滾工單或列印流程。
 - READY：狀態 history、`current_status` / timestamp side effects 與符合條件的 outbox insert 必須在同一 DB transaction；dedupe conflict 是 no-op，其他 insert error 可回滾狀態更新。
+- READY enqueue：只有目標為 `READY_FOR_PICKUP`、Customer 有 active binding、`notified_at is null` 且固定 dedupe key 尚不存在時建立 job。固定 key 是 `work_order_ready_for_pickup:{work_order_id}`；payload 是不含 LINE user ID、電話與 token 的 domain event snapshot。
 - Job claim 與送出結果各自使用短 transaction；外部 LINE request 不放在 DB transaction 內。

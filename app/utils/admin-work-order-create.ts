@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Database } from '../../types/database.types';
 import { normalizeTaiwanMobilePhoneInput } from './phone';
 import type { RepairCountSource, RepairMark } from './repair-marks';
+import type { AdminLineNotificationSummary } from './admin-line';
 
 type BoardType = Database['public']['Enums']['board_type'];
 type BoardLengthClass = Database['public']['Enums']['board_length_class'];
@@ -66,6 +67,7 @@ export interface AdminWorkOrderCreateResponse {
     paperOrderNo: string;
     quoteTotalAmount: number;
   };
+  lineNotification: AdminLineNotificationSummary;
 }
 
 export interface AdminWorkOrderNextPaperOrderNoResponse {
