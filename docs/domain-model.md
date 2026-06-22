@@ -410,15 +410,15 @@ TypeScript 名稱：`PrintJobType`
 - private Realtime broadcast topic 的 join 授權也由 `realtime.messages` RLS policy 控制；本 repo 的 printing topics 限制為 `printing:*` 且僅允許 `admin_profiles` 使用者加入。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。
 
-## LINE MVP 資料模型（schema implemented，workflow not implemented）
+## LINE MVP 資料模型（PR 1 至 PR 8 implemented）
 
-以下 enum、table、constraint、index、RLS 與 grants 已由 `20260621062329_line_mvp_foundation.sql` 建立。Token service、API、LIFF、webhook、processor 與狀態整合仍未實作。
+基礎 enum、table、constraint、index、RLS與 grants已建立；Token service、Admin/Public API、LIFF、條件式列印與最小 webhook已實作。Processor與通知狀態整合仍未實作。
 
 ### `customer_line_accounts`
 
 - 只表示目前有效的 LINE 綁定，不保留綁定 history。
 - `customer_id` 與 `line_user_id` 各自必須 unique，強制 `1 Customer : 1 LINE` 與 `1 LINE : 1 Customer`。
-- 欄位包含 `id`、`customer_id`、`line_user_id`、`display_name`、`picture_url`、`linked_at`、`last_seen_at`、`is_friend`、`blocked_at`、`created_at`、`updated_at`。
+- 欄位包含 `id`、`customer_id`、`line_user_id`、`display_name`、`picture_url`、`linked_at`、`last_seen_at`、`friendship_checked_at`、`is_friend`、`blocked_at`、`created_at`、`updated_at`。
 - 綁定與好友狀態分離；`is_friend` / `blocked_at` 由最小 follow / unfollow webhook 維護。
 - 解除綁定只允許 admin，並 hard delete 該列。顧客端不可解除，也不可由 confirm flow 自動覆蓋其他綁定。
 - RLS 預設 deny direct client access；public LIFF、webhook 與 worker 流程只能透過 server-side transaction / service boundary 存取。

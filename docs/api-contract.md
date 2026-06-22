@@ -1624,7 +1624,7 @@ Request rules：
 
 ## LINE MVP API
 
-PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoints 仍為 planned / not implemented。所有 endpoint 使用本文件既有 error envelope 與 request ID 規則。
+Admin、Public LIFF與最小 follow/unfollow webhook已實作；internal processor仍為 planned / not implemented。所有 endpoint使用既有 error envelope與 request ID規則。
 
 ### Planned endpoints
 
@@ -1679,6 +1679,14 @@ PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoin
 - 支援 `TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_ACCESS_TOKEN_INVALID`、`LINE_PLATFORM_UNAVAILABLE`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`VALIDATION_ERROR`、`TOO_MANY_REQUESTS`。
 - ID/access token只存在 request記憶體，不儲存、不記錄。
 
+### `POST /api/webhooks/line`
+
+- 不需產品使用者 auth；必須先以未修改的 raw request body與 private `LINE_CHANNEL_SECRET`驗證 `x-line-signature`，成功後才 parse JSON。
+- 空 events、非 follow/unfollow event、非 user source與查無 binding均回 `200 { data: { accepted: true } }`。
+- `follow` 設定 `is_friend = true`、`blocked_at = null`；`unfollow` 設定 `is_friend = false`、`blocked_at = now()`；兩者均更新 `friendship_checked_at`。
+- Signature缺失或不符回 `401 LINE_WEBHOOK_SIGNATURE_INVALID`。DB更新失敗回 `500 INTERNAL_SERVER_ERROR`，允許 LINE redelivery。
+- 不記錄 raw body、signature或 LINE user ID。
+
 ### Contract rules
 
 - Token resolve 不消耗 token。`used_at` 只能由 confirm 成功 transaction 設定。
@@ -1692,7 +1700,7 @@ PR 5 已實作三支 Admin API；Public、webhook 與 internal processor endpoin
 
 ### Planned errors
 
-LINE routes 必須使用既有 error envelope，並至少定義：`TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`CUSTOMER_ALREADY_BOUND`、`NO_ACTIVE_LINE_BINDING`、`LINE_NOT_NOTIFYABLE`、`JOB_ALREADY_EXISTS`、`INTERNAL_UNAUTHORIZED`。
+LINE routes 必須使用既有 error envelope，並至少定義：`TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_WEBHOOK_SIGNATURE_INVALID`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`CUSTOMER_ALREADY_BOUND`、`NO_ACTIVE_LINE_BINDING`、`LINE_NOT_NOTIFYABLE`、`JOB_ALREADY_EXISTS`、`INTERNAL_UNAUTHORIZED`。
 
 ### Processor contract constraints
 

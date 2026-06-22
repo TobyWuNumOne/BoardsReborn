@@ -92,6 +92,8 @@ export default defineNuxtConfig({
     lineBindTokenSecret: process.env.LINE_BIND_TOKEN_SECRET || '',
     lineLoginChannelId: process.env.LINE_LOGIN_CHANNEL_ID || '',
     lineLoginChannelSecret: process.env.LINE_LOGIN_CHANNEL_SECRET || '',
+    lineChannelSecret: process.env.LINE_CHANNEL_SECRET || '',
+    lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     supabaseSecretKey: supabaseSecretKey || '',
     printAgentToken: process.env.PRINT_AGENT_TOKEN || '',
     adminEmail: process.env.ADMIN_EMAIL || '',

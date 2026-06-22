@@ -14,6 +14,7 @@ export type ApiErrorCode =
   | 'LINE_ID_TOKEN_INVALID'
   | 'LINE_PLATFORM_UNAVAILABLE'
   | 'LINE_BIND_TOKEN_REQUIRED'
+  | 'LINE_WEBHOOK_SIGNATURE_INVALID'
   | 'NO_ACTIVE_LINE_BINDING'
   | 'TOKEN_EXPIRED'
   | 'TOKEN_INVALID'
@@ -162,6 +163,12 @@ export class LineBindTokenRequiredError extends ApiError {
       message: '請先重新發行 LINE 綁定 QR Code，再建立留存聯補印。',
       statusCode: 409,
     });
+  }
+}
+
+export class LineWebhookSignatureInvalidError extends ApiError {
+  constructor(message = 'LINE webhook signature is invalid.') {
+    super({ code: 'LINE_WEBHOOK_SIGNATURE_INVALID', message, statusCode: 401 });
   }
 }
 

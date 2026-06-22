@@ -103,6 +103,10 @@ const lineReceiptPrintingMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621094508_line_receipt_printing.sql'),
   'utf8',
 );
+const lineWebhookFriendshipMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621103853_line_webhook_friendship_status.sql'),
+  'utf8',
+);
 const autoNumericPaperOrderNoMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260612143000_auto_numeric_paper_order_no.sql'),
   'utf8',
@@ -538,6 +542,16 @@ describe('initial Supabase migration', () => {
     expect(lineReceiptPrintingMigration).toContain(
       'line_bind_tokens.work_order_id = p_work_order_id',
     );
+  });
+
+  it('adds a dedicated friendship check timestamp without changing LINE RLS', () => {
+    expect(lineWebhookFriendshipMigration).toContain(
+      'add column friendship_checked_at timestamptz',
+    );
+    expect(lineWebhookFriendshipMigration).toContain(
+      'customer_line_accounts_friendship_checked_at_valid',
+    );
+    expect(lineWebhookFriendshipMigration).not.toContain('create policy');
   });
 
   it('adds the LINE MVP enums and relational tables', () => {

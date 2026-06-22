@@ -16,6 +16,7 @@ type AdminLineClient = SupabaseClient<Database>;
 interface LineBindingStatusRow {
   blocked_at: string | null;
   display_name: string | null;
+  friendship_checked_at?: string | null;
   is_friend: boolean;
   last_seen_at: string | null;
   line_user_id?: string;
@@ -175,7 +176,7 @@ export const mapAdminWorkOrderLineStatus = (
       ? {
           blockedAt: input.binding.blocked_at,
           displayName: input.binding.display_name,
-          friendshipCheckedAt: input.binding.last_seen_at,
+          friendshipCheckedAt: input.binding.friendship_checked_at ?? input.binding.last_seen_at,
           linkedAt: input.binding.linked_at,
           notificationStatus: deriveLineNotificationStatus(input.binding),
           status: 'bound' as const,
@@ -235,7 +236,7 @@ export const getAdminWorkOrderLineStatus = async (
   const [bindingResult, tokenResult, jobsResult] = await Promise.all([
     supabase
       .from('customer_line_accounts')
-      .select('display_name, linked_at, last_seen_at, is_friend, blocked_at')
+      .select('display_name, linked_at, last_seen_at, friendship_checked_at, is_friend, blocked_at')
       .eq('customer_id', workOrder.customer_id)
       .maybeSingle(),
     supabase

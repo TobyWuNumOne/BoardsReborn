@@ -55,6 +55,7 @@ export type Database = {
           created_at: string;
           customer_id: string;
           display_name: string | null;
+          friendship_checked_at: string | null;
           id: string;
           is_friend: boolean;
           last_seen_at: string | null;
@@ -68,6 +69,7 @@ export type Database = {
           created_at?: string;
           customer_id: string;
           display_name?: string | null;
+          friendship_checked_at?: string | null;
           id?: string;
           is_friend?: boolean;
           last_seen_at?: string | null;
@@ -81,6 +83,7 @@ export type Database = {
           created_at?: string;
           customer_id?: string;
           display_name?: string | null;
+          friendship_checked_at?: string | null;
           id?: string;
           is_friend?: boolean;
           last_seen_at?: string | null;
