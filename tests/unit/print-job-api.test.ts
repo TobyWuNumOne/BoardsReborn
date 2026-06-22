@@ -441,7 +441,6 @@ describe('print job services', () => {
       args: {
         p_created_by_user_id: 'user-1',
         p_job_type: 'work_order_label',
-        p_public_lookup_url: 'https://status.surfboards-reborn.com/repair-status',
         p_work_order_id: 'work-order-1',
       },
       name: 'create_admin_print_job',
@@ -763,29 +762,51 @@ describe('print job services', () => {
 describe('work order print job enqueue', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('best-effort enqueues the initial print job after work order creation', async () => {
+    vi.stubGlobal('useRuntimeConfig', () => ({
+      lineBindTokenSecret: 'line-bind-secret-for-tests',
+      public: { appUrl: '', liffId: '1234567890-test', statusUrl: 'https://status.example' },
+    }));
     const calls: Array<{ args: Record<string, unknown>; name: string }> = [];
     const client = {
       from(table: string) {
-        if (table !== 'work_orders') {
-          throw new Error(`Unexpected table ${table}`);
+        if (table === 'customer_line_accounts') {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
         }
-
-        return {
-          update(payload: Record<string, unknown>) {
-            return {
-              eq(column: string, value: string) {
-                calls.push({
-                  args: { column, payload, value },
-                  name: 'work_orders.update',
-                });
-                return Promise.resolve({ error: null });
-              },
-            };
-          },
-        };
+        if (table === 'work_orders')
+          return {
+            select() {
+              return this;
+            },
+            single() {
+              return Promise.resolve({ data: { customer_id: 'customer-1' }, error: null });
+            },
+            update(payload: Record<string, unknown>) {
+              return {
+                eq(column: string, value: string) {
+                  calls.push({ args: { column, payload, value }, name: 'work_orders.update' });
+                  return Promise.resolve({ error: null });
+                },
+              };
+            },
+            eq() {
+              return this;
+            },
+          };
+        throw new Error(`Unexpected table ${table}`);
       },
       rpc(name: string, args: Record<string, unknown>) {
         calls.push({ args, name });
@@ -799,6 +820,31 @@ describe('work order print job enqueue', () => {
               paperOrderNo: '990001',
               quoteTotalAmount: 0,
             },
+            error: null,
+          });
+        }
+
+        if (name === 'issue_line_bind_token') {
+          return Promise.resolve({
+            data: {
+              created_at: '2026-06-21T00:00:00.000Z',
+              created_by: 'user-1',
+              customer_id: 'customer-1',
+              expires_at: '2026-07-21T00:00:00.000Z',
+              id: args.p_token_id,
+              revoked_at: null,
+              token_hash: args.p_token_hash,
+              updated_at: '2026-06-21T00:00:00.000Z',
+              used_at: null,
+              work_order_id: 'work-order-1',
+            },
+            error: null,
+          });
+        }
+
+        if (name === 'enqueue_work_order_received_line_job') {
+          return Promise.resolve({
+            data: { enqueued: false, reason: 'NO_ACTIVE_LINE_BINDING' },
             error: null,
           });
         }
@@ -852,6 +898,10 @@ describe('work order print job enqueue', () => {
         paperOrderNo: '990001',
         quoteTotalAmount: 0,
       },
+      lineNotification: {
+        enqueued: false,
+        reason: 'NO_ACTIVE_LINE_BINDING',
+      },
     });
 
     expect(calls.map((call) => call.name)).toEqual([
@@ -861,10 +911,12 @@ describe('work order print job enqueue', () => {
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
+      'issue_line_bind_token',
       'create_admin_print_job',
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
       'emit_printing_realtime_event',
+      'enqueue_work_order_received_line_job',
     ]);
     expect(calls[0]?.args.p_work_order).toMatchObject({
       paperOrderMode: 'test',
@@ -875,6 +927,17 @@ describe('work order print job enqueue', () => {
         .filter((call) => call.name === 'create_admin_print_job')
         .map((call) => call.args.p_job_type),
     ).toEqual(['work_order_label', 'customer_receipt']);
+    const receiptCall = calls.find(
+      (call) =>
+        call.name === 'create_admin_print_job' && call.args.p_job_type === 'customer_receipt',
+    );
+    expect(receiptCall?.args).toMatchObject({
+      p_qr_kind: 'line_bind',
+      p_work_order_id: 'work-order-1',
+    });
+    expect(receiptCall?.args.p_line_bind_token_id).toEqual(expect.any(String));
+    expect(JSON.stringify(receiptCall)).not.toContain('liff.line.me');
+    expect(JSON.stringify(receiptCall)).not.toContain('publicLookupUrl');
   });
 
   it('does not fail work order creation when initial print job enqueue fails', async () => {
@@ -949,6 +1012,10 @@ describe('work order print job enqueue', () => {
         id: 'work-order-1',
         paperOrderNo: 'BR-2026-0001',
         quoteTotalAmount: 0,
+      },
+      lineNotification: {
+        enqueued: false,
+        reason: 'ENQUEUE_FAILED',
       },
     });
 

@@ -245,23 +245,23 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 
 非同步列印任務。工單主資料建立不依賴列印成功，但列印任務需要完整 print-ready snapshot，因此 admin create flow 必須先確認 `repair_count` 非空。補印時新增另一筆任務，不覆蓋舊任務。
 
-| 欄位                 | 型別               | 規則                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                 | `uuid`             | Primary key                                                                                                                                                                                                                                                                                                                                                                             |
-| `work_order_id`      | `uuid`             | required，references `work_orders.id`                                                                                                                                                                                                                                                                                                                                                   |
-| `print_device_id`    | `uuid`             | nullable，references `print_devices.id`                                                                                                                                                                                                                                                                                                                                                 |
-| `job_type`           | `print_job_type`   | required，第一版支援 `work_order_label` / `customer_receipt`                                                                                                                                                                                                                                                                                                                            |
-| `status`             | `print_job_status` | required，見 `PrintJobStatus`                                                                                                                                                                                                                                                                                                                                                           |
-| `payload`            | `jsonb`            | required，不可變的列印快照；`work_order_label` 使用 `templateVersion = 2`，至少包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived`、`repairCount`；`customer_receipt` 使用 `templateVersion = 1`，至少包含 `paperOrderNo`、`intakeDate`、`customerPhone`、`boardTypeLabel`、`paymentReceived`、`repairCount`、`publicLookupUrl` |
-| `attempt_count`      | `smallint`         | required，default `0`                                                                                                                                                                                                                                                                                                                                                                   |
-| `max_attempts`       | `smallint`         | required，default `3`                                                                                                                                                                                                                                                                                                                                                                   |
-| `last_error`         | `text`             | nullable，最後一次錯誤原因                                                                                                                                                                                                                                                                                                                                                              |
-| `locked_by`          | `varchar(120)`     | nullable，最後一次 claim 該任務的 `device_key`                                                                                                                                                                                                                                                                                                                                          |
-| `locked_at`          | `timestamptz`      | nullable，Worker 取走任務時間                                                                                                                                                                                                                                                                                                                                                           |
-| `printed_at`         | `timestamptz`      | nullable，Worker 回報列印成功時間                                                                                                                                                                                                                                                                                                                                                       |
-| `created_by_user_id` | `uuid`             | nullable，references `auth.users.id`                                                                                                                                                                                                                                                                                                                                                    |
-| `created_at`         | `timestamptz`      | required，default `now()`                                                                                                                                                                                                                                                                                                                                                               |
-| `updated_at`         | `timestamptz`      | required，default `now()`                                                                                                                                                                                                                                                                                                                                                               |
+| 欄位                 | 型別               | 規則                                                                                                                                                                                                                                                                                     |
+| -------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                 | `uuid`             | Primary key                                                                                                                                                                                                                                                                              |
+| `work_order_id`      | `uuid`             | required，references `work_orders.id`                                                                                                                                                                                                                                                    |
+| `print_device_id`    | `uuid`             | nullable，references `print_devices.id`                                                                                                                                                                                                                                                  |
+| `job_type`           | `print_job_type`   | required，第一版支援 `work_order_label` / `customer_receipt`                                                                                                                                                                                                                             |
+| `status`             | `print_job_status` | required，見 `PrintJobStatus`                                                                                                                                                                                                                                                            |
+| `payload`            | `jsonb`            | required，不可變的列印快照；`work_order_label` 使用 `templateVersion = 2`；新建 `customer_receipt` 使用 `templateVersion = 2` 並只保存 `qrKind` 與可選 `lineBindTokenId`，不得保存 plaintext token或完整 LIFF URL。舊 `templateVersion = 1/publicLookupUrl` snapshot維持 immutable相容。 |
+| `attempt_count`      | `smallint`         | required，default `0`                                                                                                                                                                                                                                                                    |
+| `max_attempts`       | `smallint`         | required，default `3`                                                                                                                                                                                                                                                                    |
+| `last_error`         | `text`             | nullable，最後一次錯誤原因                                                                                                                                                                                                                                                               |
+| `locked_by`          | `varchar(120)`     | nullable，最後一次 claim 該任務的 `device_key`                                                                                                                                                                                                                                           |
+| `locked_at`          | `timestamptz`      | nullable，Worker 取走任務時間                                                                                                                                                                                                                                                            |
+| `printed_at`         | `timestamptz`      | nullable，Worker 回報列印成功時間                                                                                                                                                                                                                                                        |
+| `created_by_user_id` | `uuid`             | nullable，references `auth.users.id`                                                                                                                                                                                                                                                     |
+| `created_at`         | `timestamptz`      | required，default `now()`                                                                                                                                                                                                                                                                |
+| `updated_at`         | `timestamptz`      | required，default `now()`                                                                                                                                                                                                                                                                |
 
 建議 index：
 
@@ -409,3 +409,54 @@ TypeScript 名稱：`PrintJobType`
 - 管理端 user-scoped Supabase client 需要 `authenticated` role 具備對應 table / view privileges，並由 RLS policies 與 Nuxt admin gate 共同限制實際操作。
 - private Realtime broadcast topic 的 join 授權也由 `realtime.messages` RLS policy 控制；本 repo 的 printing topics 限制為 `printing:*` 且僅允許 `admin_profiles` 使用者加入。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。
+
+## LINE MVP 資料模型（PR 1 至 PR 12 implemented）
+
+基礎 enum、table、constraint、index、RLS與 grants已建立；Token service、Admin/Public API、LIFF、條件式列印、最小 webhook、Processor、READY status通知、建單收件通知與工單詳情 Admin UI均已實作。Production Cron仍未啟用。
+
+### `customer_line_accounts`
+
+- 只表示目前有效的 LINE 綁定，不保留綁定 history。
+- `customer_id` 與 `line_user_id` 各自必須 unique，強制 `1 Customer : 1 LINE` 與 `1 LINE : 1 Customer`。
+- 欄位包含 `id`、`customer_id`、`line_user_id`、`display_name`、`picture_url`、`linked_at`、`last_seen_at`、`friendship_checked_at`、`is_friend`、`blocked_at`、`created_at`、`updated_at`。
+- 綁定與好友狀態分離；`is_friend` / `blocked_at` 由最小 follow / unfollow webhook 維護。
+- 解除綁定只允許 admin，並 hard delete 該列。顧客端不可解除，也不可由 confirm flow 自動覆蓋其他綁定。
+- RLS 預設 deny direct client access；public LIFF、webhook 與 worker 流程只能透過 server-side transaction / service boundary 存取。
+
+### `line_bind_tokens`
+
+- 每次發卡建立新 row；TTL 固定 30 天，一次性、可撤銷且不可重用。
+- 欄位包含 `id`、`token_hash`、`customer_id`、`work_order_id`、`expires_at`、`used_at`、`revoked_at`、`created_by`、`created_at`、`updated_at`。
+- DB 只儲存 `token_hash`。明文 token 由 `token row UUID + LINE_BIND_TOKEN_SECRET` 透過 deterministic HMAC 產生，server 可對 active pending row 重建相同 token 與 LIFF URL。
+- `used_at` 只表示綁定權限已成功消耗；必須在 LINE 身分驗證與 `customer_line_accounts` 寫入成功後，於同一 transaction 設定。
+- 發新 token、綁定成功或解除綁定時，必須撤銷同 Customer 其他 pending token。
+- Secret 遺失或輪替後，既有 pending token 視為不可補印，只能撤銷並重新發卡。
+- 明文 token 不得持久化到 `print_jobs.payload`、其他 table 或 log；允許出現在使用者持有的 LIFF URL 與 Server 到 Print Worker 的暫時 response 中。
+- 需要 unique `token_hash`，並為 active token resolve、Customer pending token 與 work order latest token 查詢建立適當 index。
+
+### `line_jobs`
+
+- `line_job_type` 目前只包含 `line_binding_success`、`work_order_received`、`work_order_ready_for_pickup`。
+- `line_job_status` 包含 `pending`、`locked`、`succeeded`、`failed`、`skipped`；`line_job_skip_reason` 包含 `no_active_line_binding`、`line_not_notifyable`、`recipient_binding_changed`。
+- Processor欄位包含 attempts、available/lock、error、frozen recipient、`prepared_messages`、retry key與 `first_attempt_at`；`payload`仍是 enqueue時的內部事件資料，不作為 LINE request payload。
+- 自動事件必須有 stable dedupe key；每張工單只建立一次自動 `work_order_ready_for_pickup` job。未來手動補發不得重用自動 dedupe key。
+- pending job 第一次實際送出前，worker 先以 `customer_id` 重新解析目前有效綁定與可通知狀態，再凍結 recipient、payload 與 retry key。後續 retry 使用相同 `X-Line-Retry-Key`。
+- 無有效綁定或不可通知時標記 `skipped`。LINE API accepted 只表示平台接受 request，不表示顧客實際收到。
+- `work_order_ready_for_pickup` job 成功後，以 `coalesce(work_orders.notified_at, line_jobs.sent_at)` 維護 `work_orders.notified_at`。
+- `claim_line_jobs` 原子 claim最多 20 筆 due pending或超過 5 分鐘的 stale locked jobs；`prepare_line_job`重新解析 binding並凍結 send資料；`record_line_job_result`處理 success/retry/failure與 READY `notified_at`。三者各自 commit，LINE HTTP不在 DB transaction內。
+- MVP 暫不執行 retention；used/revoked/expired token 與終態 job 暫時保留。
+
+### Transaction 與一致性邊界
+
+- 發卡：`issue_line_bind_token` 以 Customer row lock 序列化同一顧客的發卡，並在同一 transaction 撤銷其他 pending token、建立 30 天效期的新 row。RPC 只接收 SHA-256 hash，不接收 plaintext 或 HMAC secret。
+- 撤銷：`revoke_pending_line_bind_tokens` 以相同 Customer row lock 撤銷該顧客所有 pending token，回傳受影響筆數。
+- Admin 發卡：`issue_admin_line_bind_token` 從工單解析 Customer、鎖定 Customer、拒絕已有有效綁定的 Customer，並原子撤銷舊 pending token與建立新 token；不建立 print job。
+- Admin 解除：`unlink_admin_customer_line_binding` 原子 hard delete有效 binding、撤銷 pending token，並只將 `pending` LINE jobs改為 `skipped / no_active_line_binding`；`locked` job不強制改寫，由 prepare重新驗證。
+- Public confirm：LINE Platform驗證必須先在 server完成；`confirm_public_line_binding` 才鎖定 token/Customer、檢查狀態與雙向唯一、建立或冪等確認 binding、消耗 token並寫入單一 Outbox job。Conflict outcome會提交 token revoke後由 server轉成 API error；其他 DB / Outbox錯誤會 rollback整筆 transaction。
+- Public confirm job selection：工單為 `READY_FOR_PICKUP` 且 `notified_at is null` 時只建立 `work_order_ready_for_pickup`；其他新綁定建立 `line_binding_success`。`already_linked` 不重複建立 job。
+- Confirm：鎖定並驗證 token、檢查雙向唯一性、建立綁定、設定 `used_at`、撤銷其他 pending token，必須在同一 transaction。
+- 解除綁定：hard delete account 並撤銷同 Customer pending token，必須在同一 transaction。
+- 建單：核心工單 transaction、初始列印 best-effort與 `work_order_received` enqueue依序分離。LINE enqueue只在 Customer已有 active binding時執行，固定 dedupe key為 `work_order_received:{work_order_id}`；無綁定、dedupe或其他 insert error分別回 summary，均不回滾工單或列印流程。
+- READY：狀態 history、`current_status` / timestamp side effects 與符合條件的 outbox insert 必須在同一 DB transaction；dedupe conflict 是 no-op，其他 insert error 可回滾狀態更新。
+- READY enqueue：只有目標為 `READY_FOR_PICKUP`、Customer 有 active binding、`notified_at is null` 且固定 dedupe key 尚不存在時建立 job。固定 key 是 `work_order_ready_for_pickup:{work_order_id}`；payload 是不含 LINE user ID、電話與 token 的 domain event snapshot。
+- Job claim 與送出結果各自使用短 transaction；外部 LINE request 不放在 DB transaction 內。

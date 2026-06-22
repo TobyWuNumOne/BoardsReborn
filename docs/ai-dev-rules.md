@@ -95,6 +95,22 @@
 - Worker claim 必須是原子操作，避免多個 worker 同時取走同一筆 job。
 - 補印必須建立新的 `print_jobs` 記錄，不可覆蓋舊列印任務。
 
+## LINE Integration Rules
+
+- LINE PR 1 至 PR 12 已實作；production Cron仍未啟用，手動補發與其他非目標功能仍不得宣稱完成。
+- 綁定基數必須是 `1 LINE : 1 Customer` 與 `1 Customer : 1 LINE`；confirm 不得覆蓋既有其他綁定。
+- 顧客端不可解除綁定。解除只能由 admin hard delete，目前不建立完整 binding history 或 audit subsystem。
+- 明文 bind token 必須由 `token row UUID + LINE_BIND_TOKEN_SECRET` 以 deterministic HMAC 產生；DB 只存 hash。
+- 明文 bind token 不得持久化到 `print_jobs.payload`、其他 table 或 log。active pending token 的 LIFF URL只能由 server 暫時重建。
+- `LINE_BIND_TOKEN_SECRET`、`LINE_JOB_PROCESSOR_SECRET`、channel secrets 與 access token 都是 server-only；不得出現在 query string、public runtime config、client、response 或 log。只有 LIFF ID 與官方帳號 URL 可使用 `NUXT_PUBLIC_`。
+- Server 不得信任 client 傳入的 LINE user ID 或 profile；必須驗證 LINE ID token 後取得可信身分。
+- Webhook 必須以 raw body 驗證 `x-line-signature` 後才處理 follow / unfollow。
+- LINE 推播必須經 `line_jobs` Outbox；不得把 Messaging API request 放進核心同步 transaction。
+- 第一次送出前必須重新解析目前綁定並凍結 recipient、payload、retry key；retry 必須重用同一 `X-Line-Retry-Key`。
+- LINE API accepted 不得在 UI 或 log 描述為顧客已收到或已讀。
+- 自動 READY job 每張工單只建立一次；成功後才以 `coalesce(notified_at, sent_at)` 維護 `work_orders.notified_at`。
+- 啟用 production Cron 前，必須完成 LINE secrets、Supabase Vault、Provider/channel linking、LIFF endpoint 與 status-domain routing checklist。
+
 ## Product Scope
 
 第一版不做：
@@ -113,6 +129,9 @@
 - 平板瀏覽器直接控制 USB 印表機。
 - 綁死單一品牌印表機 SDK。
 - 完整微服務或複雜訊息佇列。
+- LINE Pay、完整 LINE 會員中心、顧客端解除綁定、手動補發 API。
+- AI 客服、LINE 群發行銷、顧客照片自動入庫。
+- 完整 `line_message_logs`、retention worker、Customer 詳情頁重工。
 
 如果任務要求碰到上述項目，必須先更新產品文件或要求重新確認 scope。
 

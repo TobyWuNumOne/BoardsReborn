@@ -99,12 +99,48 @@ const customerReceiptPrintJobSnapshotMigration = readFileSync(
   ),
   'utf8',
 );
+const lineReceiptPrintingMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621094508_line_receipt_printing.sql'),
+  'utf8',
+);
+const lineWebhookFriendshipMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621103853_line_webhook_friendship_status.sql'),
+  'utf8',
+);
+const lineJobsProcessorMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260622082705_line_jobs_processor.sql'),
+  'utf8',
+);
+const readyLineNotificationMigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations/20260622090538_ready_line_notification.sql',
+);
+const receivedLineNotificationMigrationPath = resolve(
+  process.cwd(),
+  'supabase/migrations/20260622095620_work_order_received_line_notification.sql',
+);
 const autoNumericPaperOrderNoMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260612143000_auto_numeric_paper_order_no.sql'),
   'utf8',
 );
 const deleteAdminWorkOrderLockingMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260618161500_delete_admin_work_order_locking.sql'),
+  'utf8',
+);
+const lineMvpFoundationMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621062329_line_mvp_foundation.sql'),
+  'utf8',
+);
+const lineBindTokenRpcsMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621064536_line_bind_token_rpcs.sql'),
+  'utf8',
+);
+const adminLineBindingManagementMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621065543_admin_line_binding_management.sql'),
+  'utf8',
+);
+const publicLineBindingConfirmMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260621091907_public_line_binding_confirm.sql'),
   'utf8',
 );
 const testPaperOrderNoMigrationPath = resolve(
@@ -509,5 +545,212 @@ describe('initial Supabase migration', () => {
     expect(customerReceiptPrintJobSnapshotMigration).toContain(
       'grant execute on function public.create_admin_print_job(uuid, public.print_job_type, uuid, text) to authenticated',
     );
+  });
+
+  it('stores only non-sensitive LINE receipt QR metadata', () => {
+    expect(lineReceiptPrintingMigration).toContain("'qrKind', p_qr_kind");
+    expect(lineReceiptPrintingMigration).toContain("'lineBindTokenId', p_line_bind_token_id");
+    expect(lineReceiptPrintingMigration).not.toContain("'publicLookupUrl'");
+    expect(lineReceiptPrintingMigration).toContain(
+      'line_bind_tokens.work_order_id = p_work_order_id',
+    );
+  });
+
+  it('adds a dedicated friendship check timestamp without changing LINE RLS', () => {
+    expect(lineWebhookFriendshipMigration).toContain(
+      'add column friendship_checked_at timestamptz',
+    );
+    expect(lineWebhookFriendshipMigration).toContain(
+      'customer_line_accounts_friendship_checked_at_valid',
+    );
+    expect(lineWebhookFriendshipMigration).not.toContain('create policy');
+  });
+
+  it('adds atomic LINE job claim, prepare and result transactions', () => {
+    expect(lineJobsProcessorMigration).toContain("rename value 'processing' to 'locked'");
+    expect(lineJobsProcessorMigration).toContain(
+      "add value if not exists 'recipient_binding_changed'",
+    );
+    expect(lineJobsProcessorMigration).toContain('prepared_messages jsonb');
+    expect(lineJobsProcessorMigration).toContain('first_attempt_at timestamptz');
+    expect(lineJobsProcessorMigration).toContain('for update skip locked');
+    expect(lineJobsProcessorMigration).toContain(
+      'create or replace function public.claim_line_jobs',
+    );
+    expect(lineJobsProcessorMigration).toContain(
+      'create or replace function public.prepare_line_job',
+    );
+    expect(lineJobsProcessorMigration).toContain(
+      'create or replace function public.record_line_job_result',
+    );
+    expect(lineJobsProcessorMigration).toContain(
+      'notified_at = coalesce(work_orders.notified_at, v_sent_at)',
+    );
+    expect(lineJobsProcessorMigration).not.toContain('create policy');
+  });
+
+  it('enqueues the READY LINE outbox event inside the status transition transaction', () => {
+    expect(existsSync(readyLineNotificationMigrationPath)).toBe(true);
+    const readyLineNotificationMigration = readFileSync(readyLineNotificationMigrationPath, 'utf8');
+
+    expect(readyLineNotificationMigration).toContain(
+      'create or replace function public.transition_admin_work_order_status',
+    );
+    expect(readyLineNotificationMigration).toContain(
+      "'work_order_ready_for_pickup:' || p_work_order_id::text",
+    );
+    expect(readyLineNotificationMigration).toContain('insert into public.line_jobs');
+    expect(readyLineNotificationMigration).toContain('on conflict (dedupe_key)');
+    expect(readyLineNotificationMigration).toContain("'NO_ACTIVE_LINE_BINDING'");
+    expect(readyLineNotificationMigration).toContain("'ALREADY_NOTIFIED'");
+    expect(readyLineNotificationMigration).toContain("'JOB_ALREADY_EXISTS'");
+    expect(readyLineNotificationMigration).toContain("'NOT_READY_FOR_PICKUP'");
+    expect(readyLineNotificationMigration).not.toContain('line_user_id');
+    expect(readyLineNotificationMigration).not.toContain('phone');
+  });
+
+  it('adds a best-effort work-order received enqueue transaction', () => {
+    expect(existsSync(receivedLineNotificationMigrationPath)).toBe(true);
+    const receivedMigration = readFileSync(receivedLineNotificationMigrationPath, 'utf8');
+
+    expect(receivedMigration).toContain(
+      'create or replace function public.enqueue_work_order_received_line_job',
+    );
+    expect(receivedMigration).toContain("'work_order_received:' || p_work_order_id::text");
+    expect(receivedMigration).toContain("'work_order_received'::public.line_job_type");
+    expect(receivedMigration).toContain('insert into public.line_jobs');
+    expect(receivedMigration).toContain('on conflict (dedupe_key)');
+    expect(receivedMigration).toContain("'NO_ACTIVE_LINE_BINDING'");
+    expect(receivedMigration).toContain("'JOB_ALREADY_EXISTS'");
+    expect(receivedMigration).not.toContain('line_user_id');
+    expect(receivedMigration).not.toContain('phone');
+    expect(receivedMigration).not.toContain('token');
+  });
+
+  it('adds the LINE MVP enums and relational tables', () => {
+    expect(lineMvpFoundationMigration).toContain('create type public.line_job_type as enum');
+    expect(lineMvpFoundationMigration).toContain('create type public.line_job_status as enum');
+    expect(lineMvpFoundationMigration).toContain('create type public.line_job_skip_reason as enum');
+    expect(lineMvpFoundationMigration).toContain('create table public.customer_line_accounts');
+    expect(lineMvpFoundationMigration).toContain('create table public.line_bind_tokens');
+    expect(lineMvpFoundationMigration).toContain('create table public.line_jobs');
+  });
+
+  it('enforces LINE binding, token, and job uniqueness in the database', () => {
+    expect(lineMvpFoundationMigration).toContain('work_orders_id_customer_id_key');
+    expect(lineMvpFoundationMigration).toContain('customer_line_accounts_customer_id_key');
+    expect(lineMvpFoundationMigration).toContain('customer_line_accounts_line_user_id_key');
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_token_hash_key');
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_one_pending_per_customer_idx');
+    expect(lineMvpFoundationMigration).toContain('where used_at is null and revoked_at is null');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_retry_key_key');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_dedupe_key_idx');
+    expect(lineMvpFoundationMigration).toContain('where dedupe_key is not null');
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_work_order_customer_fk');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_work_order_customer_fk');
+  });
+
+  it('adds LINE claim, reclaim, token, and history indexes', () => {
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_customer_created_at_idx');
+    expect(lineMvpFoundationMigration).toContain('line_bind_tokens_work_order_created_at_idx');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_pending_claim_idx');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_processing_reclaim_idx');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_customer_created_at_idx');
+    expect(lineMvpFoundationMigration).toContain('line_jobs_work_order_created_at_idx');
+  });
+
+  it('protects LINE tables with admin-scoped RLS and explicit grants', () => {
+    for (const table of ['customer_line_accounts', 'line_bind_tokens', 'line_jobs']) {
+      expect(lineMvpFoundationMigration).toContain(
+        `alter table public.${table} enable row level security`,
+      );
+    }
+    expect(lineMvpFoundationMigration).toContain('from public.admin_profiles');
+    expect(lineMvpFoundationMigration).toContain('auth.uid()');
+    expect(lineMvpFoundationMigration).not.toContain('to authenticated\nusing (true)');
+    expect(lineMvpFoundationMigration).not.toContain('to anon');
+    expect(lineMvpFoundationMigration).toContain(
+      'grant select, insert, update, delete on table public.customer_line_accounts to authenticated',
+    );
+    expect(lineMvpFoundationMigration).toContain(
+      'grant select, insert, update, delete on table public.line_bind_tokens to service_role',
+    );
+    expect(lineMvpFoundationMigration).toContain(
+      'grant select, insert, update, delete on table public.line_jobs to service_role',
+    );
+  });
+
+  it('adds atomic LINE bind token issue and revoke RPCs', () => {
+    expect(lineBindTokenRpcsMigration).toContain(
+      'create or replace function public.issue_line_bind_token',
+    );
+    expect(lineBindTokenRpcsMigration).toContain(
+      'create or replace function public.revoke_pending_line_bind_tokens',
+    );
+    expect(lineBindTokenRpcsMigration).toContain('security invoker');
+    expect(lineBindTokenRpcsMigration).toContain('from public.customers');
+    expect(lineBindTokenRpcsMigration).toContain('for update');
+    expect(lineBindTokenRpcsMigration).toContain('update public.line_bind_tokens');
+    expect(lineBindTokenRpcsMigration).toContain('insert into public.line_bind_tokens');
+    expect(lineBindTokenRpcsMigration).toContain("statement_timestamp() + interval '30 days'");
+    expect(lineBindTokenRpcsMigration).not.toContain('plaintext');
+    expect(lineBindTokenRpcsMigration).not.toContain('LINE_BIND_TOKEN_SECRET');
+    expect(lineBindTokenRpcsMigration).toContain(
+      'revoke all on function public.issue_line_bind_token',
+    );
+    expect(lineBindTokenRpcsMigration).toContain(
+      'grant execute on function public.issue_line_bind_token',
+    );
+  });
+
+  it('adds atomic admin LINE issue and unlink transactions', () => {
+    expect(adminLineBindingManagementMigration).toContain(
+      'create or replace function public.issue_admin_line_bind_token',
+    );
+    expect(adminLineBindingManagementMigration).toContain(
+      'create or replace function public.unlink_admin_customer_line_binding',
+    );
+    expect(adminLineBindingManagementMigration).toContain('security invoker');
+    expect(adminLineBindingManagementMigration).toContain('for update');
+    expect(adminLineBindingManagementMigration).toContain(
+      'Customer already has active LINE binding',
+    );
+    expect(adminLineBindingManagementMigration).toContain(
+      'delete from public.customer_line_accounts',
+    );
+    expect(adminLineBindingManagementMigration).toContain(
+      "status = 'skipped'::public.line_job_status",
+    );
+    expect(adminLineBindingManagementMigration).toContain(
+      "and status = 'pending'::public.line_job_status",
+    );
+    expect(adminLineBindingManagementMigration).not.toContain(
+      "and status = 'processing'::public.line_job_status",
+    );
+    expect(adminLineBindingManagementMigration).not.toContain('binding_history');
+  });
+
+  it('adds an atomic public LINE confirm transaction with outbox selection', () => {
+    expect(publicLineBindingConfirmMigration).toContain(
+      'create or replace function public.confirm_public_line_binding',
+    );
+    expect(publicLineBindingConfirmMigration).toContain('for update');
+    expect(publicLineBindingConfirmMigration).toContain("'line_conflict'");
+    expect(publicLineBindingConfirmMigration).toContain("'customer_conflict'");
+    expect(publicLineBindingConfirmMigration).toContain('update public.line_bind_tokens');
+    expect(publicLineBindingConfirmMigration).toContain(
+      'insert into public.customer_line_accounts',
+    );
+    expect(publicLineBindingConfirmMigration).toContain('insert into public.line_jobs');
+    expect(publicLineBindingConfirmMigration).toContain(
+      "current_status = 'READY_FOR_PICKUP'::public.work_order_status",
+    );
+    expect(publicLineBindingConfirmMigration).toContain(
+      "'work_order_ready_for_pickup'::public.line_job_type",
+    );
+    expect(publicLineBindingConfirmMigration).toContain(
+      "'line_binding_success'::public.line_job_type",
+    );
+    expect(publicLineBindingConfirmMigration).not.toContain('http');
   });
 });

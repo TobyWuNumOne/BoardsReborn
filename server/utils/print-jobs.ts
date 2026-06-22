@@ -1,4 +1,5 @@
-import { InternalServerError } from './api-errors';
+import { InternalServerError, LineBindTokenRequiredError } from './api-errors';
+import { issueLineBindToken, rebuildLineBindLiffUrl } from './line-bind-tokens';
 import {
   emitPrintDeviceChangedBestEffort,
   emitPrintJobChangedBestEffort,
@@ -45,6 +46,89 @@ const getPublicLookupUrl = () => {
   } catch {
     return 'http://localhost:3000/repair-status';
   }
+};
+
+const getLineReceiptRuntimeConfig = () => {
+  const config = useRuntimeConfig();
+  return {
+    liffId: config.public.liffId,
+    lineBindTokenSecret: config.lineBindTokenSecret,
+    repairStatusUrl: getPublicLookupUrl(),
+  };
+};
+
+type CustomerReceiptQrKind = 'line_bind' | 'repair_status';
+type CustomerReceiptMode = 'initial' | 'reprint';
+
+interface CustomerReceiptDecisionInput {
+  customerId: string;
+  hasBinding: boolean;
+  mode: CustomerReceiptMode;
+  userId: string;
+  workOrderId: string;
+}
+
+interface CustomerReceiptDecisionDependencies {
+  createSnapshot: (input: {
+    lineBindTokenId: string | null;
+    qrKind: CustomerReceiptQrKind;
+    userId: string;
+    workOrderId: string;
+  }) => Promise<unknown>;
+  findActiveToken: () => Promise<{ id: string } | null>;
+  issueToken: () => Promise<{ row: { id: string } }>;
+}
+
+export const createCustomerReceiptPrintJob = async (
+  input: CustomerReceiptDecisionInput,
+  dependencies: CustomerReceiptDecisionDependencies,
+) => {
+  let lineBindTokenId: string | null = null;
+  let qrKind: CustomerReceiptQrKind = 'repair_status';
+  let warning: 'LINE_BIND_TOKEN_ISSUE_FAILED' | null = null;
+
+  if (!input.hasBinding) {
+    if (input.mode === 'initial') {
+      try {
+        lineBindTokenId = (await dependencies.issueToken()).row.id;
+        qrKind = 'line_bind';
+      } catch {
+        warning = 'LINE_BIND_TOKEN_ISSUE_FAILED';
+      }
+    } else {
+      lineBindTokenId = (await dependencies.findActiveToken())?.id ?? null;
+      if (!lineBindTokenId) throw new LineBindTokenRequiredError();
+      qrKind = 'line_bind';
+    }
+  }
+
+  const result = await dependencies.createSnapshot({
+    lineBindTokenId,
+    qrKind,
+    userId: input.userId,
+    workOrderId: input.workOrderId,
+  });
+  return { qrKind, result, warning };
+};
+
+export const buildCustomerReceiptDispatchPayload = (
+  payload: Record<string, unknown>,
+  config: { liffId: string; lineBindTokenSecret: string; repairStatusUrl: string },
+) => {
+  if (payload.templateVersion !== 2) return payload;
+
+  if (payload.qrKind === 'repair_status') {
+    return { ...payload, publicLookupUrl: config.repairStatusUrl };
+  }
+
+  if (payload.qrKind === 'line_bind' && typeof payload.lineBindTokenId === 'string') {
+    return {
+      ...payload,
+      publicLookupUrl: rebuildLineBindLiffUrl(payload.lineBindTokenId, config).url,
+    };
+  }
+
+  throw new InternalServerError('Customer receipt QR metadata is invalid.');
 };
 
 const calculatePageInfo = (page: number, pageSize: number, total: number): PageInfo => {
@@ -156,6 +240,93 @@ const parsePrintJobWorkerResult = (value: unknown) => {
   };
 };
 
+const createPrintJobSnapshot = async (
+  supabase: UserScopedSupabaseClient,
+  input: {
+    jobType: Database['public']['Enums']['print_job_type'];
+    lineBindTokenId?: string | null;
+    qrKind?: CustomerReceiptQrKind | null;
+    userId: string;
+    workOrderId: string;
+  },
+) => {
+  const { data, error } = await supabase.rpc('create_admin_print_job', {
+    p_created_by_user_id: input.userId,
+    p_job_type: input.jobType,
+    ...(input.lineBindTokenId ? { p_line_bind_token_id: input.lineBindTokenId } : {}),
+    ...(input.qrKind ? { p_qr_kind: input.qrKind } : {}),
+    p_work_order_id: input.workOrderId,
+  });
+  if (error) throwMappedSupabaseError(error);
+  return parsePrintJobMutationResult(data);
+};
+
+const resolveCustomerReceiptContext = async (
+  supabase: UserScopedSupabaseClient,
+  workOrderId: string,
+) => {
+  const { data: workOrder, error: workOrderError } = await supabase
+    .from('work_orders')
+    .select('customer_id')
+    .eq('id', workOrderId)
+    .single();
+  if (workOrderError) throwMappedSupabaseError(workOrderError);
+  if (!workOrder) throw new InternalServerError();
+
+  const { data: binding, error: bindingError } = await supabase
+    .from('customer_line_accounts')
+    .select('id')
+    .eq('customer_id', workOrder.customer_id)
+    .maybeSingle();
+  if (bindingError) throwMappedSupabaseError(bindingError);
+
+  return { customerId: workOrder.customer_id, hasBinding: Boolean(binding) };
+};
+
+const createCustomerReceiptForWorkOrder = async (
+  supabase: UserScopedSupabaseClient,
+  input: { mode: CustomerReceiptMode; userId: string; workOrderId: string },
+) => {
+  const context = await resolveCustomerReceiptContext(supabase, input.workOrderId);
+  const config = getLineReceiptRuntimeConfig();
+  return createCustomerReceiptPrintJob(
+    { ...context, ...input },
+    {
+      createSnapshot: async ({ lineBindTokenId, qrKind, userId, workOrderId }) =>
+        createPrintJobSnapshot(supabase, {
+          jobType: 'customer_receipt',
+          lineBindTokenId,
+          qrKind,
+          userId,
+          workOrderId,
+        }),
+      findActiveToken: async () => {
+        const { data, error } = await supabase
+          .from('line_bind_tokens')
+          .select('id')
+          .eq('customer_id', context.customerId)
+          .eq('work_order_id', input.workOrderId)
+          .is('used_at', null)
+          .is('revoked_at', null)
+          .gt('expires_at', new Date().toISOString())
+          .maybeSingle();
+        if (error) throwMappedSupabaseError(error);
+        return data;
+      },
+      issueToken: async () =>
+        issueLineBindToken(
+          supabase,
+          {
+            createdBy: input.userId,
+            customerId: context.customerId,
+            workOrderId: input.workOrderId,
+          },
+          config,
+        ),
+    },
+  );
+};
+
 const mapPrintJobListRow = (row: AdminPrintJobListRow) => {
   if (
     !row.id ||
@@ -242,18 +413,22 @@ export const createAdminPrintJob = async (
   input: CreatePrintJobInput,
   userId: string,
 ) => {
-  const { data, error } = await supabase.rpc('create_admin_print_job', {
-    p_created_by_user_id: userId,
-    p_job_type: input.jobType,
-    p_public_lookup_url: getPublicLookupUrl(),
-    p_work_order_id: input.workOrderId,
-  });
-
-  if (error) {
-    throwMappedSupabaseError(error);
-  }
-
-  const result = parsePrintJobMutationResult(data);
+  const result =
+    input.jobType === 'customer_receipt'
+      ? parsePrintJobMutationResult(
+          (
+            await createCustomerReceiptForWorkOrder(supabase, {
+              mode: 'reprint',
+              userId,
+              workOrderId: input.workOrderId,
+            })
+          ).result,
+        )
+      : await createPrintJobSnapshot(supabase, {
+          jobType: input.jobType,
+          userId,
+          workOrderId: input.workOrderId,
+        });
   await emitPrintJobChangedBestEffort(supabase, {
     changedAt: result.updatedAt,
     entityId: result.id,
@@ -304,14 +479,30 @@ export const enqueueInitialPrintJobForWorkOrder = async (
 ) => {
   for (const jobType of INITIAL_PRINT_JOB_TYPES) {
     try {
-      await createAdminPrintJob(
-        supabase,
-        {
-          jobType,
+      if (jobType === 'customer_receipt') {
+        const receipt = await createCustomerReceiptForWorkOrder(supabase, {
+          mode: 'initial',
+          userId,
           workOrderId,
-        },
-        userId,
-      );
+        });
+        const result = parsePrintJobMutationResult(receipt.result);
+        await emitPrintJobChangedBestEffort(supabase, {
+          changedAt: result.updatedAt,
+          entityId: result.id,
+          jobStatus: result.status,
+          operation: 'INSERT',
+          wakeupReason: result.status === 'pending' ? 'enqueued' : undefined,
+          workOrderId: result.workOrderId,
+        });
+        if (receipt.warning) {
+          console.warn('LINE receipt token issue failed; repair-status QR was enqueued', {
+            code: receipt.warning,
+            workOrderId,
+          });
+        }
+      } else {
+        await createAdminPrintJob(supabase, { jobType, workOrderId }, userId);
+      }
     } catch (error) {
       console.error('Failed to enqueue initial print job', {
         error,
@@ -336,6 +527,13 @@ export const claimPrintJob = async (
   }
 
   const result = parsePrintJobClaimResult(data);
+
+  if (result.job?.jobType === 'customer_receipt') {
+    result.job.payload = buildCustomerReceiptDispatchPayload(
+      assertRecord(result.job.payload),
+      getLineReceiptRuntimeConfig(),
+    );
+  }
 
   try {
     const deviceSnapshot = await getPrintDeviceRealtimeSnapshotByKey(supabase, input.deviceKey);

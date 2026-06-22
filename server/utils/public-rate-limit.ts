@@ -80,3 +80,12 @@ export const enforcePublicLookupRateLimit = (
     windowMs: PUBLIC_LOOKUP_RATE_WINDOW_MS,
   });
 };
+
+export const enforcePublicLineBindRateLimit = (event: H3Event) => {
+  const ip = getRateLimitClientIp(event);
+  applyInMemoryRateLimit({
+    key: `public-line-bind:${ip}`,
+    limit: PUBLIC_LOOKUP_RATE_LIMIT,
+    windowMs: PUBLIC_LOOKUP_RATE_WINDOW_MS,
+  });
+};

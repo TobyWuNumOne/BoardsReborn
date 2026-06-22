@@ -11,12 +11,18 @@
 
 ## 目前快照
 
-- 最後更新：2026-06-19
-- 目前階段：Cloud-to-Physical Printing MVP 已完成；admin 主流程、public customer lookup、第一版列印中心 UI、Pi Event Wake-up、worker claim/report 與 Raspberry Pi USB raw ESC/POS 實體列印皆已打通，並已支援工單標籤與顧客留存聯分開排隊列印；下一階段聚焦真實場景穩定化、branch / environment discipline 與掃碼硬體補齊
+- 最後更新：2026-06-22
+- 目前階段：Cloud-to-Physical Printing MVP 已完成；LINE 官方帳號串接 12 PR主線已完成。工單詳情可管理 LINE綁定並查看通知狀態；production Cron仍未啟用。
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
+  - LINE MVP 的產品、domain、API、frontend、printing、安全與環境變數設計基線已寫入文件；PR 1 至 PR 12 已實作，READY與建單收件 job enqueue及工單詳情 Admin UI均已完成。
+  - LINE schema foundation 已建立：`customer_line_accounts`、`line_bind_tokens`、`line_jobs`、三個 LINE enums、雙向 1:1 / pending token / dedupe / retry constraints、claim/reclaim/history indexes、admin-scoped RLS 與 service-role grants。這只代表資料層可用，不代表 LINE workflow 已上線。
+  - status production domain 已允許 `/line/order-gate` 與其 query/hash 原地停留，不再被 domain middleware 導回 `/repair-status`；order-gate Vue page 已建立。
+  - LINE bind token service 已建立 server-only HMAC / SHA-256 helpers、LIFF URL 重建、token 狀態解析與原子 issue / revoke RPC。DB 只保存 hash；Admin API 與 Public LIFF API 均已使用此服務。
+  - Admin LINE API 已建立：工單重新發卡、Customer 解除綁定與工單 LINE 狀態查詢。解除綁定會 hard delete binding、撤銷 pending token並 skip pending jobs；目前沒有對應 Admin UI。
+  - Public LIFF綁定流程已建立：order-gate只顯示工單號/板型，server向 LINE Platform驗證 ID/access token後才進 DB transaction；成功建立 binding與單一 Outbox job，conflict revoke token，Outbox失敗 rollback。
   - `server/api/` 已有 admin session、customer lookup、public lookup、work-order create/list/detail/update/status/resolve/bulk-status，以及 admin / print-worker 列印 handlers 與 `print-devices` 管理 handlers。
   - Server API 共用基礎層已建立，包含 typed error classes、requestId helper、handler wrapper、typed Supabase client helper 與 admin gate helper。
   - 前端已導入 Tailwind CSS v4、shadcn-vue primitives、`shadcn-nuxt` 與 SSR width baseline。
@@ -90,6 +96,26 @@
 - Customer lookup flow：done。`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。
 - Production workflow 與部署硬化：pending。Staging Supabase / Vercel 基礎部署已完成；正式 production cutover、production Auth 設定與部署硬化尚未完成。
 - Cloud-to-Physical Printing MVP：done。雲端 Web 建立工單、建立 `print_job`、worker wake-up / claim、Raspberry Pi `/dev/usb/lp0` raw ESC/POS 實體列印、成功/失敗回報與 retry flow 已完成，已跨過「雲端系統控制現場硬體」的關鍵門檻。
+- LINE Official Account MVP：repo implementation done。PR 1 至 PR 12 已完成；production Cron尚未啟用，正式推播鏈路仍需部署後 smoke test。
+
+## LINE MVP 12 PR 路線圖
+
+本路線圖的 repo implementation已完成 PR 1 至 PR 12；production Cron與正式環境 smoke test仍是上線前必要步驟。
+
+- [x] PR 1 Docs only：同步產品決策、schema / API 設計基線、frontend、printing、安全、setup 與進度文件。
+- [x] PR 2 Database migration：新增 LINE tables、enum、constraints、RLS、indexes 與 generated database types。
+- [x] PR 3 Domain routing：讓 status domain 允許 `/line/order-gate`。
+- [x] PR 4 Token service：發卡、HMAC、hash、resolve、revoke 與 active pending token 重建能力。
+- [x] PR 5 Admin API：重新發卡、解除綁定、查詢工單 LINE 狀態。
+- [x] PR 6 Order-gate / LIFF：resolve token、confirm binding、成功與錯誤 UX。
+- [x] PR 7 Receipt printing：未綁定印 LIFF QR、已綁定印 `/repair-status`，並保留發卡失敗 fallback。
+- [x] PR 8 Webhook：follow / unfollow signature 驗證與好友狀態更新。
+- [x] PR 9 `line_jobs` processor：claim、prepare、send、retry、skip、`notified_at` 與 Supabase Cron設定文件。
+- [x] PR 10 Status update integration：`READY_FOR_PICKUP` 狀態 transaction 自動 enqueue。
+- [x] PR 11 Work order create integration：已綁定顧客 enqueue `work_order_received`；失敗不阻斷建單。
+- [x] PR 12 Admin UI：工單詳情顯示 LINE 綁定、好友、token 與通知狀態。
+
+PR 9 啟用 production Cron 前，必須先完成 LINE secrets、Supabase Vault、同 Provider / channel linking、LIFF production endpoint 與 status-domain routing checklist。MVP 使用 Supabase Cron 每分鐘呼叫 Nuxt internal endpoint，不使用 Vercel Hobby Cron 做分鐘級通知。
 
 ## 已完成
 
@@ -149,10 +175,10 @@
 - Raspberry Pi USB raw verification：已確認 Pi 端 `lsusb`、`/dev/usb/lp0`、ASCII、CP950 / Big5 繁體中文、1D barcode、cut command 全部通過；UTF-8 直送中文會亂碼，有效 cut command 為 `\x1D\x56\x42\x05`。
 - Printing MVP decision：工單標籤維持工單號文字與 ASCII-only `paper_order_no` 1D barcode；顧客留存聯使用 QR Code 導向公開查詢頁 `/repair-status`。繁體中文文字必須啟用 `FS &` / `\x1C\x26` 並以 CP950 / Big5 編碼，UTF-8 direct printing 不支援。
 - Pi transport decision：正式 Pi worker 直接寫 raw bytes 到 `/dev/usb/lp0`，不使用 CUPS，不使用 macOS printer queue name。
-  - Print snapshot payload：`work_order_label` 現在會建立 `templateVersion: 2` 的 immutable print-ready snapshot，包含 `paperOrderNo`、`displayOrderNumber`、`barcodeValue`、`intakeDate`、`customerPhone`、`paymentReceived` 與 `repairCount`；`customer_receipt` 會建立 `templateVersion: 1` snapshot，包含 `paperOrderNo`、`intakeDate`、`customerPhone`、`boardTypeLabel`、`paymentReceived`、`repairCount` 與 `publicLookupUrl`。
+  - Print snapshot payload：`work_order_label` 使用 `templateVersion: 2`；新 `customer_receipt` 也使用 v2，但 DB只保存列印文字、`qrKind` 與可選 `lineBindTokenId`，不保存 plaintext token或完整 LIFF URL。舊 v1 snapshot維持 immutable相容。
   - Label renderer 已改成新版 ESC/POS 版面：置中的收件日期、電話 / Paid、大字工單號、維修處數括號與 1D barcode，條碼高度固定 `0x40`。
-  - Customer receipt renderer 已依實測版面使用 page mode、CP950 / Big5 中文、QR Code、form feed 與 cut；QR 內容固定使用 `publicLookupUrl`，不帶工單號 query。
-  - 新建 customer receipt 的 `publicLookupUrl` 優先使用 `NUXT_PUBLIC_STATUS_URL`，正式目標為 `https://status.surfboards-reborn.com/repair-status`；既有 immutable snapshot 不回寫。
+  - Customer receipt renderer 已依實測版面使用 page mode、CP950 / Big5 中文、QR Code、form feed 與 cut；Nuxt在 Worker claim時才暫時注入 `publicLookupUrl`，Worker不記錄 URL。
+  - 已綁定 Customer的 QR使用 status URL；未綁定 Customer使用 HMAC重建 LIFF URL。既有 immutable snapshot不回寫。
   - Label renderer 已調整為顯示完整電話，並縮短條碼前後留白，避免單據頭尾多餘空白。
 - Worker raw USB transport：`printer-worker serve` 現在會直接把 ESC/POS raw bytes 寫到 `/dev/usb/lp0`，並在成功/失敗後回報既有 `succeed` / `fail` API。
 - Staging deployment refresh：GitHub `main` 已推送最新列印整合變更；Supabase staging 已套用 print snapshot migration，Vercel staging 已重新部署並更新穩定 alias。

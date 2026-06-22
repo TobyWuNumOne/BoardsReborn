@@ -3,6 +3,7 @@ import { parseDate } from '@internationalized/date';
 import { useEventListener } from '@vueuse/core';
 import { ArrowLeftIcon, CalendarIcon, MapPinnedIcon, SearchIcon, TriangleAlertIcon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
+import { getAdminLineNotificationFeedback } from '~/utils/admin-line';
 import type { RepairCountSource, RepairMark } from '~/utils/repair-marks';
 import type { ApiErrorEnvelope } from '~/utils/admin-work-orders';
 import type {
@@ -519,6 +520,10 @@ const submitCreateForm = async () => {
 
     clearUnsavedGuard();
     toast.success(`工單已建立：${response.data.paperOrderNo}`);
+    const lineFeedback = getAdminLineNotificationFeedback(response.lineNotification);
+    if (lineFeedback?.tone === 'warning') toast.warning(lineFeedback.message);
+    else if (lineFeedback?.tone === 'info') toast.info(lineFeedback.message);
+    else if (lineFeedback?.tone === 'success') toast.success(lineFeedback.message);
     await navigateTo(`${getAdminWorkOrderDetailPath(response.data.id)}?created=1`);
   } catch (error) {
     if (await maybeHandleAdminAuthRedirect(error)) {

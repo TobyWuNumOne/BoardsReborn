@@ -121,7 +121,10 @@ const createQuickNoteClient = ({
     updatePayloads: [] as unknown[],
   };
 
-  const createSelectQuery = (table: string, filters: Array<{ column: string; value: string }> = []) => ({
+  const createSelectQuery = (
+    table: string,
+    filters: Array<{ column: string; value: string }> = [],
+  ) => ({
     eq(column: string, value: string) {
       return createSelectQuery(table, [...filters, { column, value }]);
     },
@@ -134,7 +137,11 @@ const createQuickNoteClient = ({
     },
   });
 
-  const createUpdateQuery = (table: string, payload: unknown, filters: Array<{ column: string; value: string }> = []) => ({
+  const createUpdateQuery = (
+    table: string,
+    payload: unknown,
+    filters: Array<{ column: string; value: string }> = [],
+  ) => ({
     eq(column: string, value: string) {
       return createUpdateQuery(table, payload, [...filters, { column, value }]);
     },
@@ -895,6 +902,10 @@ describe('work order API validation', () => {
   it('maps status transition RPC results to the camelCase API contract', () => {
     expect(
       mapStatusTransitionResult({
+        lineNotification: {
+          enqueued: true,
+          jobId: 'line-job-id',
+        },
         statusHistory: {
           changedAt: '2026-04-22T10:01:00.000Z',
           id: 'status-history-id',
@@ -912,6 +923,10 @@ describe('work order API validation', () => {
         },
       }),
     ).toEqual({
+      lineNotification: {
+        enqueued: true,
+        jobId: 'line-job-id',
+      },
       statusHistory: {
         changedAt: '2026-04-22T10:01:00.000Z',
         id: 'status-history-id',
@@ -927,6 +942,35 @@ describe('work order API validation', () => {
         readyForPickupAt: '2026-04-22T10:01:00.000Z',
         updatedAt: '2026-04-22T10:01:00.000Z',
       },
+    });
+  });
+
+  it('maps a non-enqueued READY notification reason', () => {
+    const result = mapStatusTransitionResult({
+      lineNotification: {
+        enqueued: false,
+        reason: 'JOB_ALREADY_EXISTS',
+      },
+      statusHistory: {
+        changedAt: '2026-04-22T10:01:00.000Z',
+        id: 'status-history-id',
+        note: null,
+        status: 'READY_FOR_PICKUP',
+      },
+      workOrder: {
+        cancelledAt: null,
+        currentStatus: 'READY_FOR_PICKUP',
+        deliveredAt: null,
+        id: 'work-order-id',
+        paperOrderNo: '260001',
+        readyForPickupAt: '2026-04-22T10:01:00.000Z',
+        updatedAt: '2026-04-22T10:01:00.000Z',
+      },
+    });
+
+    expect(result.lineNotification).toEqual({
+      enqueued: false,
+      reason: 'JOB_ALREADY_EXISTS',
     });
   });
 
@@ -1063,6 +1107,10 @@ describe('work order API validation', () => {
         if (args.p_work_order_id === 'work-order-1') {
           return {
             data: {
+              lineNotification: {
+                enqueued: false,
+                reason: 'NOT_READY_FOR_PICKUP',
+              },
               statusHistory: {
                 changedAt: '2026-04-22T10:01:00.000Z',
                 id: 'status-history-1',
@@ -1151,6 +1199,10 @@ describe('work order API validation', () => {
         if (args.p_work_order_id === 'work-order-1') {
           return {
             data: {
+              lineNotification: {
+                enqueued: false,
+                reason: 'NOT_READY_FOR_PICKUP',
+              },
               statusHistory: {
                 changedAt: '2026-04-22T10:01:00.000Z',
                 id: 'status-history-1',
@@ -1183,6 +1235,10 @@ describe('work order API validation', () => {
 
         return {
           data: {
+            lineNotification: {
+              enqueued: false,
+              reason: 'NOT_READY_FOR_PICKUP',
+            },
             statusHistory: {
               changedAt: '2026-04-22T10:03:00.000Z',
               id: 'status-history-3',
