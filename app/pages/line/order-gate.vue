@@ -39,7 +39,10 @@ const token = computed(() => tokenInfo.value.token);
 const resolvedToken = ref('');
 const repairStatusUrl = '/repair-status';
 const officialLineUrl = computed(() => config.public.lineOfficialUrl || '#');
+const clickDebugStorageKey = 'boardsreborn:line-order-gate:last-click-debug';
+const lastClickDebugRows = ref<Array<[string, string]>>([]);
 const debugState = reactive({
+  beforeLiffLogin: '',
   bindClickDebugEnabled: '',
   bindClickStarted: false,
   bindClickTokenExists: '',
@@ -62,6 +65,7 @@ useHead({
 
 const errorCode = (error: unknown) => {
   if (typeof error !== 'object' || error === null) return null;
+  if ('code' in error && typeof error.code === 'string') return error.code;
   const data = 'data' in error ? error.data : null;
   if (typeof data !== 'object' || data === null || !('error' in data)) return null;
   const envelope = data.error;
@@ -157,6 +161,7 @@ const currentHashParams = computed(() => {
 
 const hasLiffHashAccessToken = computed(() => currentHashParams.value.has('access_token'));
 const hasLiffHashIdToken = computed(() => currentHashParams.value.has('id_token'));
+const hasLiffHashTokens = computed(() => hasLiffHashAccessToken.value || hasLiffHashIdToken.value);
 
 const hasDebugFlag = (value: string): boolean => {
   if (!value.trim()) return false;
@@ -252,6 +257,7 @@ const debugRows = computed(() => [
   ['bindClickTokenLength', debugState.bindClickTokenLength],
   ['bindClickTokenPreview', debugState.bindClickTokenPreview],
   ['bindClickDebugEnabled', debugState.bindClickDebugEnabled],
+  ['beforeLiffLogin', debugState.beforeLiffLogin],
   ['hasLiffHashAccessToken', String(hasLiffHashAccessToken.value)],
   ['hasLiffHashIdToken', String(hasLiffHashIdToken.value)],
   ['liffInitState', debugState.liffInitState],
@@ -266,7 +272,55 @@ const debugRows = computed(() => [
   ['confirmApiCalled', String(debugState.confirmApiCalled)],
   ['confirmApiStatus', debugState.confirmApiStatus],
   ['confirmApiErrorCode', debugState.confirmApiErrorCode],
+  ...lastClickDebugRows.value,
 ]);
+
+const persistClickDebug = (extra: Record<string, string> = {}) => {
+  if (!debugEnabled.value) return;
+  try {
+    const snapshot = {
+      beforeLiffLogin: debugState.beforeLiffLogin,
+      bindClickDebugEnabled: debugState.bindClickDebugEnabled,
+      bindClickStarted: String(debugState.bindClickStarted),
+      bindClickTokenExists: debugState.bindClickTokenExists,
+      bindClickTokenLength: debugState.bindClickTokenLength,
+      bindClickTokenPreview: debugState.bindClickTokenPreview,
+      computedLoginRedirectUriMasked: maskTokenInUrl(debugState.loginRedirectUri),
+      confirmApiCalled: String(debugState.confirmApiCalled),
+      hasLiffHashAccessToken: String(hasLiffHashAccessToken.value),
+      hasLiffHashIdToken: String(hasLiffHashIdToken.value),
+      isLoggedInBeforeLogin: debugState.isLoggedIn,
+      lastErrorCode: debugState.lastErrorCode,
+      lastStep: debugState.lastStep,
+      loginRedirectUriHasTokenValue: redirectUriHasTokenValue(debugState.loginRedirectUri),
+      loginRedirectUriHost: urlPart(debugState.loginRedirectUri, 'host'),
+      loginRedirectUriPath: urlPart(debugState.loginRedirectUri, 'path'),
+      loginRedirectUriSearchKeys: searchKeys(debugState.loginRedirectUri),
+      ...extra,
+    };
+    sessionStorage.setItem(clickDebugStorageKey, JSON.stringify(snapshot));
+    lastClickDebugRows.value = Object.entries(snapshot).map(([key, value]) => [
+      `lastClick.${key}`,
+      value,
+    ]);
+  } catch {
+    // Debug persistence is best-effort and must not block binding.
+  }
+};
+
+const restoreClickDebug = () => {
+  try {
+    const raw = sessionStorage.getItem(clickDebugStorageKey);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    lastClickDebugRows.value = Object.entries(parsed).map(([key, value]) => [
+      `lastClick.${key}`,
+      typeof value === 'string' ? value : String(value),
+    ]);
+  } catch {
+    lastClickDebugRows.value = [];
+  }
+};
 
 const resolveToken = async () => {
   debugState.lastStep = 'resolve_start';
@@ -300,6 +354,7 @@ const resolveToken = async () => {
 const bindLine = async () => {
   isBinding.value = true;
   message.value = '';
+  debugState.beforeLiffLogin = '';
   debugState.bindClickStarted = true;
   debugState.confirmApiCalled = false;
   debugState.confirmApiErrorCode = '';
@@ -312,10 +367,12 @@ const bindLine = async () => {
     debugState.bindClickTokenExists = bindToken ? 'true' : 'false';
     debugState.bindClickTokenLength = String(bindToken.length);
     debugState.bindClickTokenPreview = previewToken(bindToken);
+    persistClickDebug();
     if (!bindToken) {
       state.value = 'invalid';
       debugState.lastStep = 'bind_missing_resolved_token';
-      debugState.lastErrorCode = 'TOKEN_MISSING';
+      debugState.lastErrorCode = 'MISSING_RESOLVED_TOKEN';
+      persistClickDebug({ lastErrorCode: debugState.lastErrorCode });
       return;
     }
     const tokens = await getLineLiffTokens(
@@ -325,23 +382,29 @@ const bindLine = async () => {
         ? {
             onInitState: (value) => {
               debugState.liffInitState = value;
+              persistClickDebug();
             },
             onIsLoggedIn: (value) => {
               debugState.isLoggedIn = String(value);
               if (!value && (hasLiffHashAccessToken.value || hasLiffHashIdToken.value)) {
                 debugState.lastErrorCode = 'LIFF_LOGGED_IN_MISMATCH';
               }
+              persistClickDebug();
             },
             onLoginRedirectUri: (value) => {
               debugState.loginRedirectUri = value;
+              persistClickDebug();
             },
             onStep: (value) => {
               debugState.lastStep = value;
+              if (value === 'before_liff_login') debugState.beforeLiffLogin = 'true';
+              persistClickDebug({ beforeLiffLogin: debugState.beforeLiffLogin });
             },
           }
         : {},
       {
         debug: debugEnabled.value,
+        hasLiffHashTokens: hasLiffHashTokens.value,
         redirectOrigin: statusOrigin(),
       },
     );
@@ -374,6 +437,7 @@ const bindLine = async () => {
     else if (code === 'LINE_PLATFORM_UNAVAILABLE') state.value = 'platform_error';
     else if (code === 'LINE_ID_TOKEN_INVALID' || code === 'LINE_ACCESS_TOKEN_INVALID')
       state.value = 'platform_error';
+    else if (code === 'LIFF_LOGGED_IN_MISMATCH') state.value = 'platform_error';
     else if (code === 'TOKEN_EXPIRED') state.value = 'expired';
     else if (code === 'TOKEN_REVOKED') state.value = 'revoked';
     else if (code === 'TOKEN_USED') state.value = 'used';
@@ -389,6 +453,7 @@ const bindLine = async () => {
 
 onMounted(() => {
   currentUrl.value = window.location.href;
+  restoreClickDebug();
   void resolveToken();
 });
 </script>

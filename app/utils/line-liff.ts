@@ -17,9 +17,16 @@ interface LineLiffClient {
 
 interface LineLiffTokenOptions {
   debug?: boolean;
+  hasLiffHashTokens?: boolean;
   loadLiff?: () => Promise<LineLiffClient>;
   redirectOrigin?: string;
 }
+
+const createLineLiffError = (code: string, message: string) => {
+  const error = new Error(message) as Error & { code: string };
+  error.code = code;
+  return error;
+};
 
 export const buildLineLiffLoginRedirectUri = (
   token: string,
@@ -60,6 +67,14 @@ export const getLineLiffTokens = async (
   const isLoggedIn = liff.isLoggedIn();
   debugHooks.onIsLoggedIn?.(isLoggedIn);
   if (!isLoggedIn) {
+    if (options.hasLiffHashTokens) {
+      debugHooks.onStep?.('liff_logged_in_mismatch');
+      throw createLineLiffError(
+        'LIFF_LOGGED_IN_MISMATCH',
+        'LINE 登入狀態無法確認，請關閉後重新從 LINE 開啟。',
+      );
+    }
+
     const redirectUri = buildLineLiffLoginRedirectUri(
       normalizedToken,
       options.redirectOrigin ?? window.location.origin,

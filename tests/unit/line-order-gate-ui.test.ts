@@ -27,6 +27,7 @@ describe('LINE order gate UI contract', () => {
       'bindClickTokenLength',
       'bindClickTokenPreview',
       'bindClickDebugEnabled',
+      'beforeLiffLogin',
       'hasLiffHashAccessToken',
       'hasLiffHashIdToken',
       'liffInitState',
@@ -82,11 +83,13 @@ describe('LINE order gate UI contract', () => {
       'before_is_logged_in',
       'before_liff_login',
       'liff_login_redirect',
+      'liff_logged_in_mismatch',
       'before_get_id_token',
       'after_get_id_token',
       'before_confirm_api',
       'after_confirm_api',
       'LIFF_LOGGED_IN_MISMATCH',
+      'MISSING_RESOLVED_TOKEN',
       'access_token',
       'id_token',
       'context_token',
@@ -98,6 +101,14 @@ describe('LINE order gate UI contract', () => {
 
     expect(pageSource).toContain('maskSearchParams');
     expect(pageSource).toContain("params.set(key, '[masked]')");
+    expect(pageSource).toContain('sessionStorage.setItem(clickDebugStorageKey');
+    expect(pageSource).toContain('sessionStorage.getItem(clickDebugStorageKey');
+    expect(pageSource).toContain('computedLoginRedirectUriMasked');
+    expect(pageSource).toContain('lastClick.');
+    expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, bindToken');
+    expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, token');
+    expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, idToken');
+    expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, accessToken');
     expect(pageSource).not.toContain('raw profile');
     expect(pageSource).not.toContain('LINE_CHANNEL_ACCESS_TOKEN');
     expect(pageSource).not.toContain('LINE_CHANNEL_SECRET');

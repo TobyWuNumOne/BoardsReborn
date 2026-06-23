@@ -140,6 +140,41 @@ describe('LINE LIFF login redirect', () => {
     expect(steps).toContain('liff_login_redirect');
   });
 
+  it('does not call login when LIFF hash tokens exist but the SDK reports logged out', async () => {
+    const steps: string[] = [];
+    let loginCalledWith = '';
+
+    await expect(
+      getLineLiffTokens(
+        'liff-id',
+        'resolved-token',
+        {
+          onIsLoggedIn: (value) => steps.push(`logged-in:${value}`),
+          onStep: (value) => steps.push(value),
+        },
+        {
+          hasLiffHashTokens: true,
+          loadLiff: async () => ({
+            getAccessToken: () => null,
+            getIDToken: () => null,
+            init: async () => undefined,
+            isLoggedIn: () => false,
+            login: ({ redirectUri }) => {
+              loginCalledWith = redirectUri;
+            },
+          }),
+          redirectOrigin: 'https://status.surfboards-reborn.com',
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'LIFF_LOGGED_IN_MISMATCH' });
+
+    expect(loginCalledWith).toBe('');
+    expect(steps).toContain('logged-in:false');
+    expect(steps).toContain('liff_logged_in_mismatch');
+    expect(steps).not.toContain('before_liff_login');
+    expect(steps).not.toContain('liff_login_redirect');
+  });
+
   it('does not import LIFF or call login when the resolved token is missing', async () => {
     let loadCalled = false;
 
