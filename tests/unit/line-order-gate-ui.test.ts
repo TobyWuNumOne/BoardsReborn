@@ -38,10 +38,14 @@ describe('LINE order gate UI contract', () => {
       'usedHashIdTokenFallback',
       'liffInitState',
       'computed loginRedirectUri',
+      'actualLoginRedirectUriMasked',
       'loginRedirectUriHasTokenValue',
       'loginRedirectUriHost',
       'loginRedirectUriPath',
       'loginRedirectUriSearchKeys',
+      'redirectReason',
+      'beforeNavigateTo',
+      'navigateToTargetMasked',
       'nextAction.callLiffInit',
       'nextAction.callLiffLogin',
       'nextAction.callGetIDToken',
@@ -72,6 +76,7 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).toContain("new URL('/line/order-gate'");
     expect(liffSource).toContain("url.searchParams.set('t'");
     expect(liffSource).toContain("url.searchParams.set('debug'");
+    expect(liffSource).toContain('buildOrderGateUrl');
     expect(liffSource).not.toContain('window.location.href');
     expect(liffSource).not.toContain('localStorage');
     expect(liffSource).not.toContain('sessionStorage');
@@ -84,6 +89,7 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('debugState.bindClickStarted = true');
     expect(pageSource).toContain('@click="handleBindClick"');
     expect(pageSource).toContain('type="button"');
+    expect(pageSource).toContain('buildOrderGateUrl(');
     expect(pageSource).toContain('bind_missing_resolved_token');
     expect(pageSource).toContain('before_hash_id_token_confirm');
     expect(pageSource).toContain('canUseDebugHashTokenFallback');
@@ -129,6 +135,8 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('sessionStorage.setItem(clickDebugStorageKey');
     expect(pageSource).toContain('sessionStorage.getItem(clickDebugStorageKey');
     expect(pageSource).toContain('computedLoginRedirectUriMasked');
+    expect(pageSource).toContain('actualLoginRedirectUriMasked');
+    expect(pageSource).toContain('navigateToTargetMasked');
     expect(pageSource).toContain('lastClick.');
     expect(pageSource).toContain('nextActionCallLiffLogin');
     expect(pageSource).toContain('nextActionCallGetIdToken');
@@ -153,6 +161,15 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).not.toContain('liff.login()');
     expect(liffSource).not.toContain('?t`');
     expect(liffSource).not.toContain('?t=');
+  });
+
+  it('does not navigate the order-gate page to an empty token URL before confirm', () => {
+    expect(pageSource).not.toContain('navigateTo(');
+    expect(pageSource).not.toContain('router.push');
+    expect(pageSource).not.toContain('router.replace');
+    expect(pageSource).not.toContain("query: { t: ''");
+    expect(pageSource).not.toContain('query: { t: undefined');
+    expect(pageSource).not.toContain('/line/order-gate?t');
   });
 
   it('uses the resolved token for binding and only falls back to hash id token after SDK token failure in debug mode', () => {

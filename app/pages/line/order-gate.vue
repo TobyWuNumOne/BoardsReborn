@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AlertCircleIcon, CheckCircle2Icon, ExternalLinkIcon, WavesIcon } from 'lucide-vue-next';
 import {
-  buildLineLiffLoginRedirectUri,
+  buildOrderGateUrl,
   extractLiffTokensFromHash,
   getLineLiffTokens,
   type LineLiffTokens,
@@ -47,7 +47,9 @@ const officialLineUrl = computed(() => config.public.lineOfficialUrl || '#');
 const clickDebugStorageKey = 'boardsreborn:line-order-gate:last-click-debug';
 const lastClickDebugRows = ref<Array<[string, string]>>([]);
 const debugState = reactive({
+  actualLoginRedirectUri: '',
   beforeLiffLogin: '',
+  beforeNavigateTo: '',
   bindClickDryRun: '',
   bindClickDebugEnabled: '',
   bindClickStarted: false,
@@ -64,10 +66,12 @@ const debugState = reactive({
   lastStep: 'created',
   liffInitState: 'not_started',
   loginRedirectUri: '',
+  navigateToTarget: '',
   nextActionCallConfirmApi: '',
   nextActionCallLiffInit: '',
   nextActionCallGetIdToken: '',
   nextActionCallLiffLogin: '',
+  redirectReason: '',
   usedHashIdTokenFallback: '',
 });
 
@@ -306,10 +310,14 @@ const debugRows = computed(() => [
   ['liffInitState', debugState.liffInitState],
   ['isLoggedIn', debugState.isLoggedIn],
   ['computed loginRedirectUri', maskTokenInUrl(debugState.loginRedirectUri)],
+  ['actualLoginRedirectUriMasked', maskTokenInUrl(debugState.actualLoginRedirectUri)],
   ['loginRedirectUriHasTokenValue', redirectUriHasTokenValue(debugState.loginRedirectUri)],
   ['loginRedirectUriHost', urlPart(debugState.loginRedirectUri, 'host')],
   ['loginRedirectUriPath', urlPart(debugState.loginRedirectUri, 'path')],
   ['loginRedirectUriSearchKeys', searchKeys(debugState.loginRedirectUri)],
+  ['redirectReason', debugState.redirectReason],
+  ['beforeNavigateTo', debugState.beforeNavigateTo],
+  ['navigateToTargetMasked', maskTokenInUrl(debugState.navigateToTarget)],
   ['nextAction.callLiffInit', debugState.nextActionCallLiffInit],
   ['nextAction.callLiffLogin', debugState.nextActionCallLiffLogin],
   ['nextAction.callGetIDToken', debugState.nextActionCallGetIdToken],
@@ -327,7 +335,9 @@ const debugVisible = computed(() => debugEnabled.value || lastClickDebugRows.val
 const persistClickDebug = (extra: Record<string, string> = {}) => {
   try {
     const snapshot = {
+      actualLoginRedirectUriMasked: maskTokenInUrl(debugState.actualLoginRedirectUri),
       beforeLiffLogin: debugState.beforeLiffLogin,
+      beforeNavigateTo: debugState.beforeNavigateTo,
       bindClickDryRun: debugState.bindClickDryRun,
       bindClickDebugEnabled: debugState.bindClickDebugEnabled,
       bindClickStarted: String(debugState.bindClickStarted),
@@ -347,10 +357,12 @@ const persistClickDebug = (extra: Record<string, string> = {}) => {
       loginRedirectUriHost: urlPart(debugState.loginRedirectUri, 'host'),
       loginRedirectUriPath: urlPart(debugState.loginRedirectUri, 'path'),
       loginRedirectUriSearchKeys: searchKeys(debugState.loginRedirectUri),
+      navigateToTargetMasked: maskTokenInUrl(debugState.navigateToTarget),
       nextActionCallConfirmApi: debugState.nextActionCallConfirmApi,
       nextActionCallLiffInit: debugState.nextActionCallLiffInit,
       nextActionCallGetIdToken: debugState.nextActionCallGetIdToken,
       nextActionCallLiffLogin: debugState.nextActionCallLiffLogin,
+      redirectReason: debugState.redirectReason,
       usedHashIdTokenFallback: debugState.usedHashIdTokenFallback,
       ...extra,
     };
@@ -465,10 +477,14 @@ const handleBindClick = async () => {
   debugState.confirmApiStatus = '';
   debugState.lastErrorCode = '';
   debugState.lastStep = 'bind_start';
+  debugState.actualLoginRedirectUri = '';
+  debugState.beforeNavigateTo = 'false';
+  debugState.navigateToTarget = '';
   debugState.nextActionCallConfirmApi = '';
   debugState.nextActionCallLiffInit = '';
   debugState.nextActionCallGetIdToken = '';
   debugState.nextActionCallLiffLogin = '';
+  debugState.redirectReason = '';
   debugState.usedHashIdTokenFallback = '';
   try {
     const bindToken = normalizeLineOrderGateTokenValue(resolvedToken.value);
@@ -494,9 +510,8 @@ const handleBindClick = async () => {
       return;
     }
 
-    debugState.loginRedirectUri = buildLineLiffLoginRedirectUri(bindToken, statusOrigin(), {
-      debug: debugEnabled.value,
-    });
+    debugState.loginRedirectUri = buildOrderGateUrl(bindToken, debugEnabled.value, statusOrigin());
+    debugState.redirectReason = 'computed_before_liff_flow';
     debugState.usedHashIdTokenFallback = 'false';
     persistClickDebug();
 
@@ -533,7 +548,9 @@ const handleBindClick = async () => {
                 persistClickDebug();
               },
               onLoginRedirectUri: (value) => {
+                debugState.actualLoginRedirectUri = value;
                 debugState.loginRedirectUri = value;
+                debugState.redirectReason = 'liff_login';
                 persistClickDebug();
               },
               onStep: (value) => {

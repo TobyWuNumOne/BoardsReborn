@@ -47,18 +47,24 @@ export const extractLiffTokensFromHash = (hash: string): Partial<LineLiffTokens>
   };
 };
 
-export const buildLineLiffLoginRedirectUri = (
+export const buildOrderGateUrl = (
   token: string,
+  debugEnabled = false,
   origin = window.location.origin,
-  options: { debug?: boolean } = {},
 ) => {
   const normalizedToken = normalizeLineOrderGateTokenValue(token);
   if (!normalizedToken) throw new Error('LINE 綁定連結缺少 token，請重新掃描 QR Code。');
   const url = new URL('/line/order-gate', origin);
   url.searchParams.set('t', normalizedToken);
-  if (options.debug) url.searchParams.set('debug', '1');
+  if (debugEnabled) url.searchParams.set('debug', '1');
   return url.toString();
 };
+
+export const buildLineLiffLoginRedirectUri = (
+  token: string,
+  origin = window.location.origin,
+  options: { debug?: boolean } = {},
+) => buildOrderGateUrl(token, Boolean(options.debug), origin);
 
 export const getLineLiffTokens = async (
   liffId: string,
@@ -102,12 +108,10 @@ export const getLineLiffTokens = async (
       );
     }
 
-    const redirectUri = buildLineLiffLoginRedirectUri(
+    const redirectUri = buildOrderGateUrl(
       normalizedToken,
+      options.debug ?? debugHooks.onStep !== undefined,
       options.redirectOrigin ?? window.location.origin,
-      {
-        debug: options.debug ?? debugHooks.onStep !== undefined,
-      },
     );
     debugHooks.onLoginRedirectUri?.(redirectUri);
     debugHooks.onStep?.('before_liff_login');

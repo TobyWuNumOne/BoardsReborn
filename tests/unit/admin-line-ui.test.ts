@@ -84,6 +84,12 @@ describe('admin LINE UI', () => {
     expect(cardSource).not.toContain('recipient_line_user_id');
   });
 
+  it('keeps the LINE card header background flush with the card shell', () => {
+    expect(cardSource).toContain('<Card class="gap-0 overflow-hidden py-0">');
+    expect(cardSource).toContain('rgba(6,199,85,0.18)');
+    expect(cardSource).toContain('<CardContent class="space-y-5 p-6">');
+  });
+
   it('mounts the card on detail and handles create/status notification summaries', () => {
     expect(detailSource).toContain(
       "import WorkOrderLineStatusCard from '~/components/work-orders/WorkOrderLineStatusCard.vue';",

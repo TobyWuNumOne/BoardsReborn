@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildOrderGateUrl,
   buildLineLiffLoginRedirectUri,
   extractLiffTokensFromHash,
   getLineLiffTokens,
@@ -30,8 +31,9 @@ describe('LINE LIFF login redirect', () => {
   });
 
   it('builds an absolute canonical order-gate redirect URI from the current origin', () => {
-    const redirectUri = buildLineLiffLoginRedirectUri(
+    const redirectUri = buildOrderGateUrl(
       'bind-token',
+      false,
       'https://status.surfboards-reborn.com',
     );
 
@@ -40,8 +42,9 @@ describe('LINE LIFF login redirect', () => {
   });
 
   it('preserves and encodes the bind token in the login redirect URI', () => {
-    const redirectUri = buildLineLiffLoginRedirectUri(
+    const redirectUri = buildOrderGateUrl(
       'token with+symbols',
+      false,
       'https://status.surfboards-reborn.com',
     );
 
@@ -50,8 +53,9 @@ describe('LINE LIFF login redirect', () => {
   });
 
   it('does not duplicate order-gate when the current browser path is already order-gate', () => {
-    const redirectUri = buildLineLiffLoginRedirectUri(
+    const redirectUri = buildOrderGateUrl(
       'bind-token',
+      false,
       new URL('https://status.surfboards-reborn.com/line/order-gate').origin,
     );
 
@@ -60,10 +64,10 @@ describe('LINE LIFF login redirect', () => {
   });
 
   it('preserves the debug flag when requested', () => {
-    const redirectUri = buildLineLiffLoginRedirectUri(
+    const redirectUri = buildOrderGateUrl(
       'bind-token',
+      true,
       'https://status.surfboards-reborn.com',
-      { debug: true },
     );
 
     const url = new URL(redirectUri);
@@ -72,7 +76,7 @@ describe('LINE LIFF login redirect', () => {
   });
 
   it('requires a non-empty token before building a login redirect URI', () => {
-    expect(() => buildLineLiffLoginRedirectUri('', 'https://status.surfboards-reborn.com')).toThrow(
+    expect(() => buildOrderGateUrl('', false, 'https://status.surfboards-reborn.com')).toThrow(
       'LINE 綁定連結缺少 token',
     );
   });
@@ -157,7 +161,13 @@ describe('LINE LIFF login redirect', () => {
     );
 
     expect(tokens).toBeNull();
+    const expectedRedirectUri = buildOrderGateUrl(
+      'resolved-token',
+      true,
+      'https://status.surfboards-reborn.com',
+    );
     const redirectUrl = new URL(loginCalledWith);
+    expect(loginCalledWith).toBe(expectedRedirectUri);
     expect(redirectUrl.origin).toBe('https://status.surfboards-reborn.com');
     expect(redirectUrl.pathname).toBe('/line/order-gate');
     expect(redirectUrl.searchParams.get('t')).toBe('resolved-token');

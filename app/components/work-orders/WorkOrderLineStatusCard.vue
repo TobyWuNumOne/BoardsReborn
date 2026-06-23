@@ -133,8 +133,10 @@ const unlinkLineBinding = async () => {
 </script>
 
 <template>
-  <Card class="overflow-hidden">
-    <CardHeader class="border-b bg-[linear-gradient(120deg,rgba(6,199,85,0.08),transparent_55%)]">
+  <Card class="gap-0 overflow-hidden py-0">
+    <CardHeader
+      class="border-b bg-[linear-gradient(120deg,rgba(6,199,85,0.18),rgba(6,199,85,0.08)_42%,transparent_72%)] py-6"
+    >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="space-y-1">
           <CardTitle>LINE 聯絡狀態</CardTitle>
@@ -146,7 +148,7 @@ const unlinkLineBinding = async () => {
       </div>
     </CardHeader>
 
-    <CardContent class="space-y-5 pt-6">
+    <CardContent class="space-y-5 p-6">
       <div v-if="isLoading" class="space-y-3">
         <Skeleton class="h-6 w-44" />
         <Skeleton class="h-20 w-full" />
