@@ -40,6 +40,11 @@ const resolvedToken = ref('');
 const repairStatusUrl = '/repair-status';
 const officialLineUrl = computed(() => config.public.lineOfficialUrl || '#');
 const debugState = reactive({
+  bindClickDebugEnabled: '',
+  bindClickStarted: false,
+  bindClickTokenExists: '',
+  bindClickTokenLength: '',
+  bindClickTokenPreview: '',
   confirmApiCalled: false,
   confirmApiErrorCode: '',
   confirmApiStatus: '',
@@ -87,11 +92,48 @@ const previewToken = (value: string) => {
   return trimmed.length <= 8 ? 'present' : `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}`;
 };
 
+const sensitiveUrlParamKeys = new Set([
+  'access_token',
+  'context_token',
+  'feature_token',
+  'id_token',
+  'mst_challenge',
+]);
+
 const statusOrigin = () => {
   try {
     return new URL(config.public.statusUrl || window.location.origin).origin;
   } catch {
     return window.location.origin;
+  }
+};
+
+const searchKeys = (value: string) => {
+  if (!value) return '';
+  try {
+    const url = new URL(value, 'https://status.surfboards-reborn.com');
+    const keys = Array.from(url.searchParams.keys());
+    if (url.hash) {
+      const hashValue = url.hash.replace(/^#\/?/, '');
+      const hashUrl = new URL(url.hash.slice(1), 'https://status.surfboards-reborn.com');
+      keys.push(...Array.from(hashUrl.searchParams.keys()).map((key) => `hash:${key}`));
+      if (hashValue.includes('=')) {
+        keys.push(...Array.from(new URLSearchParams(hashValue).keys()).map((key) => `hash:${key}`));
+      }
+    }
+    return Array.from(new Set(keys)).join(', ');
+  } catch {
+    return '';
+  }
+};
+
+const urlPart = (value: string, part: 'host' | 'path') => {
+  if (!value) return '';
+  try {
+    const url = new URL(value, 'https://status.surfboards-reborn.com');
+    return part === 'host' ? url.host : url.pathname;
+  } catch {
+    return '';
   }
 };
 
@@ -103,6 +145,18 @@ const redirectUriHasTokenValue = (value: string) => {
     return 'false';
   }
 };
+
+const currentHashParams = computed(() => {
+  try {
+    const url = new URL(currentUrl.value || route.fullPath, 'https://status.surfboards-reborn.com');
+    return new URLSearchParams(url.hash.replace(/^#\/?/, ''));
+  } catch {
+    return new URLSearchParams();
+  }
+});
+
+const hasLiffHashAccessToken = computed(() => currentHashParams.value.has('access_token'));
+const hasLiffHashIdToken = computed(() => currentHashParams.value.has('id_token'));
 
 const hasDebugFlag = (value: string): boolean => {
   if (!value.trim()) return false;
@@ -142,17 +196,35 @@ const maskKnownToken = (value: string) => {
     .join(preview);
 };
 
+const maskSearchParams = (params: URLSearchParams) => {
+  for (const key of sensitiveUrlParamKeys) {
+    if (params.has(key)) params.set(key, '[masked]');
+  }
+  const tokenValue = params.get('t');
+  if (tokenValue) params.set('t', previewToken(tokenValue));
+  for (const key of ['liff.state', 'liff_state']) {
+    const stateValue = params.get(key);
+    if (stateValue) params.set(key, maskTokenInUrl(stateValue));
+  }
+};
+
 const maskTokenInUrl = (value: string) => {
   if (!value) return '';
   try {
     const url = new URL(value, 'https://status.surfboards-reborn.com');
-    const tokenValue = url.searchParams.get('t');
-    if (tokenValue) url.searchParams.set('t', previewToken(tokenValue));
-    for (const key of ['liff.state', 'liff_state']) {
-      const stateValue = url.searchParams.get(key);
-      if (stateValue) url.searchParams.set(key, maskTokenInUrl(stateValue));
+    maskSearchParams(url.searchParams);
+    if (url.hash) {
+      const hashValue = url.hash.replace(/^#\/?/, '');
+      const hashUrl = new URL(url.hash.slice(1), 'https://status.surfboards-reborn.com');
+      if (hashUrl.search) {
+        maskSearchParams(hashUrl.searchParams);
+        url.hash = `${hashUrl.pathname}${hashUrl.search}`;
+      } else if (hashValue.includes('=')) {
+        const hashParams = new URLSearchParams(hashValue);
+        maskSearchParams(hashParams);
+        url.hash = `${url.hash.startsWith('#/') ? '/' : ''}${hashParams.toString()}`;
+      }
     }
-    if (url.hash) url.hash = maskTokenInUrl(url.hash.slice(1));
     const masked = value.startsWith('http')
       ? url.toString()
       : `${url.pathname}${url.search}${url.hash}`;
@@ -175,10 +247,20 @@ const debugRows = computed(() => [
   ['tokenExists', token.value ? 'true' : 'false'],
   ['tokenPreview', previewToken(token.value)],
   ['resolvedTokenLength', String(resolvedToken.value.length)],
+  ['bindClickStarted', String(debugState.bindClickStarted)],
+  ['bindClickTokenExists', debugState.bindClickTokenExists],
+  ['bindClickTokenLength', debugState.bindClickTokenLength],
+  ['bindClickTokenPreview', debugState.bindClickTokenPreview],
+  ['bindClickDebugEnabled', debugState.bindClickDebugEnabled],
+  ['hasLiffHashAccessToken', String(hasLiffHashAccessToken.value)],
+  ['hasLiffHashIdToken', String(hasLiffHashIdToken.value)],
   ['liffInitState', debugState.liffInitState],
   ['isLoggedIn', debugState.isLoggedIn],
   ['computed loginRedirectUri', maskTokenInUrl(debugState.loginRedirectUri)],
   ['loginRedirectUriHasTokenValue', redirectUriHasTokenValue(debugState.loginRedirectUri)],
+  ['loginRedirectUriHost', urlPart(debugState.loginRedirectUri, 'host')],
+  ['loginRedirectUriPath', urlPart(debugState.loginRedirectUri, 'path')],
+  ['loginRedirectUriSearchKeys', searchKeys(debugState.loginRedirectUri)],
   ['lastStep', debugState.lastStep],
   ['lastErrorCode', debugState.lastErrorCode],
   ['confirmApiCalled', String(debugState.confirmApiCalled)],
@@ -218,6 +300,7 @@ const resolveToken = async () => {
 const bindLine = async () => {
   isBinding.value = true;
   message.value = '';
+  debugState.bindClickStarted = true;
   debugState.confirmApiCalled = false;
   debugState.confirmApiErrorCode = '';
   debugState.confirmApiStatus = '';
@@ -225,6 +308,10 @@ const bindLine = async () => {
   debugState.lastStep = 'bind_start';
   try {
     const bindToken = normalizeLineOrderGateTokenValue(resolvedToken.value);
+    debugState.bindClickDebugEnabled = String(debugEnabled.value);
+    debugState.bindClickTokenExists = bindToken ? 'true' : 'false';
+    debugState.bindClickTokenLength = String(bindToken.length);
+    debugState.bindClickTokenPreview = previewToken(bindToken);
     if (!bindToken) {
       state.value = 'invalid';
       debugState.lastStep = 'bind_missing_resolved_token';
@@ -241,6 +328,9 @@ const bindLine = async () => {
             },
             onIsLoggedIn: (value) => {
               debugState.isLoggedIn = String(value);
+              if (!value && (hasLiffHashAccessToken.value || hasLiffHashIdToken.value)) {
+                debugState.lastErrorCode = 'LIFF_LOGGED_IN_MISMATCH';
+              }
             },
             onLoginRedirectUri: (value) => {
               debugState.loginRedirectUri = value;
@@ -257,7 +347,7 @@ const bindLine = async () => {
     );
     if (!tokens) return;
     debugState.confirmApiCalled = true;
-    debugState.lastStep = 'confirm_api_start';
+    debugState.lastStep = 'before_confirm_api';
     const response = await $fetch<{
       data: {
         binding: { notificationStatus: string };
@@ -269,7 +359,7 @@ const bindLine = async () => {
       method: 'POST',
     });
     debugState.confirmApiStatus = '200';
-    debugState.lastStep = 'confirm_api_success';
+    debugState.lastStep = 'after_confirm_api';
     summary.value = { boardType: summary.value?.boardType ?? '', ...response.data.workOrder };
     notificationStatus.value = response.data.binding.notificationStatus;
     state.value = response.data.outcome === 'already_linked' ? 'already_linked' : 'success';

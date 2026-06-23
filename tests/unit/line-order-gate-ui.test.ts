@@ -22,9 +22,19 @@ describe('LINE order gate UI contract', () => {
       'tokenSource',
       'tokenPreview',
       'resolvedTokenLength',
+      'bindClickStarted',
+      'bindClickTokenExists',
+      'bindClickTokenLength',
+      'bindClickTokenPreview',
+      'bindClickDebugEnabled',
+      'hasLiffHashAccessToken',
+      'hasLiffHashIdToken',
       'liffInitState',
       'computed loginRedirectUri',
       'loginRedirectUriHasTokenValue',
+      'loginRedirectUriHost',
+      'loginRedirectUriPath',
+      'loginRedirectUriSearchKeys',
       'confirmApiCalled',
       'confirmApiStatus',
       'confirmApiErrorCode',
@@ -58,7 +68,38 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('getLineLiffTokens(');
     expect(pageSource).toContain('config.public.liffId');
     expect(pageSource).toContain('resolvedToken.value');
+    expect(pageSource).toContain('bind_missing_resolved_token');
+    expect(pageSource).not.toContain('route.query.t)');
     expect(pageSource).toContain('redirectOrigin: statusOrigin()');
     expect(pageSource).not.toContain('lineUserId');
+  });
+
+  it('keeps debug observability production-safe during the LIFF click flow', () => {
+    for (const diagnostic of [
+      'before_liff_import',
+      'before_liff_init',
+      'after_liff_init',
+      'before_is_logged_in',
+      'before_liff_login',
+      'liff_login_redirect',
+      'before_get_id_token',
+      'after_get_id_token',
+      'before_confirm_api',
+      'after_confirm_api',
+      'LIFF_LOGGED_IN_MISMATCH',
+      'access_token',
+      'id_token',
+      'context_token',
+      'feature_token',
+      'mst_challenge',
+    ]) {
+      expect(`${pageSource}\n${liffSource}`).toContain(diagnostic);
+    }
+
+    expect(pageSource).toContain('maskSearchParams');
+    expect(pageSource).toContain("params.set(key, '[masked]')");
+    expect(pageSource).not.toContain('raw profile');
+    expect(pageSource).not.toContain('LINE_CHANNEL_ACCESS_TOKEN');
+    expect(pageSource).not.toContain('LINE_CHANNEL_SECRET');
   });
 });

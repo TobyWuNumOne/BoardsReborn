@@ -7,8 +7,17 @@ interface LineLiffDebugHooks {
   onStep?: (step: string) => void;
 }
 
+interface LineLiffClient {
+  getAccessToken: () => string | null;
+  getIDToken: () => string | null;
+  init: (options: { liffId: string }) => Promise<void>;
+  isLoggedIn: () => boolean;
+  login: (options: { redirectUri: string }) => void;
+}
+
 interface LineLiffTokenOptions {
   debug?: boolean;
+  loadLiff?: () => Promise<LineLiffClient>;
   redirectOrigin?: string;
 }
 
@@ -36,14 +45,18 @@ export const getLineLiffTokens = async (
   const normalizedToken = normalizeLineOrderGateTokenValue(token);
   if (!normalizedToken) throw new Error('LINE 綁定連結缺少 token，請重新掃描 QR Code。');
 
-  debugHooks.onStep?.('liff_import_start');
-  const { default: liff } = await import('@line/liff');
-  debugHooks.onStep?.('liff_init_start');
+  debugHooks.onStep?.('before_liff_import');
+  const liff =
+    options.loadLiff !== undefined
+      ? await options.loadLiff()
+      : ((await import('@line/liff')).default as LineLiffClient);
+  debugHooks.onStep?.('before_liff_init');
   debugHooks.onInitState?.('initializing');
   await liff.init({ liffId: normalizedLiffId });
-  debugHooks.onStep?.('liff_init_success');
+  debugHooks.onStep?.('after_liff_init');
   debugHooks.onInitState?.('success');
 
+  debugHooks.onStep?.('before_is_logged_in');
   const isLoggedIn = liff.isLoggedIn();
   debugHooks.onIsLoggedIn?.(isLoggedIn);
   if (!isLoggedIn) {
@@ -55,16 +68,17 @@ export const getLineLiffTokens = async (
       },
     );
     debugHooks.onLoginRedirectUri?.(redirectUri);
+    debugHooks.onStep?.('before_liff_login');
     debugHooks.onStep?.('liff_login_redirect');
     liff.login({ redirectUri });
     return null;
   }
 
-  debugHooks.onStep?.('liff_get_id_token');
+  debugHooks.onStep?.('before_get_id_token');
   const idToken = liff.getIDToken();
   if (!idToken) throw new Error('無法取得 LINE 登入資訊，請使用 LINE 重新開啟。');
+  debugHooks.onStep?.('after_get_id_token');
 
-  debugHooks.onStep?.('liff_tokens_ready');
   return {
     accessToken: liff.getAccessToken() || undefined,
     idToken,
