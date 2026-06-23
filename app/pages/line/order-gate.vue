@@ -49,13 +49,21 @@ const lastClickDebugRows = ref<Array<[string, string]>>([]);
 const debugState = reactive({
   actualLoginRedirectUri: '',
   beforeLiffLogin: '',
+  beforeLocationAssign: '',
   beforeNavigateTo: '',
+  bindButtonClosestAnchorHref: '',
+  bindButtonFormAction: '',
+  bindButtonFormMethod: '',
+  bindButtonHref: '',
+  bindButtonTag: '',
   bindClickDryRun: '',
   bindClickDebugEnabled: '',
   bindClickStarted: false,
   bindClickTokenExists: '',
   bindClickTokenLength: '',
   bindClickTokenPreview: '',
+  clickEventDefaultPreventedAfter: '',
+  clickEventDefaultPreventedBefore: '',
   confirmApiCalled: false,
   confirmApiErrorCode: '',
   confirmApiStatus: '',
@@ -65,6 +73,7 @@ const debugState = reactive({
   lastErrorCode: '',
   lastStep: 'created',
   liffInitState: 'not_started',
+  locationAssignTarget: '',
   loginRedirectUri: '',
   navigateToTarget: '',
   nextActionCallConfirmApi: '',
@@ -297,6 +306,13 @@ const debugRows = computed(() => [
   ['resolvedTokenLength', String(resolvedToken.value.length)],
   ['bindClickStarted', String(debugState.bindClickStarted)],
   ['bindClickDryRun', debugState.bindClickDryRun],
+  ['bindButtonTag', debugState.bindButtonTag],
+  ['bindButtonHref', maskTokenInUrl(debugState.bindButtonHref)],
+  ['bindButtonClosestAnchorHref', maskTokenInUrl(debugState.bindButtonClosestAnchorHref)],
+  ['bindButtonFormAction', maskTokenInUrl(debugState.bindButtonFormAction)],
+  ['bindButtonFormMethod', debugState.bindButtonFormMethod],
+  ['clickEventDefaultPreventedBefore', debugState.clickEventDefaultPreventedBefore],
+  ['clickEventDefaultPreventedAfter', debugState.clickEventDefaultPreventedAfter],
   ['bindClickTokenExists', debugState.bindClickTokenExists],
   ['bindClickTokenLength', debugState.bindClickTokenLength],
   ['bindClickTokenPreview', debugState.bindClickTokenPreview],
@@ -318,6 +334,8 @@ const debugRows = computed(() => [
   ['redirectReason', debugState.redirectReason],
   ['beforeNavigateTo', debugState.beforeNavigateTo],
   ['navigateToTargetMasked', maskTokenInUrl(debugState.navigateToTarget)],
+  ['beforeLocationAssign', debugState.beforeLocationAssign],
+  ['locationAssignTargetMasked', maskTokenInUrl(debugState.locationAssignTarget)],
   ['nextAction.callLiffInit', debugState.nextActionCallLiffInit],
   ['nextAction.callLiffLogin', debugState.nextActionCallLiffLogin],
   ['nextAction.callGetIDToken', debugState.nextActionCallGetIdToken],
@@ -337,13 +355,21 @@ const persistClickDebug = (extra: Record<string, string> = {}) => {
     const snapshot = {
       actualLoginRedirectUriMasked: maskTokenInUrl(debugState.actualLoginRedirectUri),
       beforeLiffLogin: debugState.beforeLiffLogin,
+      beforeLocationAssign: debugState.beforeLocationAssign,
       beforeNavigateTo: debugState.beforeNavigateTo,
+      bindButtonClosestAnchorHref: maskTokenInUrl(debugState.bindButtonClosestAnchorHref),
+      bindButtonFormAction: maskTokenInUrl(debugState.bindButtonFormAction),
+      bindButtonFormMethod: debugState.bindButtonFormMethod,
+      bindButtonHref: maskTokenInUrl(debugState.bindButtonHref),
+      bindButtonTag: debugState.bindButtonTag,
       bindClickDryRun: debugState.bindClickDryRun,
       bindClickDebugEnabled: debugState.bindClickDebugEnabled,
       bindClickStarted: String(debugState.bindClickStarted),
       bindClickTokenExists: debugState.bindClickTokenExists,
       bindClickTokenLength: debugState.bindClickTokenLength,
       bindClickTokenPreview: debugState.bindClickTokenPreview,
+      clickEventDefaultPreventedAfter: debugState.clickEventDefaultPreventedAfter,
+      clickEventDefaultPreventedBefore: debugState.clickEventDefaultPreventedBefore,
       computedLoginRedirectUriMasked: maskTokenInUrl(debugState.loginRedirectUri),
       confirmApiCalled: String(debugState.confirmApiCalled),
       hasHashAccessToken: debugState.hasHashAccessToken,
@@ -357,6 +383,7 @@ const persistClickDebug = (extra: Record<string, string> = {}) => {
       loginRedirectUriHost: urlPart(debugState.loginRedirectUri, 'host'),
       loginRedirectUriPath: urlPart(debugState.loginRedirectUri, 'path'),
       loginRedirectUriSearchKeys: searchKeys(debugState.loginRedirectUri),
+      locationAssignTargetMasked: maskTokenInUrl(debugState.locationAssignTarget),
       navigateToTargetMasked: maskTokenInUrl(debugState.navigateToTarget),
       nextActionCallConfirmApi: debugState.nextActionCallConfirmApi,
       nextActionCallLiffInit: debugState.nextActionCallLiffInit,
@@ -466,11 +493,34 @@ const confirmWithDebugHashTokenFallback = async (
   return true;
 };
 
-const handleBindClick = async () => {
+const closestElement = (value: EventTarget | null, selector: string) =>
+  value instanceof Element ? value.closest(selector) : null;
+
+const elementHref = (value: EventTarget | null) =>
+  value instanceof HTMLAnchorElement ? value.href : '';
+
+const handleBindClick = async (event?: Event) => {
   debugState.bindClickStarted = true;
+  const target = event?.target ?? null;
+  const currentTarget = event?.currentTarget ?? null;
+  const closestAnchor = closestElement(target, 'a');
+  const closestForm = closestElement(target, 'form');
+  debugState.bindButtonTag = currentTarget instanceof HTMLElement ? currentTarget.tagName : '';
+  debugState.bindButtonHref = elementHref(currentTarget);
+  debugState.bindButtonClosestAnchorHref =
+    closestAnchor instanceof HTMLAnchorElement ? closestAnchor.href : '';
+  debugState.bindButtonFormAction =
+    closestForm instanceof HTMLFormElement ? closestForm.getAttribute('action') || '' : '';
+  debugState.bindButtonFormMethod =
+    closestForm instanceof HTMLFormElement ? closestForm.getAttribute('method') || '' : '';
+  debugState.clickEventDefaultPreventedBefore = String(event?.defaultPrevented ?? false);
+  event?.preventDefault();
+  event?.stopPropagation();
+  debugState.clickEventDefaultPreventedAfter = String(event?.defaultPrevented ?? false);
   isBinding.value = true;
   message.value = '';
   debugState.beforeLiffLogin = '';
+  debugState.beforeLocationAssign = 'false';
   debugState.bindClickDryRun = String(dryRunEnabled.value);
   debugState.confirmApiCalled = false;
   debugState.confirmApiErrorCode = '';
@@ -479,6 +529,7 @@ const handleBindClick = async () => {
   debugState.lastStep = 'bind_start';
   debugState.actualLoginRedirectUri = '';
   debugState.beforeNavigateTo = 'false';
+  debugState.locationAssignTarget = '';
   debugState.navigateToTarget = '';
   debugState.nextActionCallConfirmApi = '';
   debugState.nextActionCallLiffInit = '';
@@ -654,7 +705,7 @@ onMounted(() => {
             type="button"
             class="h-12 w-full text-base"
             :disabled="isBinding"
-            @click="handleBindClick"
+            @click.prevent.stop="handleBindClick"
           >
             <Spinner v-if="isBinding" />{{ isBinding ? '正在連接 LINE…' : '綁定 LINE 接收通知' }}
           </Button>

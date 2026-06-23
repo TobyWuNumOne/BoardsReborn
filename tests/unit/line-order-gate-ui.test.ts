@@ -26,6 +26,13 @@ describe('LINE order gate UI contract', () => {
       'resolvedTokenLength',
       'bindClickStarted',
       'bindClickDryRun',
+      'bindButtonTag',
+      'bindButtonHref',
+      'bindButtonClosestAnchorHref',
+      'bindButtonFormAction',
+      'bindButtonFormMethod',
+      'clickEventDefaultPreventedBefore',
+      'clickEventDefaultPreventedAfter',
       'bindClickTokenExists',
       'bindClickTokenLength',
       'bindClickTokenPreview',
@@ -46,6 +53,8 @@ describe('LINE order gate UI contract', () => {
       'redirectReason',
       'beforeNavigateTo',
       'navigateToTargetMasked',
+      'beforeLocationAssign',
+      'locationAssignTargetMasked',
       'nextAction.callLiffInit',
       'nextAction.callLiffLogin',
       'nextAction.callGetIDToken',
@@ -85,10 +94,12 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('extractLiffTokensFromHash(window.location.hash)');
     expect(pageSource).toContain('config.public.liffId');
     expect(pageSource).toContain('resolvedToken.value');
-    expect(pageSource).toContain('const handleBindClick = async () =>');
+    expect(pageSource).toContain('const handleBindClick = async (event?: Event) =>');
     expect(pageSource).toContain('debugState.bindClickStarted = true');
-    expect(pageSource).toContain('@click="handleBindClick"');
+    expect(pageSource).toContain('@click.prevent.stop="handleBindClick"');
     expect(pageSource).toContain('type="button"');
+    expect(pageSource).toContain('event?.preventDefault()');
+    expect(pageSource).toContain('event?.stopPropagation()');
     expect(pageSource).toContain('buildOrderGateUrl(');
     expect(pageSource).toContain('bind_missing_resolved_token');
     expect(pageSource).toContain('before_hash_id_token_confirm');
@@ -137,6 +148,10 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('computedLoginRedirectUriMasked');
     expect(pageSource).toContain('actualLoginRedirectUriMasked');
     expect(pageSource).toContain('navigateToTargetMasked');
+    expect(pageSource).toContain('locationAssignTargetMasked');
+    expect(pageSource).toContain('bindButtonClosestAnchorHref');
+    expect(pageSource).toContain('bindButtonFormAction');
+    expect(pageSource).toContain('clickEventDefaultPreventedAfter');
     expect(pageSource).toContain('lastClick.');
     expect(pageSource).toContain('nextActionCallLiffLogin');
     expect(pageSource).toContain('nextActionCallGetIdToken');
@@ -167,9 +182,31 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).not.toContain('navigateTo(');
     expect(pageSource).not.toContain('router.push');
     expect(pageSource).not.toContain('router.replace');
+    expect(pageSource).not.toContain('location.assign');
+    expect(pageSource).not.toContain('location.replace');
+    expect(pageSource).not.toContain('location.href =');
     expect(pageSource).not.toContain("query: { t: ''");
     expect(pageSource).not.toContain('query: { t: undefined');
     expect(pageSource).not.toContain('/line/order-gate?t');
+  });
+
+  it('keeps the bind action as a plain button without link or form navigation', () => {
+    const pendingTemplateIndex = pageSource.indexOf('v-else-if="state === \'pending\'"');
+    const bindButtonIndex = pageSource.indexOf('@click.prevent.stop="handleBindClick"');
+    const successActionsIndex = pageSource.indexOf(
+      "v-if=\"state !== 'loading' && state !== 'pending'\"",
+    );
+    const pendingBlock = pageSource.slice(pendingTemplateIndex, successActionsIndex);
+
+    expect(pendingTemplateIndex).toBeGreaterThan(-1);
+    expect(bindButtonIndex).toBeGreaterThan(pendingTemplateIndex);
+    expect(pendingBlock).toContain('type="button"');
+    expect(pendingBlock).toContain('@click.prevent.stop="handleBindClick"');
+    expect(pendingBlock).not.toContain('<NuxtLink');
+    expect(pendingBlock).not.toContain('<RouterLink');
+    expect(pendingBlock).not.toContain('<a ');
+    expect(pendingBlock).not.toContain('href=');
+    expect(pendingBlock).not.toContain('<form');
   });
 
   it('uses the resolved token for binding and only falls back to hash id token after SDK token failure in debug mode', () => {
