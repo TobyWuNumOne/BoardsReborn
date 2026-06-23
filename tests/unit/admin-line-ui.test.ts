@@ -85,6 +85,9 @@ describe('admin LINE UI', () => {
   });
 
   it('mounts the card on detail and handles create/status notification summaries', () => {
+    expect(detailSource).toContain(
+      "import WorkOrderLineStatusCard from '~/components/work-orders/WorkOrderLineStatusCard.vue';",
+    );
     expect(detailSource).toContain('<WorkOrderLineStatusCard');
     expect(detailSource).toContain('getAdminLineNotificationFeedback');
     expect(createSource).toContain('getAdminLineNotificationFeedback');
