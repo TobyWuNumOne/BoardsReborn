@@ -1,4 +1,11 @@
-export const getLineLiffTokens = async (liffId: string) => {
+export const buildLineLiffLoginRedirectUri = (token: string, origin = window.location.origin) => {
+  const url = new URL('/line/order-gate', origin);
+  const trimmedToken = token.trim();
+  if (trimmedToken) url.searchParams.set('t', trimmedToken);
+  return url.toString();
+};
+
+export const getLineLiffTokens = async (liffId: string, token: string) => {
   const normalizedLiffId = liffId.trim();
   if (!normalizedLiffId) throw new Error('LIFF ID 尚未設定，請聯絡店家。');
 
@@ -6,7 +13,7 @@ export const getLineLiffTokens = async (liffId: string) => {
   await liff.init({ liffId: normalizedLiffId });
 
   if (!liff.isLoggedIn()) {
-    liff.login({ redirectUri: window.location.href });
+    liff.login({ redirectUri: buildLineLiffLoginRedirectUri(token) });
     return null;
   }
 

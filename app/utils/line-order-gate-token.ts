@@ -29,25 +29,28 @@ const readTokenFromUrlCandidate = (candidate: string): string => {
   const trimmed = candidate.trim();
   if (!trimmed) return '';
 
-  const decoded = decodeCandidate(trimmed);
-  const directSearchToken = readTokenFromSearch(decoded);
-  if (directSearchToken) return directSearchToken;
+  const candidates = Array.from(new Set([trimmed, decodeCandidate(trimmed)]));
 
-  try {
-    const url = new URL(decoded, 'https://status.surfboards-reborn.com');
-    const searchToken = url.searchParams.get('t');
-    if (searchToken) return searchToken;
+  for (const value of candidates) {
+    const directSearchToken = readTokenFromSearch(value);
+    if (directSearchToken) return directSearchToken;
 
-    for (const key of ['liff.state', 'liff_state']) {
-      const stateToken = readTokenFromUrlCandidate(url.searchParams.get(key) ?? '');
-      if (stateToken) return stateToken;
+    try {
+      const url = new URL(value, 'https://status.surfboards-reborn.com');
+      const searchToken = url.searchParams.get('t');
+      if (searchToken) return searchToken;
+
+      for (const key of ['liff.state', 'liff_state']) {
+        const stateToken = readTokenFromUrlCandidate(url.searchParams.get(key) ?? '');
+        if (stateToken) return stateToken;
+      }
+
+      if (url.hash) {
+        return readTokenFromUrlCandidate(url.hash.slice(1));
+      }
+    } catch {
+      // Continue with the decoded fallback candidate.
     }
-
-    if (url.hash) {
-      return readTokenFromUrlCandidate(url.hash.slice(1));
-    }
-  } catch {
-    return '';
   }
 
   return '';

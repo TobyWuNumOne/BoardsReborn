@@ -12,13 +12,13 @@
 ## 目前快照
 
 - 最後更新：2026-06-23
-- 目前階段：Cloud-to-Physical Printing MVP 已完成；LINE 官方帳號串接 12 PR主線已完成並進入release verification。Staging deploy、signed webhook、processor auth、負向job語意與Vault/Cron已驗證；LIFF token redirect hotfix 已完成，authenticated admin、重新發卡後的真實LIFF綁定及真實LINE push仍待人工驗收，production Cron未啟用。
+- 目前階段：Cloud-to-Physical Printing MVP 已完成；LINE 官方帳號串接 12 PR主線已完成並進入release verification。Staging deploy、signed webhook、processor auth、負向job語意與Vault/Cron已驗證；LIFF token redirect 與 login redirectUri hotfix 已完成，authenticated admin、重新發卡後的真實LIFF綁定及真實LINE push仍待人工驗收，production Cron未啟用。
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
   - LINE MVP 的產品、domain、API、frontend、printing、安全與環境變數設計基線已寫入文件；PR 1 至 PR 12 已實作，READY與建單收件 job enqueue及工單詳情 Admin UI均已完成。
-  - LINE release hardening結果記錄於 `docs/line-release-verification.md`：staging migrations同步、Vercel env補齊、production webhook active、staging follow/unfollow簽章E2E、processor 401/200、skipped/failed不寫`notified_at`及每分鐘Cron HTTP 200均已驗證。真人測試發現舊格式 `https://liff.line.me/{LIFF_ID}?t=...` 可能在 LIFF 開啟 / login redirect 中遺失 token，repo 已改用 `https://liff.line.me/{LIFF_ID}/line/order-gate?t=...` 並支援解析 `liff.state`；仍需部署後重新發卡驗證真人LIFF與成功push。
+  - LINE release hardening結果記錄於 `docs/line-release-verification.md`：staging migrations同步、Vercel env補齊、production webhook active、staging follow/unfollow簽章E2E、processor 401/200、skipped/failed不寫`notified_at`及每分鐘Cron HTTP 200均已驗證。真人測試發現舊格式 `https://liff.line.me/{LIFF_ID}?t=...` 可能在 LIFF 開啟 / login redirect 中遺失 token，且 `window.location.href` 作為 LIFF login redirectUri 可能產生 `/line/order-gate/line/order-gate`；repo 已改用 `https://liff.line.me/{LIFF_ID}/line/order-gate?t=...`、支援解析 `liff.state`，並以 absolute `/line/order-gate?t=...` 建立 login redirectUri。仍需部署後重新發卡驗證真人LIFF與成功push。
   - LINE schema foundation 已建立：`customer_line_accounts`、`line_bind_tokens`、`line_jobs`、三個 LINE enums、雙向 1:1 / pending token / dedupe / retry constraints、claim/reclaim/history indexes、admin-scoped RLS 與 service-role grants。這只代表資料層可用，不代表 LINE workflow 已上線。
   - status production domain 已允許 `/line/order-gate` 與其 query/hash 原地停留，不再被 domain middleware 導回 `/repair-status`；order-gate Vue page 已建立。
   - LINE bind token service 已建立 server-only HMAC / SHA-256 helpers、LIFF URL 重建、token 狀態解析與原子 issue / revoke RPC。DB 只保存 hash；Admin API 與 Public LIFF API 均已使用此服務。LIFF URL 目前使用 permanent-link path 格式 `/line/order-gate?t=...`。
