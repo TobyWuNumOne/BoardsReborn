@@ -155,7 +155,7 @@ Renderer 規則：
 
 PR 7 已落地條件式 `customer_receipt` QR，且不回寫既有 immutable snapshot：
 
-- Customer 未綁定 LINE：建立 active `line_bind_token`，QR 使用 `https://liff.line.me/{LIFF_ID}/line/order-gate?t={token}` LIFF bind URL。
+- Customer 未綁定 LINE：建立 active `line_bind_token`，QR 使用 `https://liff.line.me/{LIFF_ID}/?t={token}` LIFF bind URL。LINE Developers LIFF endpoint 已指向 `/line/order-gate`，所以 QR 不把 `/line/order-gate` 再放進 LIFF additional path，避免 LINE secondary redirect 重複 path。
 - Customer 已綁定 LINE：不發 token，QR 使用 `/repair-status`。
 - 自動發卡失敗：工單仍建立成功，該次留存聯 fallback 到 `/repair-status`，後台顯示可重新發卡。
 - 普通補印沿用未使用、未過期、未撤銷的 active pending token；重新發卡是另一個明確 admin action，並撤銷舊 pending token。

@@ -534,7 +534,7 @@ Table 欄位順序：
 ## LINE MVP Frontend（order-gate implemented，remaining integration planned）
 
 - `/line/order-gate` 已作為 LIFF 綁定頁；status domain允許此路徑，不會被 domain routing導回 `/repair-status`。
-- 未綁定顧客的留存聯以 `https://liff.line.me/{LIFF_ID}/line/order-gate?t={token}` 進入綁定；已綁定顧客留存聯仍指向 `/repair-status`。
+- 未綁定顧客的留存聯以 `https://liff.line.me/{LIFF_ID}/?t={token}` 進入綁定；LINE Developers LIFF endpoint 已是 `/line/order-gate`，因此 LIFF URL 不再額外附加 `/line/order-gate`，避免 secondary redirect 變成 `/line/order-gate/line/order-gate`。已綁定顧客留存聯仍指向 `/repair-status`。
 - Order-gate 必須同時支援從 `?t=...` 與 LINE redirect 後的 `liff.state` 取回 token，避免 LIFF login / redirect 過程遺失綁定憑證。
 - 加官方帳號不是綁定必要條件，但 order-gate 與綁定成功畫面必須明確引導加入官方 LINE。
 - UI 必須分開顯示「已綁定」與「可通知」。後台可通知狀態至少區分可通知、尚未加好友 / 未知、已封鎖，以及最近發送只獲 LINE API accepted。
