@@ -59,6 +59,7 @@ import PrintJobStatusBadge from '~/components/printing/PrintJobStatusBadge.vue';
 import RepairMarksEditorDialog from '~/components/work-orders/RepairMarksEditorDialog.vue';
 import RepairMarksSurfaceGallery from '~/components/work-orders/RepairMarksSurfaceGallery.vue';
 import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
+import WorkOrderLineStatusCard from '~/components/work-orders/WorkOrderLineStatusCard.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 import { Textarea } from '~/components/ui/textarea';
 
