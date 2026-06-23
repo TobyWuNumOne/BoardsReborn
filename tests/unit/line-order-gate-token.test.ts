@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   extractLineOrderGateToken,
   getLineOrderGateTokenInfo,
+  normalizeLineOrderGateTokenValue,
 } from '../../app/utils/line-order-gate-token';
 
 describe('LINE order-gate token extraction', () => {
@@ -58,6 +59,12 @@ describe('LINE order-gate token extraction', () => {
         '',
       ),
     ).toBe('alternate-token');
+  });
+
+  it('normalizes array query values to the first valid token string', () => {
+    expect(normalizeLineOrderGateTokenValue(['', null, 'array-token'])).toBe('array-token');
+    expect(normalizeLineOrderGateTokenValue(undefined)).toBe('');
+    expect(normalizeLineOrderGateTokenValue(true)).toBe('');
   });
 
   it('falls back to the current URL and hash', () => {

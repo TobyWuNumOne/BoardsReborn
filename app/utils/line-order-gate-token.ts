@@ -25,6 +25,18 @@ const firstString = (value: QueryValue) => {
   return '';
 };
 
+export const normalizeLineOrderGateTokenValue = (value: unknown) => {
+  if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  if (Array.isArray(value)) {
+    return (
+      value
+        .find((item): item is string => typeof item === 'string' && item.trim() !== '')
+        ?.trim() ?? ''
+    );
+  }
+  return '';
+};
+
 const decodeCandidate = (value: string) => {
   try {
     return decodeURIComponent(value);

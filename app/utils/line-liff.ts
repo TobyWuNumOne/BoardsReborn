@@ -1,3 +1,5 @@
+import { normalizeLineOrderGateTokenValue } from './line-order-gate-token';
+
 interface LineLiffDebugHooks {
   onInitState?: (state: string) => void;
   onIsLoggedIn?: (isLoggedIn: boolean) => void;
@@ -5,14 +7,20 @@ interface LineLiffDebugHooks {
   onStep?: (step: string) => void;
 }
 
+interface LineLiffTokenOptions {
+  debug?: boolean;
+  redirectOrigin?: string;
+}
+
 export const buildLineLiffLoginRedirectUri = (
   token: string,
   origin = window.location.origin,
   options: { debug?: boolean } = {},
 ) => {
+  const normalizedToken = normalizeLineOrderGateTokenValue(token);
+  if (!normalizedToken) throw new Error('LINE 綁定連結缺少 token，請重新掃描 QR Code。');
   const url = new URL('/line/order-gate', origin);
-  const trimmedToken = token.trim();
-  if (trimmedToken) url.searchParams.set('t', trimmedToken);
+  url.searchParams.set('t', normalizedToken);
   if (options.debug) url.searchParams.set('debug', '1');
   return url.toString();
 };
@@ -21,9 +29,12 @@ export const getLineLiffTokens = async (
   liffId: string,
   token: string,
   debugHooks: LineLiffDebugHooks = {},
+  options: LineLiffTokenOptions = {},
 ) => {
   const normalizedLiffId = liffId.trim();
   if (!normalizedLiffId) throw new Error('LIFF ID 尚未設定，請聯絡店家。');
+  const normalizedToken = normalizeLineOrderGateTokenValue(token);
+  if (!normalizedToken) throw new Error('LINE 綁定連結缺少 token，請重新掃描 QR Code。');
 
   debugHooks.onStep?.('liff_import_start');
   const { default: liff } = await import('@line/liff');
@@ -36,9 +47,13 @@ export const getLineLiffTokens = async (
   const isLoggedIn = liff.isLoggedIn();
   debugHooks.onIsLoggedIn?.(isLoggedIn);
   if (!isLoggedIn) {
-    const redirectUri = buildLineLiffLoginRedirectUri(token, window.location.origin, {
-      debug: debugHooks.onStep !== undefined,
-    });
+    const redirectUri = buildLineLiffLoginRedirectUri(
+      normalizedToken,
+      options.redirectOrigin ?? window.location.origin,
+      {
+        debug: options.debug ?? debugHooks.onStep !== undefined,
+      },
+    );
     debugHooks.onLoginRedirectUri?.(redirectUri);
     debugHooks.onStep?.('liff_login_redirect');
     liff.login({ redirectUri });

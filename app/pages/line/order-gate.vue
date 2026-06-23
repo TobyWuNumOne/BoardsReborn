@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { AlertCircleIcon, CheckCircle2Icon, ExternalLinkIcon, WavesIcon } from 'lucide-vue-next';
 import { getLineLiffTokens } from '~/utils/line-liff';
-import { getLineOrderGateTokenInfo } from '~/utils/line-order-gate-token';
+import {
+  getLineOrderGateTokenInfo,
+  normalizeLineOrderGateTokenValue,
+} from '~/utils/line-order-gate-token';
 
 type GateState =
   | 'loading'
@@ -33,6 +36,7 @@ const message = ref('');
 const currentUrl = ref('');
 const tokenInfo = computed(() => getLineOrderGateTokenInfo(route.query, currentUrl.value));
 const token = computed(() => tokenInfo.value.token);
+const resolvedToken = ref('');
 const repairStatusUrl = '/repair-status';
 const officialLineUrl = computed(() => config.public.lineOfficialUrl || '#');
 const debugState = reactive({
@@ -81,6 +85,23 @@ const previewToken = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return '';
   return trimmed.length <= 8 ? 'present' : `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}`;
+};
+
+const statusOrigin = () => {
+  try {
+    return new URL(config.public.statusUrl || window.location.origin).origin;
+  } catch {
+    return window.location.origin;
+  }
+};
+
+const redirectUriHasTokenValue = (value: string) => {
+  if (!value) return 'false';
+  try {
+    return new URL(value).searchParams.get('t')?.trim() ? 'true' : 'false';
+  } catch {
+    return 'false';
+  }
 };
 
 const hasDebugFlag = (value: string): boolean => {
@@ -153,9 +174,11 @@ const debugRows = computed(() => [
   ['tokenSource', tokenInfo.value.source],
   ['tokenExists', token.value ? 'true' : 'false'],
   ['tokenPreview', previewToken(token.value)],
+  ['resolvedTokenLength', String(resolvedToken.value.length)],
   ['liffInitState', debugState.liffInitState],
   ['isLoggedIn', debugState.isLoggedIn],
   ['computed loginRedirectUri', maskTokenInUrl(debugState.loginRedirectUri)],
+  ['loginRedirectUriHasTokenValue', redirectUriHasTokenValue(debugState.loginRedirectUri)],
   ['lastStep', debugState.lastStep],
   ['lastErrorCode', debugState.lastErrorCode],
   ['confirmApiCalled', String(debugState.confirmApiCalled)],
@@ -165,7 +188,8 @@ const debugRows = computed(() => [
 
 const resolveToken = async () => {
   debugState.lastStep = 'resolve_start';
-  if (!token.value) {
+  const candidateToken = normalizeLineOrderGateTokenValue(token.value);
+  if (!candidateToken) {
     state.value = 'invalid';
     debugState.lastStep = 'resolve_missing_token';
     debugState.lastErrorCode = 'TOKEN_MISSING';
@@ -175,9 +199,10 @@ const resolveToken = async () => {
   state.value = 'loading';
   try {
     const response = await $fetch<{ data: ResolveData }>('/api/public/line-bind/resolve', {
-      body: { token: token.value },
+      body: { token: candidateToken },
       method: 'POST',
     });
+    resolvedToken.value = candidateToken;
     summary.value = response.data.workOrder;
     state.value = response.data.tokenState;
     debugState.lastStep = `resolve_${response.data.tokenState}`;
@@ -199,9 +224,16 @@ const bindLine = async () => {
   debugState.lastErrorCode = '';
   debugState.lastStep = 'bind_start';
   try {
+    const bindToken = normalizeLineOrderGateTokenValue(resolvedToken.value);
+    if (!bindToken) {
+      state.value = 'invalid';
+      debugState.lastStep = 'bind_missing_resolved_token';
+      debugState.lastErrorCode = 'TOKEN_MISSING';
+      return;
+    }
     const tokens = await getLineLiffTokens(
       config.public.liffId,
-      token.value,
+      bindToken,
       debugEnabled.value
         ? {
             onInitState: (value) => {
@@ -218,6 +250,10 @@ const bindLine = async () => {
             },
           }
         : {},
+      {
+        debug: debugEnabled.value,
+        redirectOrigin: statusOrigin(),
+      },
     );
     if (!tokens) return;
     debugState.confirmApiCalled = true;
@@ -229,7 +265,7 @@ const bindLine = async () => {
         workOrder: { paperOrderNo: string };
       };
     }>('/api/public/line-bind/confirm', {
-      body: { token: token.value, ...tokens },
+      body: { token: bindToken, ...tokens },
       method: 'POST',
     });
     debugState.confirmApiStatus = '200';

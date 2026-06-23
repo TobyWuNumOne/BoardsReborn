@@ -44,4 +44,21 @@ describe('LINE LIFF login redirect', () => {
     expect(url.searchParams.get('t')).toBe('bind-token');
     expect(url.searchParams.get('debug')).toBe('1');
   });
+
+  it('requires a non-empty token before building a login redirect URI', () => {
+    expect(() => buildLineLiffLoginRedirectUri('', 'https://status.surfboards-reborn.com')).toThrow(
+      'LINE 綁定連結缺少 token',
+    );
+  });
+
+  it('uses the provided status origin instead of the LIFF origin', () => {
+    const redirectUri = buildLineLiffLoginRedirectUri(
+      'bind-token',
+      'https://status.surfboards-reborn.com',
+    );
+
+    expect(redirectUri).toBe('https://status.surfboards-reborn.com/line/order-gate?t=bind-token');
+    expect(redirectUri).not.toBe('https://liff.line.me/2010462177-RsNE4cwl?t');
+    expect(new URL(redirectUri).hostname).toBe('status.surfboards-reborn.com');
+  });
 });

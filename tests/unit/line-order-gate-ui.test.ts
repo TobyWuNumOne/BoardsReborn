@@ -21,8 +21,10 @@ describe('LINE order gate UI contract', () => {
       'LINE debug',
       'tokenSource',
       'tokenPreview',
+      'resolvedTokenLength',
       'liffInitState',
       'computed loginRedirectUri',
+      'loginRedirectUriHasTokenValue',
       'confirmApiCalled',
       'confirmApiStatus',
       'confirmApiErrorCode',
@@ -55,7 +57,8 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).not.toContain('getProfile');
     expect(pageSource).toContain('getLineLiffTokens(');
     expect(pageSource).toContain('config.public.liffId');
-    expect(pageSource).toContain('token.value');
+    expect(pageSource).toContain('resolvedToken.value');
+    expect(pageSource).toContain('redirectOrigin: statusOrigin()');
     expect(pageSource).not.toContain('lineUserId');
   });
 });
