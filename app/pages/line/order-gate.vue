@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AlertCircleIcon, CheckCircle2Icon, ExternalLinkIcon, WavesIcon } from 'lucide-vue-next';
 import { getLineLiffTokens } from '~/utils/line-liff';
-import { extractLineOrderGateToken } from '~/utils/line-order-gate-token';
+import { getLineOrderGateTokenInfo } from '~/utils/line-order-gate-token';
 
 type GateState =
   | 'loading'
@@ -30,9 +30,21 @@ const summary = shallowRef<ResolveData['workOrder'] | null>(null);
 const notificationStatus = ref('unknown');
 const isBinding = ref(false);
 const message = ref('');
-const token = computed(() => extractLineOrderGateToken(route.query));
+const currentUrl = ref('');
+const tokenInfo = computed(() => getLineOrderGateTokenInfo(route.query, currentUrl.value));
+const token = computed(() => tokenInfo.value.token);
 const repairStatusUrl = '/repair-status';
 const officialLineUrl = computed(() => config.public.lineOfficialUrl || '#');
+const debugState = reactive({
+  confirmApiCalled: false,
+  confirmApiErrorCode: '',
+  confirmApiStatus: '',
+  isLoggedIn: '',
+  lastErrorCode: '',
+  lastStep: 'created',
+  liffInitState: 'not_started',
+  loginRedirectUri: '',
+});
 
 useHead({
   title: 'LINE 綁定 | BoardsReborn',
@@ -49,9 +61,114 @@ const errorCode = (error: unknown) => {
     : null;
 };
 
+const responseStatus = (error: unknown) => {
+  if (typeof error !== 'object' || error === null) return '';
+  for (const key of ['statusCode', 'status']) {
+    if (key in error) {
+      const value = error[key as keyof typeof error];
+      if (typeof value === 'number' || typeof value === 'string') return String(value);
+    }
+  }
+  const response = 'response' in error ? error.response : null;
+  if (typeof response === 'object' && response !== null && 'status' in response) {
+    const status = response.status;
+    if (typeof status === 'number' || typeof status === 'string') return String(status);
+  }
+  return '';
+};
+
+const previewToken = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.length <= 8 ? 'present' : `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}`;
+};
+
+const hasDebugFlag = (value: string): boolean => {
+  if (!value.trim()) return false;
+  try {
+    const url = new URL(value, 'https://status.surfboards-reborn.com');
+    if (url.searchParams.get('debug') === '1') return true;
+    for (const key of ['liff.state', 'liff_state']) {
+      if (hasDebugFlag(url.searchParams.get(key) ?? '')) return true;
+    }
+    return url.hash ? hasDebugFlag(url.hash.slice(1)) : false;
+  } catch {
+    try {
+      return (
+        new URLSearchParams(value.startsWith('?') ? value.slice(1) : value).get('debug') === '1'
+      );
+    } catch {
+      return false;
+    }
+  }
+};
+
+const debugEnabled = computed(
+  () =>
+    route.query.debug === '1' ||
+    hasDebugFlag(String(route.query['liff.state'] ?? '')) ||
+    hasDebugFlag(String(route.query.liff_state ?? '')) ||
+    hasDebugFlag(currentUrl.value),
+);
+
+const maskKnownToken = (value: string) => {
+  if (!token.value) return value;
+  const preview = previewToken(token.value);
+  return value
+    .split(token.value)
+    .join(preview)
+    .split(encodeURIComponent(token.value))
+    .join(preview);
+};
+
+const maskTokenInUrl = (value: string) => {
+  if (!value) return '';
+  try {
+    const url = new URL(value, 'https://status.surfboards-reborn.com');
+    const tokenValue = url.searchParams.get('t');
+    if (tokenValue) url.searchParams.set('t', previewToken(tokenValue));
+    for (const key of ['liff.state', 'liff_state']) {
+      const stateValue = url.searchParams.get(key);
+      if (stateValue) url.searchParams.set(key, maskTokenInUrl(stateValue));
+    }
+    if (url.hash) url.hash = maskTokenInUrl(url.hash.slice(1));
+    const masked = value.startsWith('http')
+      ? url.toString()
+      : `${url.pathname}${url.search}${url.hash}`;
+    return maskKnownToken(masked);
+  } catch {
+    return maskKnownToken(
+      value.replace(
+        /([?&]t=)[^&#]+/g,
+        (_, prefix: string) => `${prefix}${previewToken(token.value)}`,
+      ),
+    );
+  }
+};
+
+const debugRows = computed(() => [
+  ['currentUrl', maskTokenInUrl(currentUrl.value)],
+  ['route.fullPath', maskTokenInUrl(route.fullPath)],
+  ['route.query keys', Object.keys(route.query).join(', ') || '(none)'],
+  ['tokenSource', tokenInfo.value.source],
+  ['tokenExists', token.value ? 'true' : 'false'],
+  ['tokenPreview', previewToken(token.value)],
+  ['liffInitState', debugState.liffInitState],
+  ['isLoggedIn', debugState.isLoggedIn],
+  ['computed loginRedirectUri', maskTokenInUrl(debugState.loginRedirectUri)],
+  ['lastStep', debugState.lastStep],
+  ['lastErrorCode', debugState.lastErrorCode],
+  ['confirmApiCalled', String(debugState.confirmApiCalled)],
+  ['confirmApiStatus', debugState.confirmApiStatus],
+  ['confirmApiErrorCode', debugState.confirmApiErrorCode],
+]);
+
 const resolveToken = async () => {
+  debugState.lastStep = 'resolve_start';
   if (!token.value) {
     state.value = 'invalid';
+    debugState.lastStep = 'resolve_missing_token';
+    debugState.lastErrorCode = 'TOKEN_MISSING';
     return;
   }
 
@@ -63,17 +180,48 @@ const resolveToken = async () => {
     });
     summary.value = response.data.workOrder;
     state.value = response.data.tokenState;
+    debugState.lastStep = `resolve_${response.data.tokenState}`;
+    debugState.lastErrorCode = '';
   } catch (error) {
-    state.value = errorCode(error) === 'TOKEN_INVALID' ? 'invalid' : 'error';
+    const code = errorCode(error);
+    debugState.lastErrorCode = code ?? 'UNKNOWN_ERROR';
+    debugState.lastStep = 'resolve_error';
+    state.value = code === 'TOKEN_INVALID' ? 'invalid' : 'error';
   }
 };
 
 const bindLine = async () => {
   isBinding.value = true;
   message.value = '';
+  debugState.confirmApiCalled = false;
+  debugState.confirmApiErrorCode = '';
+  debugState.confirmApiStatus = '';
+  debugState.lastErrorCode = '';
+  debugState.lastStep = 'bind_start';
   try {
-    const tokens = await getLineLiffTokens(config.public.liffId, token.value);
+    const tokens = await getLineLiffTokens(
+      config.public.liffId,
+      token.value,
+      debugEnabled.value
+        ? {
+            onInitState: (value) => {
+              debugState.liffInitState = value;
+            },
+            onIsLoggedIn: (value) => {
+              debugState.isLoggedIn = String(value);
+            },
+            onLoginRedirectUri: (value) => {
+              debugState.loginRedirectUri = value;
+            },
+            onStep: (value) => {
+              debugState.lastStep = value;
+            },
+          }
+        : {},
+    );
     if (!tokens) return;
+    debugState.confirmApiCalled = true;
+    debugState.lastStep = 'confirm_api_start';
     const response = await $fetch<{
       data: {
         binding: { notificationStatus: string };
@@ -84,17 +232,26 @@ const bindLine = async () => {
       body: { token: token.value, ...tokens },
       method: 'POST',
     });
+    debugState.confirmApiStatus = '200';
+    debugState.lastStep = 'confirm_api_success';
     summary.value = { boardType: summary.value?.boardType ?? '', ...response.data.workOrder };
     notificationStatus.value = response.data.binding.notificationStatus;
     state.value = response.data.outcome === 'already_linked' ? 'already_linked' : 'success';
   } catch (error) {
     const code = errorCode(error);
+    debugState.lastErrorCode = code ?? 'UNKNOWN_ERROR';
+    debugState.confirmApiErrorCode = code ?? '';
+    debugState.confirmApiStatus = responseStatus(error);
+    debugState.lastStep = debugState.confirmApiCalled ? 'confirm_api_error' : 'bind_error';
     if (code === 'LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER') state.value = 'line_conflict';
     else if (code === 'CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE') state.value = 'customer_conflict';
     else if (code === 'LINE_PLATFORM_UNAVAILABLE') state.value = 'platform_error';
+    else if (code === 'LINE_ID_TOKEN_INVALID' || code === 'LINE_ACCESS_TOKEN_INVALID')
+      state.value = 'platform_error';
     else if (code === 'TOKEN_EXPIRED') state.value = 'expired';
     else if (code === 'TOKEN_REVOKED') state.value = 'revoked';
     else if (code === 'TOKEN_USED') state.value = 'used';
+    else if (code === 'TOKEN_INVALID') state.value = 'invalid';
     else {
       state.value = 'error';
       message.value = error instanceof Error ? error.message : '綁定失敗，請稍後再試。';
@@ -104,7 +261,10 @@ const bindLine = async () => {
   }
 };
 
-onMounted(resolveToken);
+onMounted(() => {
+  currentUrl.value = window.location.href;
+  void resolveToken();
+});
 </script>
 
 <template>
@@ -205,6 +365,20 @@ onMounted(resolveToken);
         >
           查詢維修進度時仍需輸入工單號與完整手機號碼。
         </p>
+
+        <div
+          v-if="debugEnabled"
+          data-testid="line-order-gate-debug"
+          class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-left text-xs text-amber-950"
+        >
+          <p class="mb-2 font-semibold">LINE debug</p>
+          <dl class="grid gap-1">
+            <div v-for="[key, value] in debugRows" :key="key" class="grid gap-1 sm:grid-cols-3">
+              <dt class="font-medium">{{ key }}</dt>
+              <dd class="break-all sm:col-span-2">{{ value || '(empty)' }}</dd>
+            </div>
+          </dl>
+        </div>
       </CardContent>
     </Card>
   </main>

@@ -18,12 +18,22 @@ describe('LINE order gate UI contract', () => {
       'LINE 服務暫時無法使用',
       '查詢維修進度',
       '仍需輸入工單號與完整手機號碼',
+      'LINE debug',
+      'tokenSource',
+      'tokenPreview',
+      'liffInitState',
+      'computed loginRedirectUri',
+      'confirmApiCalled',
+      'confirmApiStatus',
+      'confirmApiErrorCode',
     ]) {
       expect(pageSource).toContain(stateText);
     }
     expect(pageSource).not.toContain('customer.phone');
     expect(pageSource).not.toContain('customer.name');
     expect(pageSource).not.toContain('line_user_id');
+    expect(pageSource).not.toContain('LINE_CHANNEL_ACCESS_TOKEN');
+    expect(pageSource).not.toContain('LINE_CHANNEL_SECRET');
   });
 
   it('does not automatically redirect to repair status after binding', () => {
@@ -38,11 +48,14 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).toContain('liff.getAccessToken');
     expect(liffSource).toContain("new URL('/line/order-gate'");
     expect(liffSource).toContain("url.searchParams.set('t'");
+    expect(liffSource).toContain("url.searchParams.set('debug'");
     expect(liffSource).not.toContain('window.location.href');
     expect(liffSource).not.toContain('localStorage');
     expect(liffSource).not.toContain('sessionStorage');
     expect(liffSource).not.toContain('getProfile');
-    expect(pageSource).toContain('getLineLiffTokens(config.public.liffId, token.value)');
+    expect(pageSource).toContain('getLineLiffTokens(');
+    expect(pageSource).toContain('config.public.liffId');
+    expect(pageSource).toContain('token.value');
     expect(pageSource).not.toContain('lineUserId');
   });
 });

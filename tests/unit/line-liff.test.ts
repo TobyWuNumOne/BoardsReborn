@@ -32,4 +32,16 @@ describe('LINE LIFF login redirect', () => {
     expect(redirectUri).toBe('https://status.surfboards-reborn.com/line/order-gate?t=bind-token');
     expect(redirectUri).not.toContain('/line/order-gate/line/order-gate');
   });
+
+  it('preserves the debug flag when requested', () => {
+    const redirectUri = buildLineLiffLoginRedirectUri(
+      'bind-token',
+      'https://status.surfboards-reborn.com',
+      { debug: true },
+    );
+
+    const url = new URL(redirectUri);
+    expect(url.searchParams.get('t')).toBe('bind-token');
+    expect(url.searchParams.get('debug')).toBe('1');
+  });
 });

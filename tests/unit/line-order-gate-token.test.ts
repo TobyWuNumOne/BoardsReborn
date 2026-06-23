@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { extractLineOrderGateToken } from '../../app/utils/line-order-gate-token';
+import {
+  extractLineOrderGateToken,
+  getLineOrderGateTokenInfo,
+} from '../../app/utils/line-order-gate-token';
 
 describe('LINE order-gate token extraction', () => {
   it('prefers the direct token query', () => {
@@ -12,6 +15,10 @@ describe('LINE order-gate token extraction', () => {
         '',
       ),
     ).toBe('direct-token');
+    expect(getLineOrderGateTokenInfo({ t: 'direct-token' }, '')).toEqual({
+      source: 'query.t',
+      token: 'direct-token',
+    });
   });
 
   it('extracts token from LINE liff.state path query', () => {
@@ -23,6 +30,12 @@ describe('LINE order-gate token extraction', () => {
         '',
       ),
     ).toBe('state-token');
+    expect(
+      getLineOrderGateTokenInfo({ 'liff.state': '/line/order-gate?t=state-token' }, ''),
+    ).toEqual({
+      source: 'liff.state',
+      token: 'state-token',
+    });
   });
 
   it('extracts token from encoded LINE liff.state', () => {
@@ -60,9 +73,19 @@ describe('LINE order-gate token extraction', () => {
         'https://status.surfboards-reborn.com/line/order-gate#/line/order-gate?t=hash-token',
       ),
     ).toBe('hash-token');
+    expect(
+      getLineOrderGateTokenInfo(
+        {},
+        'https://status.surfboards-reborn.com/line/order-gate#/line/order-gate?t=hash-token',
+      ),
+    ).toEqual({ source: 'hash', token: 'hash-token' });
   });
 
   it('returns an empty token when no supported source exists', () => {
     expect(extractLineOrderGateToken({ 'liff.state': '/line/order-gate' }, '')).toBe('');
+    expect(getLineOrderGateTokenInfo({ 'liff.state': '/line/order-gate' }, '')).toEqual({
+      source: 'missing',
+      token: '',
+    });
   });
 });
