@@ -67,12 +67,11 @@ describe('LINE bind token cryptography', () => {
     });
     const token = deriveLineBindPlaintextToken(TOKEN_ID, SECRET);
 
-    expect(buildLineBindLiffUrl(config.liffId, token)).toBe(
-      `https://liff.line.me/1234567890-test?t=${token}`,
-    );
+    const expectedUrl = `https://liff.line.me/1234567890-test/line/order-gate?t=${token}`;
+    expect(buildLineBindLiffUrl(config.liffId, token)).toBe(expectedUrl);
     expect(rebuildLineBindLiffUrl(TOKEN_ID, config)).toEqual({
       plaintextToken: token,
-      url: `https://liff.line.me/1234567890-test?t=${token}`,
+      url: expectedUrl,
     });
   });
 });

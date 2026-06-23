@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { AlertCircleIcon, CheckCircle2Icon, ExternalLinkIcon, WavesIcon } from 'lucide-vue-next';
 import { getLineLiffTokens } from '~/utils/line-liff';
+import { extractLineOrderGateToken } from '~/utils/line-order-gate-token';
 
 type GateState =
   | 'loading'
@@ -29,7 +30,7 @@ const summary = shallowRef<ResolveData['workOrder'] | null>(null);
 const notificationStatus = ref('unknown');
 const isBinding = ref(false);
 const message = ref('');
-const token = computed(() => (typeof route.query.t === 'string' ? route.query.t : ''));
+const token = computed(() => extractLineOrderGateToken(route.query));
 const repairStatusUrl = '/repair-status';
 const officialLineUrl = computed(() => config.public.lineOfficialUrl || '#');
 

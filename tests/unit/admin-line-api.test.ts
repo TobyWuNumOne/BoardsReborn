@@ -98,7 +98,9 @@ describe('admin LINE binding mutations', () => {
       data: {
         expiresAt: '2026-07-21T10:00:00.000Z',
         id: TOKEN_ID,
-        liffUrl: expect.stringMatching(/^https:\/\/liff\.line\.me\/1234567890-test\?t=/),
+        liffUrl: expect.stringMatching(
+          /^https:\/\/liff\.line\.me\/1234567890-test\/line\/order-gate\?t=/,
+        ),
         revokedTokenCount: 1,
       },
     });
