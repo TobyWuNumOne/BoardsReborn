@@ -72,7 +72,9 @@ export const hashLineBindToken = (plaintextToken: string) =>
   createHash('sha256').update(assertNonEmpty(plaintextToken)).digest('hex');
 
 export const buildLineBindLiffUrl = (liffId: string, plaintextToken: string) => {
-  const url = new URL(`https://liff.line.me/${encodeURIComponent(assertNonEmpty(liffId))}`);
+  const url = new URL(
+    `https://liff.line.me/${encodeURIComponent(assertNonEmpty(liffId))}/line/order-gate`,
+  );
   url.searchParams.set('t', assertNonEmpty(plaintextToken));
   return url.toString();
 };
