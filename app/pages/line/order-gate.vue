@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AlertCircleIcon, CheckCircle2Icon, ExternalLinkIcon, WavesIcon } from 'lucide-vue-next';
-import { getLineLiffTokens } from '~/utils/line-liff';
+import { buildLineLiffLoginRedirectUri, getLineLiffTokens } from '~/utils/line-liff';
 import {
   getLineOrderGateTokenInfo,
   normalizeLineOrderGateTokenValue,
@@ -43,6 +43,7 @@ const clickDebugStorageKey = 'boardsreborn:line-order-gate:last-click-debug';
 const lastClickDebugRows = ref<Array<[string, string]>>([]);
 const debugState = reactive({
   beforeLiffLogin: '',
+  bindClickDryRun: '',
   bindClickDebugEnabled: '',
   bindClickStarted: false,
   bindClickTokenExists: '',
@@ -56,6 +57,9 @@ const debugState = reactive({
   lastStep: 'created',
   liffInitState: 'not_started',
   loginRedirectUri: '',
+  nextActionCallConfirmApi: '',
+  nextActionCallGetIdToken: '',
+  nextActionCallLiffLogin: '',
 });
 
 useHead({
@@ -183,12 +187,38 @@ const hasDebugFlag = (value: string): boolean => {
   }
 };
 
+const hasQueryFlag = (name: string, value: string): boolean => {
+  if (!value.trim()) return false;
+  try {
+    const url = new URL(value, 'https://status.surfboards-reborn.com');
+    if (url.searchParams.get(name) === '1') return true;
+    for (const key of ['liff.state', 'liff_state']) {
+      if (hasQueryFlag(name, url.searchParams.get(key) ?? '')) return true;
+    }
+    return url.hash ? hasQueryFlag(name, url.hash.slice(1)) : false;
+  } catch {
+    try {
+      return new URLSearchParams(value.startsWith('?') ? value.slice(1) : value).get(name) === '1';
+    } catch {
+      return false;
+    }
+  }
+};
+
 const debugEnabled = computed(
   () =>
     route.query.debug === '1' ||
     hasDebugFlag(String(route.query['liff.state'] ?? '')) ||
     hasDebugFlag(String(route.query.liff_state ?? '')) ||
     hasDebugFlag(currentUrl.value),
+);
+
+const dryRunEnabled = computed(
+  () =>
+    route.query.dryRun === '1' ||
+    hasQueryFlag('dryRun', String(route.query['liff.state'] ?? '')) ||
+    hasQueryFlag('dryRun', String(route.query.liff_state ?? '')) ||
+    hasQueryFlag('dryRun', currentUrl.value),
 );
 
 const maskKnownToken = (value: string) => {
@@ -253,6 +283,7 @@ const debugRows = computed(() => [
   ['tokenPreview', previewToken(token.value)],
   ['resolvedTokenLength', String(resolvedToken.value.length)],
   ['bindClickStarted', String(debugState.bindClickStarted)],
+  ['bindClickDryRun', debugState.bindClickDryRun],
   ['bindClickTokenExists', debugState.bindClickTokenExists],
   ['bindClickTokenLength', debugState.bindClickTokenLength],
   ['bindClickTokenPreview', debugState.bindClickTokenPreview],
@@ -267,6 +298,9 @@ const debugRows = computed(() => [
   ['loginRedirectUriHost', urlPart(debugState.loginRedirectUri, 'host')],
   ['loginRedirectUriPath', urlPart(debugState.loginRedirectUri, 'path')],
   ['loginRedirectUriSearchKeys', searchKeys(debugState.loginRedirectUri)],
+  ['nextAction.callLiffLogin', debugState.nextActionCallLiffLogin],
+  ['nextAction.callGetIDToken', debugState.nextActionCallGetIdToken],
+  ['nextAction.callConfirmAPI', debugState.nextActionCallConfirmApi],
   ['lastStep', debugState.lastStep],
   ['lastErrorCode', debugState.lastErrorCode],
   ['confirmApiCalled', String(debugState.confirmApiCalled)],
@@ -275,11 +309,13 @@ const debugRows = computed(() => [
   ...lastClickDebugRows.value,
 ]);
 
+const debugVisible = computed(() => debugEnabled.value || lastClickDebugRows.value.length > 0);
+
 const persistClickDebug = (extra: Record<string, string> = {}) => {
-  if (!debugEnabled.value) return;
   try {
     const snapshot = {
       beforeLiffLogin: debugState.beforeLiffLogin,
+      bindClickDryRun: debugState.bindClickDryRun,
       bindClickDebugEnabled: debugState.bindClickDebugEnabled,
       bindClickStarted: String(debugState.bindClickStarted),
       bindClickTokenExists: debugState.bindClickTokenExists,
@@ -296,6 +332,9 @@ const persistClickDebug = (extra: Record<string, string> = {}) => {
       loginRedirectUriHost: urlPart(debugState.loginRedirectUri, 'host'),
       loginRedirectUriPath: urlPart(debugState.loginRedirectUri, 'path'),
       loginRedirectUriSearchKeys: searchKeys(debugState.loginRedirectUri),
+      nextActionCallConfirmApi: debugState.nextActionCallConfirmApi,
+      nextActionCallGetIdToken: debugState.nextActionCallGetIdToken,
+      nextActionCallLiffLogin: debugState.nextActionCallLiffLogin,
       ...extra,
     };
     sessionStorage.setItem(clickDebugStorageKey, JSON.stringify(snapshot));
@@ -355,12 +394,16 @@ const bindLine = async () => {
   isBinding.value = true;
   message.value = '';
   debugState.beforeLiffLogin = '';
+  debugState.bindClickDryRun = String(dryRunEnabled.value);
   debugState.bindClickStarted = true;
   debugState.confirmApiCalled = false;
   debugState.confirmApiErrorCode = '';
   debugState.confirmApiStatus = '';
   debugState.lastErrorCode = '';
   debugState.lastStep = 'bind_start';
+  debugState.nextActionCallConfirmApi = '';
+  debugState.nextActionCallGetIdToken = '';
+  debugState.nextActionCallLiffLogin = '';
   try {
     const bindToken = normalizeLineOrderGateTokenValue(resolvedToken.value);
     debugState.bindClickDebugEnabled = String(debugEnabled.value);
@@ -375,6 +418,25 @@ const bindLine = async () => {
       persistClickDebug({ lastErrorCode: debugState.lastErrorCode });
       return;
     }
+
+    debugState.loginRedirectUri = buildLineLiffLoginRedirectUri(bindToken, statusOrigin(), {
+      debug: debugEnabled.value,
+    });
+    debugState.nextActionCallLiffLogin = hasLiffHashTokens.value
+      ? 'false'
+      : 'possible_after_liff_init';
+    debugState.nextActionCallGetIdToken = hasLiffHashTokens.value
+      ? 'possible_after_liff_init'
+      : 'possible_after_liff_init';
+    debugState.nextActionCallConfirmApi = 'possible_after_get_id_token';
+    persistClickDebug();
+
+    if (dryRunEnabled.value) {
+      debugState.lastStep = 'dry_run_ready';
+      persistClickDebug({ lastStep: debugState.lastStep });
+      return;
+    }
+
     const tokens = await getLineLiffTokens(
       config.public.liffId,
       bindToken,
@@ -386,8 +448,14 @@ const bindLine = async () => {
             },
             onIsLoggedIn: (value) => {
               debugState.isLoggedIn = String(value);
+              debugState.nextActionCallLiffLogin = value ? 'false' : 'true';
+              debugState.nextActionCallGetIdToken = value ? 'true' : 'false';
+              debugState.nextActionCallConfirmApi = value ? 'after_get_id_token' : 'false';
               if (!value && (hasLiffHashAccessToken.value || hasLiffHashIdToken.value)) {
                 debugState.lastErrorCode = 'LIFF_LOGGED_IN_MISMATCH';
+                debugState.nextActionCallLiffLogin = 'false';
+                debugState.nextActionCallGetIdToken = 'false';
+                debugState.nextActionCallConfirmApi = 'false';
               }
               persistClickDebug();
             },
@@ -410,6 +478,7 @@ const bindLine = async () => {
     );
     if (!tokens) return;
     debugState.confirmApiCalled = true;
+    debugState.nextActionCallConfirmApi = 'true';
     debugState.lastStep = 'before_confirm_api';
     const response = await $fetch<{
       data: {
@@ -558,7 +627,7 @@ onMounted(() => {
         </p>
 
         <div
-          v-if="debugEnabled"
+          v-if="debugVisible"
           data-testid="line-order-gate-debug"
           class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-left text-xs text-amber-950"
         >

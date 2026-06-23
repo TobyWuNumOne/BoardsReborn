@@ -23,6 +23,7 @@ describe('LINE order gate UI contract', () => {
       'tokenPreview',
       'resolvedTokenLength',
       'bindClickStarted',
+      'bindClickDryRun',
       'bindClickTokenExists',
       'bindClickTokenLength',
       'bindClickTokenPreview',
@@ -36,6 +37,9 @@ describe('LINE order gate UI contract', () => {
       'loginRedirectUriHost',
       'loginRedirectUriPath',
       'loginRedirectUriSearchKeys',
+      'nextAction.callLiffLogin',
+      'nextAction.callGetIDToken',
+      'nextAction.callConfirmAPI',
       'confirmApiCalled',
       'confirmApiStatus',
       'confirmApiErrorCode',
@@ -70,6 +74,10 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('config.public.liffId');
     expect(pageSource).toContain('resolvedToken.value');
     expect(pageSource).toContain('bind_missing_resolved_token');
+    expect(pageSource).toContain('dry_run_ready');
+    expect(pageSource).toContain('dryRunEnabled.value');
+    expect(pageSource).toContain('debugVisible');
+    expect(pageSource).toContain('lastClickDebugRows.value.length > 0');
     expect(pageSource).not.toContain('route.query.t)');
     expect(pageSource).toContain('redirectOrigin: statusOrigin()');
     expect(pageSource).not.toContain('lineUserId');
@@ -105,6 +113,9 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('sessionStorage.getItem(clickDebugStorageKey');
     expect(pageSource).toContain('computedLoginRedirectUriMasked');
     expect(pageSource).toContain('lastClick.');
+    expect(pageSource).toContain('nextActionCallLiffLogin');
+    expect(pageSource).toContain('nextActionCallGetIdToken');
+    expect(pageSource).toContain('nextActionCallConfirmApi');
     expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, bindToken');
     expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, token');
     expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, idToken');
@@ -112,5 +123,16 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).not.toContain('raw profile');
     expect(pageSource).not.toContain('LINE_CHANNEL_ACCESS_TOKEN');
     expect(pageSource).not.toContain('LINE_CHANNEL_SECRET');
+  });
+
+  it('does not contain a LIFF-base login redirect branch', () => {
+    expect(liffSource).toContain('liff.login({ redirectUri })');
+    expect(liffSource).toContain("new URL('/line/order-gate'");
+    expect(liffSource).not.toContain('new URL(`https://liff.line.me');
+    expect(liffSource).not.toContain('createUrlBy');
+    expect(liffSource).not.toContain('permanentLink');
+    expect(liffSource).not.toContain('liff.login()');
+    expect(liffSource).not.toContain('?t`');
+    expect(liffSource).not.toContain('?t=');
   });
 });
