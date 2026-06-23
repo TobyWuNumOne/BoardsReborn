@@ -62,6 +62,17 @@ describe('LINE order gate UI contract', () => {
       'confirmApiCalled',
       'confirmApiStatus',
       'confirmApiErrorCode',
+      '正在初始化 LINE...',
+      'isLiffPrimaryRedirect',
+      'hasLiffState',
+      'mountedAction',
+      'mountedLiffInitStarted',
+      'mountedLiffInitFinished',
+      'mountedSecondaryRedirectExpected',
+      'mountedManualSecondaryRedirectTargetMasked',
+      'mountedManualSecondaryRedirectReason',
+      'resolvedPhase',
+      'skippedResolveBecausePrimaryRedirect',
     ]) {
       expect(pageSource).toContain(stateText);
     }
@@ -110,6 +121,11 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('dryRunEnabled.value');
     expect(pageSource).toContain('debugVisible');
     expect(pageSource).toContain('lastClickDebugRows.value.length > 0');
+    expect(pageSource).toContain('initLineLiff');
+    expect(pageSource).toContain('handleLiffPrimaryRedirect');
+    expect(pageSource).toContain('syncMountedDebugState');
+    expect(pageSource).toContain('isLiffPrimaryRedirect');
+    expect(pageSource).toContain('skippedResolveBecausePrimaryRedirect');
     expect(pageSource).not.toContain('route.query.t)');
     expect(pageSource).toContain('redirectOrigin: statusOrigin()');
     expect(pageSource).not.toContain('lineUserId');
@@ -183,11 +199,57 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).not.toContain('router.push');
     expect(pageSource).not.toContain('router.replace');
     expect(pageSource).not.toContain('location.assign');
-    expect(pageSource).not.toContain('location.replace');
+    expect(pageSource).toContain('window.location.replace(target)');
+    expect(pageSource).toContain('const target = buildOrderGateUrl(candidateToken');
     expect(pageSource).not.toContain('location.href =');
     expect(pageSource).not.toContain("query: { t: ''");
     expect(pageSource).not.toContain('query: { t: undefined');
     expect(pageSource).not.toContain('/line/order-gate?t');
+  });
+
+  it('initializes LIFF during primary redirect before token resolve or showing the bind button', () => {
+    const primaryBranchIndex = pageSource.indexOf('if (isLiffPrimaryRedirect.value)');
+    const primaryHandlerIndex = pageSource.indexOf(
+      'void handleLiffPrimaryRedirect()',
+      primaryBranchIndex,
+    );
+    const resolveCallIndex = pageSource.indexOf('void resolveToken()', primaryBranchIndex);
+    const initCallIndex = pageSource.indexOf('await initLineLiff(config.public.liffId');
+    const resolveApiIndex = pageSource.indexOf("'/api/public/line-bind/resolve'");
+    const pendingTemplateIndex = pageSource.indexOf('v-else-if="state === \'pending\'"');
+
+    expect(primaryBranchIndex).toBeGreaterThan(-1);
+    expect(primaryHandlerIndex).toBeGreaterThan(primaryBranchIndex);
+    expect(resolveCallIndex).toBeGreaterThan(primaryHandlerIndex);
+    expect(initCallIndex).toBeGreaterThan(-1);
+    expect(initCallIndex).toBeLessThan(resolveApiIndex);
+    expect(pageSource).toContain("debugState.skippedResolveBecausePrimaryRedirect = 'true'");
+    expect(pageSource).toContain("debugState.mountedAction = 'primary_liff_init'");
+    expect(pageSource).toContain("debugState.mountedSecondaryRedirectExpected = 'true'");
+    expect(pageSource).toContain("state.value = 'loading'");
+    expect(pendingTemplateIndex).toBeGreaterThan(resolveApiIndex);
+  });
+
+  it('manual secondary redirect can only use a non-empty parsed token and canonical order-gate URL', () => {
+    const candidateIndex = pageSource.indexOf(
+      'const candidateToken = normalizeLineOrderGateTokenValue(token.value)',
+    );
+    const missingGuardIndex = pageSource.indexOf('if (!candidateToken)', candidateIndex);
+    const targetIndex = pageSource.indexOf(
+      'const target = buildOrderGateUrl(candidateToken, debugEnabled.value, statusOrigin())',
+      missingGuardIndex,
+    );
+    const replaceIndex = pageSource.indexOf('window.location.replace(target)', targetIndex);
+
+    expect(candidateIndex).toBeGreaterThan(-1);
+    expect(missingGuardIndex).toBeGreaterThan(candidateIndex);
+    expect(targetIndex).toBeGreaterThan(missingGuardIndex);
+    expect(replaceIndex).toBeGreaterThan(targetIndex);
+    expect(pageSource).toContain('debugState.mountedManualSecondaryRedirectReason');
+    expect(pageSource).toContain('liff_init_finished_without_secondary_redirect');
+    expect(pageSource).toContain('mountedManualSecondaryRedirectTarget');
+    expect(liffSource).toContain('if (!normalizedToken) throw new Error');
+    expect(liffSource).toContain("url.searchParams.set('t', normalizedToken)");
   });
 
   it('keeps the bind action as a plain button without link or form navigation', () => {

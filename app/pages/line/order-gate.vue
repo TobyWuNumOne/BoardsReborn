@@ -4,6 +4,7 @@ import {
   buildOrderGateUrl,
   extractLiffTokensFromHash,
   getLineLiffTokens,
+  initLineLiff,
   type LineLiffTokens,
 } from '~/utils/line-liff';
 import {
@@ -69,18 +70,28 @@ const debugState = reactive({
   confirmApiStatus: '',
   hasHashAccessToken: '',
   hasHashIdToken: '',
+  hasLiffState: '',
+  isLiffPrimaryRedirect: '',
   isLoggedIn: '',
   lastErrorCode: '',
   lastStep: 'created',
   liffInitState: 'not_started',
   locationAssignTarget: '',
   loginRedirectUri: '',
+  mountedAction: '',
+  mountedLiffInitFinished: '',
+  mountedLiffInitStarted: '',
+  mountedManualSecondaryRedirectReason: '',
+  mountedManualSecondaryRedirectTarget: '',
+  mountedSecondaryRedirectExpected: '',
   navigateToTarget: '',
   nextActionCallConfirmApi: '',
   nextActionCallLiffInit: '',
   nextActionCallGetIdToken: '',
   nextActionCallLiffLogin: '',
   redirectReason: '',
+  resolvedPhase: '',
+  skippedResolveBecausePrimaryRedirect: '',
   usedHashIdTokenFallback: '',
 });
 
@@ -189,6 +200,24 @@ const hasLiffHashAccessToken = computed(() => currentHashParams.value.has('acces
 const hasLiffHashIdToken = computed(() => currentHashParams.value.has('id_token'));
 const hasLiffHashTokens = computed(() => hasLiffHashAccessToken.value || hasLiffHashIdToken.value);
 
+const firstQueryString = (value: unknown) => {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.find((item) => typeof item === 'string') ?? '';
+  return '';
+};
+
+const hasLiffState = computed(() =>
+  Boolean(
+    firstQueryString(route.query['liff.state']).trim() ||
+    firstQueryString(route.query.liff_state).trim(),
+  ),
+);
+const isLiffPrimaryRedirect = computed(() => hasLiffState.value && hasLiffHashTokens.value);
+const resolvedPhase = computed(() => {
+  if (isLiffPrimaryRedirect.value) return 'primary';
+  return tokenInfo.value.source === 'query.t' ? 'secondary' : 'plain';
+});
+
 const hasDebugFlag = (value: string): boolean => {
   if (!value.trim()) return false;
   try {
@@ -241,6 +270,12 @@ const dryRunEnabled = computed(
     hasQueryFlag('dryRun', String(route.query['liff.state'] ?? '')) ||
     hasQueryFlag('dryRun', String(route.query.liff_state ?? '')) ||
     hasQueryFlag('dryRun', currentUrl.value),
+);
+
+const loadingDescription = computed(() =>
+  isLiffPrimaryRedirect.value || debugState.mountedAction === 'primary_liff_init'
+    ? '正在初始化 LINE...'
+    : '正在確認綁定連結…',
 );
 
 const maskKnownToken = (value: string) => {
@@ -304,6 +339,21 @@ const debugRows = computed(() => [
   ['tokenExists', token.value ? 'true' : 'false'],
   ['tokenPreview', previewToken(token.value)],
   ['resolvedTokenLength', String(resolvedToken.value.length)],
+  ['isLiffPrimaryRedirect', debugState.isLiffPrimaryRedirect],
+  ['hasLiffState', debugState.hasLiffState],
+  ['hasHashAccessToken', debugState.hasHashAccessToken],
+  ['hasHashIdToken', debugState.hasHashIdToken],
+  ['mountedAction', debugState.mountedAction],
+  ['mountedLiffInitStarted', debugState.mountedLiffInitStarted],
+  ['mountedLiffInitFinished', debugState.mountedLiffInitFinished],
+  ['mountedSecondaryRedirectExpected', debugState.mountedSecondaryRedirectExpected],
+  [
+    'mountedManualSecondaryRedirectTargetMasked',
+    maskTokenInUrl(debugState.mountedManualSecondaryRedirectTarget),
+  ],
+  ['mountedManualSecondaryRedirectReason', debugState.mountedManualSecondaryRedirectReason],
+  ['resolvedPhase', debugState.resolvedPhase],
+  ['skippedResolveBecausePrimaryRedirect', debugState.skippedResolveBecausePrimaryRedirect],
   ['bindClickStarted', String(debugState.bindClickStarted)],
   ['bindClickDryRun', debugState.bindClickDryRun],
   ['bindButtonTag', debugState.bindButtonTag],
@@ -318,8 +368,6 @@ const debugRows = computed(() => [
   ['bindClickTokenPreview', debugState.bindClickTokenPreview],
   ['bindClickDebugEnabled', debugState.bindClickDebugEnabled],
   ['beforeLiffLogin', debugState.beforeLiffLogin],
-  ['hasHashAccessToken', debugState.hasHashAccessToken],
-  ['hasHashIdToken', debugState.hasHashIdToken],
   ['hasLiffHashAccessToken', String(hasLiffHashAccessToken.value)],
   ['hasLiffHashIdToken', String(hasLiffHashIdToken.value)],
   ['usedHashIdTokenFallback', debugState.usedHashIdTokenFallback],
@@ -438,6 +486,68 @@ const confirmLineBinding = async (bindToken: string, tokens: LineLiffTokens) => 
   summary.value = { boardType: summary.value?.boardType ?? '', ...response.data.workOrder };
   notificationStatus.value = response.data.binding.notificationStatus;
   state.value = response.data.outcome === 'already_linked' ? 'already_linked' : 'success';
+};
+
+const syncMountedDebugState = () => {
+  debugState.hasLiffState = String(hasLiffState.value);
+  debugState.hasHashAccessToken = String(hasLiffHashAccessToken.value);
+  debugState.hasHashIdToken = String(hasLiffHashIdToken.value);
+  debugState.isLiffPrimaryRedirect = String(isLiffPrimaryRedirect.value);
+  debugState.resolvedPhase = resolvedPhase.value;
+};
+
+const handleLiffPrimaryRedirect = async () => {
+  state.value = 'loading';
+  debugState.mountedAction = 'primary_liff_init';
+  debugState.mountedLiffInitStarted = 'true';
+  debugState.mountedLiffInitFinished = '';
+  debugState.mountedSecondaryRedirectExpected = 'true';
+  debugState.skippedResolveBecausePrimaryRedirect = 'true';
+  debugState.nextActionCallLiffInit = 'true';
+  debugState.nextActionCallGetIdToken = 'false';
+  debugState.nextActionCallConfirmApi = 'false';
+  debugState.nextActionCallLiffLogin = 'false';
+  syncMountedDebugState();
+
+  try {
+    await initLineLiff(config.public.liffId, {
+      onInitState: (value) => {
+        debugState.liffInitState = value;
+      },
+      onStep: (value) => {
+        debugState.lastStep = value;
+      },
+    });
+    debugState.mountedLiffInitFinished = 'true';
+  } catch (error) {
+    debugState.mountedLiffInitFinished = 'failed';
+    debugState.lastErrorCode = errorCode(error) ?? 'UNKNOWN_ERROR';
+    state.value = 'error';
+    message.value = 'LIFF 初始化失敗，請關閉後重新從 LINE 開啟。';
+    return;
+  }
+
+  const candidateToken = normalizeLineOrderGateTokenValue(token.value);
+  if (!candidateToken) {
+    state.value = 'invalid';
+    debugState.lastStep = 'primary_missing_token';
+    debugState.lastErrorCode = 'TOKEN_MISSING';
+    return;
+  }
+
+  try {
+    const target = buildOrderGateUrl(candidateToken, debugEnabled.value, statusOrigin());
+    debugState.mountedManualSecondaryRedirectTarget = target;
+    debugState.mountedManualSecondaryRedirectReason =
+      'liff_init_finished_without_secondary_redirect';
+    debugState.beforeLocationAssign = 'true';
+    debugState.locationAssignTarget = target;
+    window.location.replace(target);
+  } catch (error) {
+    state.value = 'invalid';
+    debugState.lastStep = 'primary_secondary_redirect_error';
+    debugState.lastErrorCode = error instanceof Error ? error.message : 'TOKEN_INVALID';
+  }
 };
 
 const resolveToken = async () => {
@@ -661,6 +771,13 @@ const handleBindClick = async (event?: Event) => {
 onMounted(() => {
   currentUrl.value = window.location.href;
   restoreClickDebug();
+  syncMountedDebugState();
+  if (isLiffPrimaryRedirect.value) {
+    void handleLiffPrimaryRedirect();
+    return;
+  }
+  debugState.mountedAction = 'resolve_token';
+  debugState.skippedResolveBecausePrimaryRedirect = 'false';
   void resolveToken();
 });
 </script>
@@ -691,7 +808,7 @@ onMounted(() => {
           v-if="state === 'loading'"
           class="flex items-center justify-center gap-3 py-10 text-muted-foreground"
         >
-          <Spinner /> 正在確認綁定連結…
+          <Spinner /> {{ loadingDescription }}
         </div>
 
         <template v-else-if="state === 'pending'">

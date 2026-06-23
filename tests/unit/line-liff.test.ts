@@ -4,6 +4,7 @@ import {
   buildLineLiffLoginRedirectUri,
   extractLiffTokensFromHash,
   getLineLiffTokens,
+  initLineLiff,
 } from '../../app/utils/line-liff';
 import { extractLineOrderGateToken } from '../../app/utils/line-order-gate-token';
 
@@ -133,6 +134,75 @@ describe('LINE LIFF login redirect', () => {
       'before_get_id_token',
       'after_get_id_token',
     ]);
+  });
+
+  it('can initialize LIFF for the primary redirect without login or token lookup work', async () => {
+    const calls: string[] = [];
+    const initStates: string[] = [];
+    let loginCalled = false;
+    const liff = await initLineLiff(
+      'liff-id',
+      {
+        onInitState: (value) => initStates.push(value),
+        onStep: (value) => calls.push(value),
+      },
+      {
+        loadLiff: async () => ({
+          getAccessToken: () => null,
+          getIDToken: () => null,
+          init: async () => {
+            calls.push('init-called');
+          },
+          isLoggedIn: () => {
+            calls.push('is-logged-in-called');
+            return false;
+          },
+          login: () => {
+            loginCalled = true;
+          },
+        }),
+      },
+    );
+
+    expect(liff).toBeTruthy();
+    expect(loginCalled).toBe(false);
+    expect(initStates).toEqual(['initializing', 'initialized']);
+    expect(calls).toEqual([
+      'before_liff_import',
+      'before_liff_init',
+      'init-called',
+      'after_liff_init',
+    ]);
+  });
+
+  it('reports primary redirect LIFF init failure without calling login', async () => {
+    const initStates: string[] = [];
+    let loginCalled = false;
+
+    await expect(
+      initLineLiff(
+        'liff-id',
+        {
+          onInitState: (value) => initStates.push(value),
+        },
+        {
+          loadLiff: async () => ({
+            getAccessToken: () => null,
+            getIDToken: () => null,
+            init: async () => {
+              throw new Error('init failed');
+            },
+            isLoggedIn: () => true,
+            login: () => {
+              loginCalled = true;
+            },
+          }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'LIFF_INIT_FAILED' });
+
+    expect(initStates).toEqual(['initializing', 'failed']);
+    expect(loginCalled).toBe(false);
   });
 
   it('calls login only when LIFF is not logged in and preserves the resolved token', async () => {

@@ -1,13 +1,13 @@
 import { normalizeLineOrderGateTokenValue } from './line-order-gate-token';
 
-interface LineLiffDebugHooks {
+export interface LineLiffDebugHooks {
   onInitState?: (state: string) => void;
   onIsLoggedIn?: (isLoggedIn: boolean) => void;
   onLoginRedirectUri?: (redirectUri: string) => void;
   onStep?: (step: string) => void;
 }
 
-interface LineLiffClient {
+export interface LineLiffClient {
   getAccessToken: () => string | null;
   getIDToken: () => string | null;
   init: (options: { liffId: string }) => Promise<void>;
@@ -20,6 +20,10 @@ interface LineLiffTokenOptions {
   hasLiffHashTokens?: boolean;
   loadLiff?: () => Promise<LineLiffClient>;
   redirectOrigin?: string;
+}
+
+interface LineLiffInitOptions {
+  loadLiff?: () => Promise<LineLiffClient>;
 }
 
 export interface LineLiffTokens {
@@ -66,16 +70,13 @@ export const buildLineLiffLoginRedirectUri = (
   options: { debug?: boolean } = {},
 ) => buildOrderGateUrl(token, Boolean(options.debug), origin);
 
-export const getLineLiffTokens = async (
+export const initLineLiff = async (
   liffId: string,
-  token: string,
   debugHooks: LineLiffDebugHooks = {},
-  options: LineLiffTokenOptions = {},
+  options: LineLiffInitOptions = {},
 ) => {
   const normalizedLiffId = liffId.trim();
   if (!normalizedLiffId) throw new Error('LIFF ID 尚未設定，請聯絡店家。');
-  const normalizedToken = normalizeLineOrderGateTokenValue(token);
-  if (!normalizedToken) throw new Error('LINE 綁定連結缺少 token，請重新掃描 QR Code。');
 
   debugHooks.onStep?.('before_liff_import');
   const liff =
@@ -95,6 +96,23 @@ export const getLineLiffTokens = async (
   }
   debugHooks.onStep?.('after_liff_init');
   debugHooks.onInitState?.('initialized');
+  return liff;
+};
+
+export const getLineLiffTokens = async (
+  liffId: string,
+  token: string,
+  debugHooks: LineLiffDebugHooks = {},
+  options: LineLiffTokenOptions = {},
+) => {
+  const normalizedLiffId = liffId.trim();
+  if (!normalizedLiffId) throw new Error('LIFF ID 尚未設定，請聯絡店家。');
+  const normalizedToken = normalizeLineOrderGateTokenValue(token);
+  if (!normalizedToken) throw new Error('LINE 綁定連結缺少 token，請重新掃描 QR Code。');
+
+  const liff = await initLineLiff(normalizedLiffId, debugHooks, {
+    loadLiff: options.loadLiff,
+  });
 
   debugHooks.onStep?.('before_is_logged_in');
   const isLoggedIn = liff.isLoggedIn();
