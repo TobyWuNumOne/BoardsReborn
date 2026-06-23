@@ -78,9 +78,17 @@ export const getLineLiffTokens = async (
       : ((await import('@line/liff')).default as LineLiffClient);
   debugHooks.onStep?.('before_liff_init');
   debugHooks.onInitState?.('initializing');
-  await liff.init({ liffId: normalizedLiffId });
+  try {
+    await liff.init({ liffId: normalizedLiffId });
+  } catch (error) {
+    debugHooks.onInitState?.('failed');
+    throw createLineLiffError(
+      'LIFF_INIT_FAILED',
+      error instanceof Error ? error.message : 'LIFF 初始化失敗，請重新開啟此頁。',
+    );
+  }
   debugHooks.onStep?.('after_liff_init');
-  debugHooks.onInitState?.('success');
+  debugHooks.onInitState?.('initialized');
 
   debugHooks.onStep?.('before_is_logged_in');
   const isLoggedIn = liff.isLoggedIn();
@@ -110,7 +118,12 @@ export const getLineLiffTokens = async (
 
   debugHooks.onStep?.('before_get_id_token');
   const idToken = liff.getIDToken();
-  if (!idToken) throw new Error('無法取得 LINE 登入資訊，請使用 LINE 重新開啟。');
+  if (!idToken) {
+    throw createLineLiffError(
+      'LIFF_ID_TOKEN_MISSING',
+      '無法取得 LINE 登入資訊，請使用 LINE 重新開啟。',
+    );
+  }
   debugHooks.onStep?.('after_get_id_token');
 
   return {

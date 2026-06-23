@@ -90,11 +90,13 @@ describe('LINE LIFF login redirect', () => {
 
   it('does not call login when LIFF is already logged in', async () => {
     const calls: string[] = [];
+    const initStates: string[] = [];
     let loginCalledWith = '';
     const tokens = await getLineLiffTokens(
       'liff-id',
       'resolved-token',
       {
+        onInitState: (value) => initStates.push(value),
         onIsLoggedIn: (value) => calls.push(`logged-in:${value}`),
         onStep: (value) => calls.push(value),
       },
@@ -116,6 +118,7 @@ describe('LINE LIFF login redirect', () => {
 
     expect(tokens).toEqual({ accessToken: 'access-token', idToken: 'id-token' });
     expect(loginCalledWith).toBe('');
+    expect(initStates).toEqual(['initializing', 'initialized']);
     expect(calls).toEqual([
       'before_liff_import',
       'before_liff_init',
@@ -219,5 +222,63 @@ describe('LINE LIFF login redirect', () => {
       ),
     ).rejects.toThrow('LINE 綁定連結缺少 token');
     expect(loadCalled).toBe(false);
+  });
+
+  it('reports LIFF init failure without calling login', async () => {
+    const initStates: string[] = [];
+    let loginCalled = false;
+
+    await expect(
+      getLineLiffTokens(
+        'liff-id',
+        'resolved-token',
+        {
+          onInitState: (value) => initStates.push(value),
+        },
+        {
+          loadLiff: async () => ({
+            getAccessToken: () => null,
+            getIDToken: () => null,
+            init: async () => {
+              throw new Error('init failed');
+            },
+            isLoggedIn: () => true,
+            login: () => {
+              loginCalled = true;
+            },
+          }),
+          redirectOrigin: 'https://status.surfboards-reborn.com',
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'LIFF_INIT_FAILED' });
+
+    expect(initStates).toEqual(['initializing', 'failed']);
+    expect(loginCalled).toBe(false);
+  });
+
+  it('reports missing LIFF ID token after logged-in SDK state', async () => {
+    let loginCalled = false;
+
+    await expect(
+      getLineLiffTokens(
+        'liff-id',
+        'resolved-token',
+        {},
+        {
+          loadLiff: async () => ({
+            getAccessToken: () => 'access-token',
+            getIDToken: () => null,
+            init: async () => undefined,
+            isLoggedIn: () => true,
+            login: () => {
+              loginCalled = true;
+            },
+          }),
+          redirectOrigin: 'https://status.surfboards-reborn.com',
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'LIFF_ID_TOKEN_MISSING' });
+
+    expect(loginCalled).toBe(false);
   });
 });

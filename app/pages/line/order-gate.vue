@@ -430,12 +430,36 @@ const resolveToken = async () => {
   }
 };
 
-const bindLine = async () => {
+const canUseDebugHashTokenFallback = (code: string | null, hashTokens: Partial<LineLiffTokens>) =>
+  debugEnabled.value &&
+  Boolean(hashTokens.idToken) &&
+  (code === 'LIFF_ID_TOKEN_MISSING' || code === 'LIFF_LOGGED_IN_MISMATCH');
+
+const confirmWithDebugHashTokenFallback = async (
+  bindToken: string,
+  hashTokens: Partial<LineLiffTokens>,
+) => {
+  if (!hashTokens.idToken) return false;
+  debugState.usedHashIdTokenFallback = 'true';
+  debugState.nextActionCallLiffInit = 'attempted';
+  debugState.nextActionCallLiffLogin = 'false';
+  debugState.nextActionCallGetIdToken = 'failed';
+  debugState.nextActionCallConfirmApi = 'true';
+  debugState.lastStep = 'before_hash_id_token_confirm';
+  persistClickDebug();
+  await confirmLineBinding(bindToken, {
+    idToken: hashTokens.idToken,
+    ...(hashTokens.accessToken ? { accessToken: hashTokens.accessToken } : {}),
+  });
+  return true;
+};
+
+const handleBindClick = async () => {
+  debugState.bindClickStarted = true;
   isBinding.value = true;
   message.value = '';
   debugState.beforeLiffLogin = '';
   debugState.bindClickDryRun = String(dryRunEnabled.value);
-  debugState.bindClickStarted = true;
   debugState.confirmApiCalled = false;
   debugState.confirmApiErrorCode = '';
   debugState.confirmApiStatus = '';
@@ -455,6 +479,12 @@ const bindLine = async () => {
     debugState.bindClickTokenPreview = previewToken(bindToken);
     debugState.hasHashAccessToken = hashTokens.accessToken ? 'true' : 'false';
     debugState.hasHashIdToken = hashTokens.idToken ? 'true' : 'false';
+    debugState.nextActionCallLiffInit = 'true';
+    debugState.nextActionCallGetIdToken = 'true';
+    debugState.nextActionCallConfirmApi = 'after_get_id_token';
+    debugState.nextActionCallLiffLogin = hasLiffHashTokens.value
+      ? 'false'
+      : 'possible_after_liff_init';
     persistClickDebug();
     if (!bindToken) {
       state.value = 'invalid';
@@ -467,21 +497,7 @@ const bindLine = async () => {
     debugState.loginRedirectUri = buildLineLiffLoginRedirectUri(bindToken, statusOrigin(), {
       debug: debugEnabled.value,
     });
-    if (hashTokens.idToken) {
-      debugState.usedHashIdTokenFallback = 'true';
-      debugState.nextActionCallLiffInit = 'false';
-      debugState.nextActionCallLiffLogin = 'false';
-      debugState.nextActionCallGetIdToken = 'false';
-      debugState.nextActionCallConfirmApi = 'true';
-    } else {
-      debugState.usedHashIdTokenFallback = 'false';
-      debugState.nextActionCallLiffInit = 'true';
-      debugState.nextActionCallLiffLogin = hasLiffHashTokens.value
-        ? 'false'
-        : 'possible_after_liff_init';
-      debugState.nextActionCallGetIdToken = 'possible_after_liff_init';
-      debugState.nextActionCallConfirmApi = 'possible_after_get_id_token';
-    }
+    debugState.usedHashIdTokenFallback = 'false';
     persistClickDebug();
 
     if (dryRunEnabled.value) {
@@ -490,57 +506,58 @@ const bindLine = async () => {
       return;
     }
 
-    if (hashTokens.idToken) {
-      debugState.lastStep = 'before_hash_id_token_confirm';
-      persistClickDebug();
-      await confirmLineBinding(bindToken, {
-        idToken: hashTokens.idToken,
-        ...(hashTokens.accessToken ? { accessToken: hashTokens.accessToken } : {}),
-      });
-      return;
-    }
-
-    const tokens = await getLineLiffTokens(
-      config.public.liffId,
-      bindToken,
-      debugEnabled.value
-        ? {
-            onInitState: (value) => {
-              debugState.liffInitState = value;
-              persistClickDebug();
-            },
-            onIsLoggedIn: (value) => {
-              debugState.isLoggedIn = String(value);
-              debugState.nextActionCallLiffInit = 'true';
-              debugState.nextActionCallLiffLogin = value ? 'false' : 'true';
-              debugState.nextActionCallGetIdToken = value ? 'true' : 'false';
-              debugState.nextActionCallConfirmApi = value ? 'after_get_id_token' : 'false';
-              if (!value && (hasLiffHashAccessToken.value || hasLiffHashIdToken.value)) {
-                debugState.lastErrorCode = 'LIFF_LOGGED_IN_MISMATCH';
+    let tokens: LineLiffTokens | null = null;
+    try {
+      tokens = await getLineLiffTokens(
+        config.public.liffId,
+        bindToken,
+        debugEnabled.value
+          ? {
+              onInitState: (value) => {
+                debugState.liffInitState = value;
+                persistClickDebug();
+              },
+              onIsLoggedIn: (value) => {
+                debugState.isLoggedIn = String(value);
                 debugState.nextActionCallLiffInit = 'true';
-                debugState.nextActionCallLiffLogin = 'false';
-                debugState.nextActionCallGetIdToken = 'false';
-                debugState.nextActionCallConfirmApi = 'false';
-              }
-              persistClickDebug();
-            },
-            onLoginRedirectUri: (value) => {
-              debugState.loginRedirectUri = value;
-              persistClickDebug();
-            },
-            onStep: (value) => {
-              debugState.lastStep = value;
-              if (value === 'before_liff_login') debugState.beforeLiffLogin = 'true';
-              persistClickDebug({ beforeLiffLogin: debugState.beforeLiffLogin });
-            },
-          }
-        : {},
-      {
-        debug: debugEnabled.value,
-        hasLiffHashTokens: hasLiffHashTokens.value,
-        redirectOrigin: statusOrigin(),
-      },
-    );
+                debugState.nextActionCallLiffLogin = value ? 'false' : 'true';
+                debugState.nextActionCallGetIdToken = value ? 'true' : 'false';
+                debugState.nextActionCallConfirmApi = value ? 'after_get_id_token' : 'false';
+                if (!value && (hasLiffHashAccessToken.value || hasLiffHashIdToken.value)) {
+                  debugState.lastErrorCode = 'LIFF_LOGGED_IN_MISMATCH';
+                  debugState.nextActionCallLiffInit = 'true';
+                  debugState.nextActionCallLiffLogin = 'false';
+                  debugState.nextActionCallGetIdToken = 'false';
+                  debugState.nextActionCallConfirmApi = 'false';
+                }
+                persistClickDebug();
+              },
+              onLoginRedirectUri: (value) => {
+                debugState.loginRedirectUri = value;
+                persistClickDebug();
+              },
+              onStep: (value) => {
+                debugState.lastStep = value;
+                if (value === 'before_liff_login') debugState.beforeLiffLogin = 'true';
+                persistClickDebug({ beforeLiffLogin: debugState.beforeLiffLogin });
+              },
+            }
+          : {},
+        {
+          debug: debugEnabled.value,
+          hasLiffHashTokens: hasLiffHashTokens.value,
+          redirectOrigin: statusOrigin(),
+        },
+      );
+    } catch (liffError) {
+      const code = errorCode(liffError);
+      debugState.lastErrorCode = code ?? 'UNKNOWN_ERROR';
+      if (canUseDebugHashTokenFallback(code, hashTokens)) {
+        const handled = await confirmWithDebugHashTokenFallback(bindToken, hashTokens);
+        if (handled) return;
+      }
+      throw liffError;
+    }
     if (!tokens) return;
     await confirmLineBinding(bindToken, tokens);
   } catch (error) {
@@ -554,8 +571,13 @@ const bindLine = async () => {
     else if (code === 'LINE_PLATFORM_UNAVAILABLE') state.value = 'platform_error';
     else if (code === 'LINE_ID_TOKEN_INVALID' || code === 'LINE_ACCESS_TOKEN_INVALID')
       state.value = 'platform_error';
-    else if (code === 'LIFF_LOGGED_IN_MISMATCH') state.value = 'platform_error';
-    else if (code === 'TOKEN_EXPIRED') state.value = 'expired';
+    else if (code === 'LIFF_INIT_FAILED') {
+      state.value = 'error';
+      message.value = 'LIFF 初始化失敗，請關閉後重新從 LINE 開啟。';
+    } else if (code === 'LIFF_ID_TOKEN_MISSING' || code === 'LIFF_LOGGED_IN_MISMATCH') {
+      state.value = 'error';
+      message.value = '綁定流程未啟動，請關閉後重新從 LINE 開啟。';
+    } else if (code === 'TOKEN_EXPIRED') state.value = 'expired';
     else if (code === 'TOKEN_REVOKED') state.value = 'revoked';
     else if (code === 'TOKEN_USED') state.value = 'used';
     else if (code === 'TOKEN_INVALID') state.value = 'invalid';
@@ -611,7 +633,12 @@ onMounted(() => {
               >加入並綁定官方 LINE，後續完工通知會透過 LINE 傳送。</AlertDescription
             ></Alert
           >
-          <Button class="h-12 w-full text-base" :disabled="isBinding" @click="bindLine">
+          <Button
+            type="button"
+            class="h-12 w-full text-base"
+            :disabled="isBinding"
+            @click="handleBindClick"
+          >
             <Spinner v-if="isBinding" />{{ isBinding ? '正在連接 LINE…' : '綁定 LINE 接收通知' }}
           </Button>
         </template>

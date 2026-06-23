@@ -16,6 +16,8 @@ describe('LINE order gate UI contract', () => {
       '已完成 LINE 綁定',
       '請聯絡店家協助解除舊綁定並重新發卡',
       'LINE 服務暫時無法使用',
+      '綁定流程未啟動',
+      'LIFF 初始化失敗',
       '查詢維修進度',
       '仍需輸入工單號與完整手機號碼',
       'LINE debug',
@@ -78,9 +80,15 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('extractLiffTokensFromHash(window.location.hash)');
     expect(pageSource).toContain('config.public.liffId');
     expect(pageSource).toContain('resolvedToken.value');
+    expect(pageSource).toContain('const handleBindClick = async () =>');
+    expect(pageSource).toContain('debugState.bindClickStarted = true');
+    expect(pageSource).toContain('@click="handleBindClick"');
+    expect(pageSource).toContain('type="button"');
     expect(pageSource).toContain('bind_missing_resolved_token');
     expect(pageSource).toContain('before_hash_id_token_confirm');
+    expect(pageSource).toContain('canUseDebugHashTokenFallback');
     expect(pageSource).toContain('confirmLineBinding(bindToken');
+    expect(pageSource).toContain('body: { token: bindToken, ...tokens }');
     expect(pageSource).toContain('dry_run_ready');
     expect(pageSource).toContain('dryRunEnabled.value');
     expect(pageSource).toContain('debugVisible');
@@ -104,6 +112,8 @@ describe('LINE order gate UI contract', () => {
       'before_confirm_api',
       'after_confirm_api',
       'LIFF_LOGGED_IN_MISMATCH',
+      'LIFF_ID_TOKEN_MISSING',
+      'LIFF_INIT_FAILED',
       'MISSING_RESOLVED_TOKEN',
       'access_token',
       'id_token',
@@ -145,18 +155,26 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).not.toContain('?t=');
   });
 
-  it('prefers the transient LIFF hash id token before initializing the LIFF SDK', () => {
-    const hashBranchIndex = pageSource.indexOf('if (hashTokens.idToken)');
-    const hashConfirmIndex = pageSource.indexOf('confirmLineBinding(bindToken', hashBranchIndex);
-    const sdkFlowIndex = pageSource.indexOf('getLineLiffTokens(', hashBranchIndex);
+  it('uses the resolved token for binding and only falls back to hash id token after SDK token failure in debug mode', () => {
+    const bindTokenIndex = pageSource.indexOf(
+      'const bindToken = normalizeLineOrderGateTokenValue(resolvedToken.value)',
+    );
+    const sdkFlowIndex = pageSource.indexOf('getLineLiffTokens(', bindTokenIndex);
+    const fallbackGuardIndex = pageSource.indexOf('canUseDebugHashTokenFallback');
+    const fallbackConfirmIndex = pageSource.indexOf(
+      'confirmWithDebugHashTokenFallback(bindToken, hashTokens)',
+      sdkFlowIndex,
+    );
 
-    expect(hashBranchIndex).toBeGreaterThan(-1);
-    expect(hashConfirmIndex).toBeGreaterThan(hashBranchIndex);
-    expect(sdkFlowIndex).toBeGreaterThan(hashConfirmIndex);
-    expect(pageSource).toContain("debugState.nextActionCallLiffInit = 'false'");
-    expect(pageSource).toContain("debugState.nextActionCallLiffLogin = 'false'");
-    expect(pageSource).toContain("debugState.nextActionCallGetIdToken = 'false'");
-    expect(pageSource).toContain("debugState.nextActionCallConfirmApi = 'true'");
+    expect(bindTokenIndex).toBeGreaterThan(-1);
+    expect(sdkFlowIndex).toBeGreaterThan(bindTokenIndex);
+    expect(fallbackGuardIndex).toBeGreaterThan(-1);
+    expect(fallbackConfirmIndex).toBeGreaterThan(sdkFlowIndex);
+    expect(pageSource).toContain('debugEnabled.value &&');
+    expect(pageSource).toContain("code === 'LIFF_ID_TOKEN_MISSING'");
+    expect(pageSource).toContain("code === 'LIFF_LOGGED_IN_MISMATCH'");
+    expect(pageSource).toContain("debugState.nextActionCallLiffInit = 'attempted'");
+    expect(pageSource).toContain("debugState.nextActionCallGetIdToken = 'failed'");
     expect(pageSource).not.toContain('line_user_id');
     expect(pageSource).not.toContain('getProfile');
   });
