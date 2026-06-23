@@ -67,12 +67,32 @@ describe('LINE bind token cryptography', () => {
     });
     const token = deriveLineBindPlaintextToken(TOKEN_ID, SECRET);
 
-    const expectedUrl = `https://liff.line.me/1234567890-test/line/order-gate?t=${token}`;
+    const expectedUrl = `https://liff.line.me/1234567890-test/?t=${token}`;
     expect(buildLineBindLiffUrl(config.liffId, token)).toBe(expectedUrl);
+    expect(expectedUrl).not.toContain('/line/order-gate');
     expect(rebuildLineBindLiffUrl(TOKEN_ID, config)).toEqual({
       plaintextToken: token,
       url: expectedUrl,
     });
+  });
+
+  it('does not duplicate the LINE Developers endpoint path in the LIFF additional path', () => {
+    const liffId = '1234567890-test';
+    const token = deriveLineBindPlaintextToken(TOKEN_ID, SECRET);
+    const liffUrl = new URL(buildLineBindLiffUrl(liffId, token));
+    const liffAdditionalPath = liffUrl.pathname.replace(`/${liffId}`, '') || '/';
+    const endpointUrl = new URL('https://status.surfboards-reborn.com/line/order-gate');
+    const secondaryRedirect = new URL(
+      `${endpointUrl.pathname}${liffAdditionalPath}`.replace(/\/+$/, ''),
+      endpointUrl.origin,
+    );
+    secondaryRedirect.search = liffUrl.search;
+
+    expect(liffAdditionalPath).toBe('/');
+    expect(secondaryRedirect.toString()).toBe(
+      `https://status.surfboards-reborn.com/line/order-gate?t=${token}`,
+    );
+    expect(secondaryRedirect.pathname).not.toContain('/line/order-gate/line/order-gate');
   });
 });
 
