@@ -29,14 +29,18 @@ describe('LINE order gate UI contract', () => {
       'bindClickTokenPreview',
       'bindClickDebugEnabled',
       'beforeLiffLogin',
+      'hasHashAccessToken',
+      'hasHashIdToken',
       'hasLiffHashAccessToken',
       'hasLiffHashIdToken',
+      'usedHashIdTokenFallback',
       'liffInitState',
       'computed loginRedirectUri',
       'loginRedirectUriHasTokenValue',
       'loginRedirectUriHost',
       'loginRedirectUriPath',
       'loginRedirectUriSearchKeys',
+      'nextAction.callLiffInit',
       'nextAction.callLiffLogin',
       'nextAction.callGetIDToken',
       'nextAction.callConfirmAPI',
@@ -71,9 +75,12 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).not.toContain('sessionStorage');
     expect(liffSource).not.toContain('getProfile');
     expect(pageSource).toContain('getLineLiffTokens(');
+    expect(pageSource).toContain('extractLiffTokensFromHash(window.location.hash)');
     expect(pageSource).toContain('config.public.liffId');
     expect(pageSource).toContain('resolvedToken.value');
     expect(pageSource).toContain('bind_missing_resolved_token');
+    expect(pageSource).toContain('before_hash_id_token_confirm');
+    expect(pageSource).toContain('confirmLineBinding(bindToken');
     expect(pageSource).toContain('dry_run_ready');
     expect(pageSource).toContain('dryRunEnabled.value');
     expect(pageSource).toContain('debugVisible');
@@ -115,7 +122,9 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('lastClick.');
     expect(pageSource).toContain('nextActionCallLiffLogin');
     expect(pageSource).toContain('nextActionCallGetIdToken');
+    expect(pageSource).toContain('nextActionCallLiffInit');
     expect(pageSource).toContain('nextActionCallConfirmApi');
+    expect(pageSource).toContain('usedHashIdTokenFallback');
     expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, bindToken');
     expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, token');
     expect(pageSource).not.toContain('sessionStorage.setItem(clickDebugStorageKey, idToken');
@@ -134,5 +143,21 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).not.toContain('liff.login()');
     expect(liffSource).not.toContain('?t`');
     expect(liffSource).not.toContain('?t=');
+  });
+
+  it('prefers the transient LIFF hash id token before initializing the LIFF SDK', () => {
+    const hashBranchIndex = pageSource.indexOf('if (hashTokens.idToken)');
+    const hashConfirmIndex = pageSource.indexOf('confirmLineBinding(bindToken', hashBranchIndex);
+    const sdkFlowIndex = pageSource.indexOf('getLineLiffTokens(', hashBranchIndex);
+
+    expect(hashBranchIndex).toBeGreaterThan(-1);
+    expect(hashConfirmIndex).toBeGreaterThan(hashBranchIndex);
+    expect(sdkFlowIndex).toBeGreaterThan(hashConfirmIndex);
+    expect(pageSource).toContain("debugState.nextActionCallLiffInit = 'false'");
+    expect(pageSource).toContain("debugState.nextActionCallLiffLogin = 'false'");
+    expect(pageSource).toContain("debugState.nextActionCallGetIdToken = 'false'");
+    expect(pageSource).toContain("debugState.nextActionCallConfirmApi = 'true'");
+    expect(pageSource).not.toContain('line_user_id');
+    expect(pageSource).not.toContain('getProfile');
   });
 });

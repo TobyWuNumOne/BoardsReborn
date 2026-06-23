@@ -1,8 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { buildLineLiffLoginRedirectUri, getLineLiffTokens } from '../../app/utils/line-liff';
+import {
+  buildLineLiffLoginRedirectUri,
+  extractLiffTokensFromHash,
+  getLineLiffTokens,
+} from '../../app/utils/line-liff';
 import { extractLineOrderGateToken } from '../../app/utils/line-order-gate-token';
 
 describe('LINE LIFF login redirect', () => {
+  it('extracts LIFF id and access tokens from the URL hash', () => {
+    expect(extractLiffTokensFromHash('#access_token=access-token&id_token=id-token')).toEqual({
+      accessToken: 'access-token',
+      idToken: 'id-token',
+    });
+    expect(extractLiffTokensFromHash('#/access_token=access-token&id_token=id-token')).toEqual({
+      accessToken: 'access-token',
+      idToken: 'id-token',
+    });
+  });
+
+  it('does not extract LINE profile or user id details from the URL hash', () => {
+    expect(
+      extractLiffTokensFromHash(
+        '#access_token=access-token&id_token=id-token&line_user_id=user-id&displayName=Customer',
+      ),
+    ).toEqual({
+      accessToken: 'access-token',
+      idToken: 'id-token',
+    });
+  });
+
   it('builds an absolute canonical order-gate redirect URI from the current origin', () => {
     const redirectUri = buildLineLiffLoginRedirectUri(
       'bind-token',

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { AlertCircleIcon, CheckCircle2Icon, ExternalLinkIcon, WavesIcon } from 'lucide-vue-next';
-import { buildLineLiffLoginRedirectUri, getLineLiffTokens } from '~/utils/line-liff';
+import {
+  buildLineLiffLoginRedirectUri,
+  extractLiffTokensFromHash,
+  getLineLiffTokens,
+  type LineLiffTokens,
+} from '~/utils/line-liff';
 import {
   getLineOrderGateTokenInfo,
   normalizeLineOrderGateTokenValue,
@@ -52,14 +57,18 @@ const debugState = reactive({
   confirmApiCalled: false,
   confirmApiErrorCode: '',
   confirmApiStatus: '',
+  hasHashAccessToken: '',
+  hasHashIdToken: '',
   isLoggedIn: '',
   lastErrorCode: '',
   lastStep: 'created',
   liffInitState: 'not_started',
   loginRedirectUri: '',
   nextActionCallConfirmApi: '',
+  nextActionCallLiffInit: '',
   nextActionCallGetIdToken: '',
   nextActionCallLiffLogin: '',
+  usedHashIdTokenFallback: '',
 });
 
 useHead({
@@ -289,8 +298,11 @@ const debugRows = computed(() => [
   ['bindClickTokenPreview', debugState.bindClickTokenPreview],
   ['bindClickDebugEnabled', debugState.bindClickDebugEnabled],
   ['beforeLiffLogin', debugState.beforeLiffLogin],
+  ['hasHashAccessToken', debugState.hasHashAccessToken],
+  ['hasHashIdToken', debugState.hasHashIdToken],
   ['hasLiffHashAccessToken', String(hasLiffHashAccessToken.value)],
   ['hasLiffHashIdToken', String(hasLiffHashIdToken.value)],
+  ['usedHashIdTokenFallback', debugState.usedHashIdTokenFallback],
   ['liffInitState', debugState.liffInitState],
   ['isLoggedIn', debugState.isLoggedIn],
   ['computed loginRedirectUri', maskTokenInUrl(debugState.loginRedirectUri)],
@@ -298,6 +310,7 @@ const debugRows = computed(() => [
   ['loginRedirectUriHost', urlPart(debugState.loginRedirectUri, 'host')],
   ['loginRedirectUriPath', urlPart(debugState.loginRedirectUri, 'path')],
   ['loginRedirectUriSearchKeys', searchKeys(debugState.loginRedirectUri)],
+  ['nextAction.callLiffInit', debugState.nextActionCallLiffInit],
   ['nextAction.callLiffLogin', debugState.nextActionCallLiffLogin],
   ['nextAction.callGetIDToken', debugState.nextActionCallGetIdToken],
   ['nextAction.callConfirmAPI', debugState.nextActionCallConfirmApi],
@@ -323,6 +336,8 @@ const persistClickDebug = (extra: Record<string, string> = {}) => {
       bindClickTokenPreview: debugState.bindClickTokenPreview,
       computedLoginRedirectUriMasked: maskTokenInUrl(debugState.loginRedirectUri),
       confirmApiCalled: String(debugState.confirmApiCalled),
+      hasHashAccessToken: debugState.hasHashAccessToken,
+      hasHashIdToken: debugState.hasHashIdToken,
       hasLiffHashAccessToken: String(hasLiffHashAccessToken.value),
       hasLiffHashIdToken: String(hasLiffHashIdToken.value),
       isLoggedInBeforeLogin: debugState.isLoggedIn,
@@ -333,8 +348,10 @@ const persistClickDebug = (extra: Record<string, string> = {}) => {
       loginRedirectUriPath: urlPart(debugState.loginRedirectUri, 'path'),
       loginRedirectUriSearchKeys: searchKeys(debugState.loginRedirectUri),
       nextActionCallConfirmApi: debugState.nextActionCallConfirmApi,
+      nextActionCallLiffInit: debugState.nextActionCallLiffInit,
       nextActionCallGetIdToken: debugState.nextActionCallGetIdToken,
       nextActionCallLiffLogin: debugState.nextActionCallLiffLogin,
+      usedHashIdTokenFallback: debugState.usedHashIdTokenFallback,
       ...extra,
     };
     sessionStorage.setItem(clickDebugStorageKey, JSON.stringify(snapshot));
@@ -359,6 +376,29 @@ const restoreClickDebug = () => {
   } catch {
     lastClickDebugRows.value = [];
   }
+};
+
+const confirmLineBinding = async (bindToken: string, tokens: LineLiffTokens) => {
+  debugState.confirmApiCalled = true;
+  debugState.nextActionCallConfirmApi = 'true';
+  debugState.lastStep = 'before_confirm_api';
+  persistClickDebug();
+  const response = await $fetch<{
+    data: {
+      binding: { notificationStatus: string };
+      outcome: 'already_linked' | 'linked';
+      workOrder: { paperOrderNo: string };
+    };
+  }>('/api/public/line-bind/confirm', {
+    body: { token: bindToken, ...tokens },
+    method: 'POST',
+  });
+  debugState.confirmApiStatus = '200';
+  debugState.lastStep = 'after_confirm_api';
+  persistClickDebug();
+  summary.value = { boardType: summary.value?.boardType ?? '', ...response.data.workOrder };
+  notificationStatus.value = response.data.binding.notificationStatus;
+  state.value = response.data.outcome === 'already_linked' ? 'already_linked' : 'success';
 };
 
 const resolveToken = async () => {
@@ -402,14 +442,19 @@ const bindLine = async () => {
   debugState.lastErrorCode = '';
   debugState.lastStep = 'bind_start';
   debugState.nextActionCallConfirmApi = '';
+  debugState.nextActionCallLiffInit = '';
   debugState.nextActionCallGetIdToken = '';
   debugState.nextActionCallLiffLogin = '';
+  debugState.usedHashIdTokenFallback = '';
   try {
     const bindToken = normalizeLineOrderGateTokenValue(resolvedToken.value);
+    const hashTokens = extractLiffTokensFromHash(window.location.hash);
     debugState.bindClickDebugEnabled = String(debugEnabled.value);
     debugState.bindClickTokenExists = bindToken ? 'true' : 'false';
     debugState.bindClickTokenLength = String(bindToken.length);
     debugState.bindClickTokenPreview = previewToken(bindToken);
+    debugState.hasHashAccessToken = hashTokens.accessToken ? 'true' : 'false';
+    debugState.hasHashIdToken = hashTokens.idToken ? 'true' : 'false';
     persistClickDebug();
     if (!bindToken) {
       state.value = 'invalid';
@@ -422,18 +467,36 @@ const bindLine = async () => {
     debugState.loginRedirectUri = buildLineLiffLoginRedirectUri(bindToken, statusOrigin(), {
       debug: debugEnabled.value,
     });
-    debugState.nextActionCallLiffLogin = hasLiffHashTokens.value
-      ? 'false'
-      : 'possible_after_liff_init';
-    debugState.nextActionCallGetIdToken = hasLiffHashTokens.value
-      ? 'possible_after_liff_init'
-      : 'possible_after_liff_init';
-    debugState.nextActionCallConfirmApi = 'possible_after_get_id_token';
+    if (hashTokens.idToken) {
+      debugState.usedHashIdTokenFallback = 'true';
+      debugState.nextActionCallLiffInit = 'false';
+      debugState.nextActionCallLiffLogin = 'false';
+      debugState.nextActionCallGetIdToken = 'false';
+      debugState.nextActionCallConfirmApi = 'true';
+    } else {
+      debugState.usedHashIdTokenFallback = 'false';
+      debugState.nextActionCallLiffInit = 'true';
+      debugState.nextActionCallLiffLogin = hasLiffHashTokens.value
+        ? 'false'
+        : 'possible_after_liff_init';
+      debugState.nextActionCallGetIdToken = 'possible_after_liff_init';
+      debugState.nextActionCallConfirmApi = 'possible_after_get_id_token';
+    }
     persistClickDebug();
 
     if (dryRunEnabled.value) {
       debugState.lastStep = 'dry_run_ready';
       persistClickDebug({ lastStep: debugState.lastStep });
+      return;
+    }
+
+    if (hashTokens.idToken) {
+      debugState.lastStep = 'before_hash_id_token_confirm';
+      persistClickDebug();
+      await confirmLineBinding(bindToken, {
+        idToken: hashTokens.idToken,
+        ...(hashTokens.accessToken ? { accessToken: hashTokens.accessToken } : {}),
+      });
       return;
     }
 
@@ -448,11 +511,13 @@ const bindLine = async () => {
             },
             onIsLoggedIn: (value) => {
               debugState.isLoggedIn = String(value);
+              debugState.nextActionCallLiffInit = 'true';
               debugState.nextActionCallLiffLogin = value ? 'false' : 'true';
               debugState.nextActionCallGetIdToken = value ? 'true' : 'false';
               debugState.nextActionCallConfirmApi = value ? 'after_get_id_token' : 'false';
               if (!value && (hasLiffHashAccessToken.value || hasLiffHashIdToken.value)) {
                 debugState.lastErrorCode = 'LIFF_LOGGED_IN_MISMATCH';
+                debugState.nextActionCallLiffInit = 'true';
                 debugState.nextActionCallLiffLogin = 'false';
                 debugState.nextActionCallGetIdToken = 'false';
                 debugState.nextActionCallConfirmApi = 'false';
@@ -477,24 +542,7 @@ const bindLine = async () => {
       },
     );
     if (!tokens) return;
-    debugState.confirmApiCalled = true;
-    debugState.nextActionCallConfirmApi = 'true';
-    debugState.lastStep = 'before_confirm_api';
-    const response = await $fetch<{
-      data: {
-        binding: { notificationStatus: string };
-        outcome: 'already_linked' | 'linked';
-        workOrder: { paperOrderNo: string };
-      };
-    }>('/api/public/line-bind/confirm', {
-      body: { token: bindToken, ...tokens },
-      method: 'POST',
-    });
-    debugState.confirmApiStatus = '200';
-    debugState.lastStep = 'after_confirm_api';
-    summary.value = { boardType: summary.value?.boardType ?? '', ...response.data.workOrder };
-    notificationStatus.value = response.data.binding.notificationStatus;
-    state.value = response.data.outcome === 'already_linked' ? 'already_linked' : 'success';
+    await confirmLineBinding(bindToken, tokens);
   } catch (error) {
     const code = errorCode(error);
     debugState.lastErrorCode = code ?? 'UNKNOWN_ERROR';

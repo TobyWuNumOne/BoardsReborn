@@ -22,10 +22,29 @@ interface LineLiffTokenOptions {
   redirectOrigin?: string;
 }
 
+export interface LineLiffTokens {
+  accessToken?: string;
+  idToken: string;
+}
+
 const createLineLiffError = (code: string, message: string) => {
   const error = new Error(message) as Error & { code: string };
   error.code = code;
   return error;
+};
+
+export const extractLiffTokensFromHash = (hash: string): Partial<LineLiffTokens> => {
+  const normalizedHash = hash.trim().replace(/^#\/?/, '');
+  if (!normalizedHash) return {};
+
+  const params = new URLSearchParams(normalizedHash);
+  const idToken = params.get('id_token')?.trim() || undefined;
+  const accessToken = params.get('access_token')?.trim() || undefined;
+
+  return {
+    ...(accessToken ? { accessToken } : {}),
+    ...(idToken ? { idToken } : {}),
+  };
 };
 
 export const buildLineLiffLoginRedirectUri = (
