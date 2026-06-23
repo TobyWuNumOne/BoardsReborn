@@ -331,10 +331,11 @@ describe('public work-order lookup', () => {
   });
 
   it('keeps public repair shop info callable and board-specific', () => {
-    expect(PUBLIC_REPAIR_SHOP_INFO.phone).toBe('0936811575');
-    expect(PUBLIC_REPAIR_SHOP_INFO.phoneHref).toBe('tel:0936811575');
+    expect(PUBLIC_REPAIR_SHOP_INFO.officialLineHref).toBe('https://lin.ee/9KhX6kf');
+    expect(PUBLIC_REPAIR_SHOP_INFO.officialLineLabel).toBe('官方 LINE');
     expect(PUBLIC_REPAIR_SHOP_INFO.bankAccount).toBe('5425899016440');
-    expect(PUBLIC_REPAIR_NOTICE_ITEMS.join('\n')).toContain('電話預約時間取板');
+    expect(PUBLIC_REPAIR_NOTICE_ITEMS.join('\n')).toContain('官方 LINE');
+    expect(PUBLIC_REPAIR_NOTICE_ITEMS.join('\n')).not.toContain('電話預約');
 
     const surfboardInfo = getPublicBoardRepairInfo('SURFBOARD');
     expect(surfboardInfo.boardLabel).toBe('衝浪板');

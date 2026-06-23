@@ -12,12 +12,13 @@
 ## 目前快照
 
 - 最後更新：2026-06-22
-- 目前階段：Cloud-to-Physical Printing MVP 已完成；LINE 官方帳號串接 12 PR主線已完成。工單詳情可管理 LINE綁定並查看通知狀態；production Cron仍未啟用。
+- 目前階段：Cloud-to-Physical Printing MVP 已完成；LINE 官方帳號串接 12 PR主線已完成並進入release verification。Staging deploy、signed webhook、processor auth、負向job語意與Vault/Cron已驗證；authenticated admin、真實LIFF綁定及真實LINE push仍待人工驗收，production Cron未啟用。
 - 整體狀態：進行中
 - 現況摘要：
   - Minimal Nuxt app scaffold 已存在，包含 `app/`、`server/` 與 `tests/` 基本結構。
   - 基礎工具鏈已配置完成：pnpm、Nuxt、TypeScript、ESLint、Prettier、Vitest、`.env.example`。
   - LINE MVP 的產品、domain、API、frontend、printing、安全與環境變數設計基線已寫入文件；PR 1 至 PR 12 已實作，READY與建單收件 job enqueue及工單詳情 Admin UI均已完成。
+  - LINE release hardening結果記錄於 `docs/line-release-verification.md`：staging migrations同步、Vercel env補齊、production webhook active、staging follow/unfollow簽章E2E、processor 401/200、skipped/failed不寫`notified_at`及每分鐘Cron HTTP 200均已驗證。因缺少staging admin與真實LINE binding，登入後UI、真人LIFF與成功push仍是release blocker。
   - LINE schema foundation 已建立：`customer_line_accounts`、`line_bind_tokens`、`line_jobs`、三個 LINE enums、雙向 1:1 / pending token / dedupe / retry constraints、claim/reclaim/history indexes、admin-scoped RLS 與 service-role grants。這只代表資料層可用，不代表 LINE workflow 已上線。
   - status production domain 已允許 `/line/order-gate` 與其 query/hash 原地停留，不再被 domain middleware 導回 `/repair-status`；order-gate Vue page 已建立。
   - LINE bind token service 已建立 server-only HMAC / SHA-256 helpers、LIFF URL 重建、token 狀態解析與原子 issue / revoke RPC。DB 只保存 hash；Admin API 與 Public LIFF API 均已使用此服務。
@@ -96,7 +97,7 @@
 - Customer lookup flow：done。`POST /api/public/work-orders/lookup` 與 `/repair-status` 已建立，支援 server-generated progress 與 basic rate limit。
 - Production workflow 與部署硬化：pending。Staging Supabase / Vercel 基礎部署已完成；正式 production cutover、production Auth 設定與部署硬化尚未完成。
 - Cloud-to-Physical Printing MVP：done。雲端 Web 建立工單、建立 `print_job`、worker wake-up / claim、Raspberry Pi `/dev/usb/lp0` raw ESC/POS 實體列印、成功/失敗回報與 retry flow 已完成，已跨過「雲端系統控制現場硬體」的關鍵門檻。
-- LINE Official Account MVP：repo implementation done。PR 1 至 PR 12 已完成；production Cron尚未啟用，正式推播鏈路仍需部署後 smoke test。
+- LINE Official Account MVP：repo implementation done，release verification in progress。Staging自動驗證已完成；人工E2E與production Cron gate尚未完成。
 
 ## LINE MVP 12 PR 路線圖
 
