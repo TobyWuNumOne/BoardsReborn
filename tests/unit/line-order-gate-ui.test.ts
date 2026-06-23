@@ -36,9 +36,13 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).toContain('liff.login');
     expect(liffSource).toContain('liff.getIDToken');
     expect(liffSource).toContain('liff.getAccessToken');
+    expect(liffSource).toContain("new URL('/line/order-gate'");
+    expect(liffSource).toContain("url.searchParams.set('t'");
+    expect(liffSource).not.toContain('window.location.href');
     expect(liffSource).not.toContain('localStorage');
     expect(liffSource).not.toContain('sessionStorage');
     expect(liffSource).not.toContain('getProfile');
+    expect(pageSource).toContain('getLineLiffTokens(config.public.liffId, token.value)');
     expect(pageSource).not.toContain('lineUserId');
   });
 });

@@ -72,7 +72,7 @@ const bindLine = async () => {
   isBinding.value = true;
   message.value = '';
   try {
-    const tokens = await getLineLiffTokens(config.public.liffId);
+    const tokens = await getLineLiffTokens(config.public.liffId, token.value);
     if (!tokens) return;
     const response = await $fetch<{
       data: {
