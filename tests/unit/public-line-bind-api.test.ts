@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CustomerAlreadyBoundToOtherLineError,
   LineAlreadyBoundToOtherCustomerError,
@@ -13,6 +13,11 @@ import {
   parsePublicLineBindConfirmBody,
   parsePublicLineBindResolveBody,
 } from '../../server/utils/public-line-bindings';
+import { hashLineBindToken } from '../../server/utils/line-bind-tokens';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('public LINE binding validation and resolve', () => {
   it('keeps both public routes no-store and free of token logging', () => {
@@ -170,5 +175,48 @@ describe('public LINE binding confirm', () => {
       ),
     ).rejects.toThrow('verification failed');
     expect(rpcCalled).toBe(false);
+  });
+
+  it('logs sanitized RPC diagnostics without exposing LINE secrets or token values', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const plaintextToken = 'plaintext-token';
+    const tokenHash = hashLineBindToken(plaintextToken);
+    const sensitiveLineUserId = 'U1234567890abcdef1234567890abcdef';
+    const client = {
+      async rpc() {
+        return {
+          data: null,
+          error: {
+            code: '23514',
+            details: `constraint failed for ${sensitiveLineUserId} and Uabcdefabcdefabcdefabcdefabcdefabcdef`,
+            hint: `token hash ${tokenHash}`,
+            message: `bad token ${plaintextToken}`,
+          },
+        };
+      },
+    };
+
+    await expect(
+      confirmPublicLineBinding(
+        client as never,
+        { idToken: 'id-token', token: plaintextToken },
+        {
+          officialLineUrl: 'https://line.me/official',
+          verifyLineIdentity: async () => ({
+            ...lineIdentity,
+            lineUserId: sensitiveLineUserId,
+          }),
+        },
+      ),
+    ).rejects.toThrow(ValidationError);
+
+    expect(consoleError).toHaveBeenCalledOnce();
+    const serializedLog = JSON.stringify(consoleError.mock.calls[0]);
+    expect(serializedLog).toContain('LINE binding confirm RPC failed');
+    expect(serializedLog).toContain('[redacted]');
+    expect(serializedLog).toContain('[redacted-line-user]');
+    expect(serializedLog).not.toContain(plaintextToken);
+    expect(serializedLog).not.toContain(tokenHash);
+    expect(serializedLog).not.toContain(sensitiveLineUserId);
   });
 });

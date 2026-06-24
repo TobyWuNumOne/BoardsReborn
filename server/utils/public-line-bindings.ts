@@ -114,6 +114,41 @@ interface ConfirmDependencies {
   verifyLineIdentity: (input: { accessToken?: string; idToken: string }) => Promise<LineIdentity>;
 }
 
+const sanitizeDiagnosticValue = (value: unknown, redactions: string[]) => {
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+
+  let sanitized = value;
+  for (const redaction of redactions) {
+    if (redaction) sanitized = sanitized.split(redaction).join('[redacted]');
+  }
+
+  return sanitized.replace(/\bU[0-9a-f]{20,}\b/gi, '[redacted-line-user]').slice(0, 500);
+};
+
+const reportLineConfirmRpcError = (
+  error: unknown,
+  redactions: { lineUserId: string; plaintextToken: string; tokenHash: string },
+) => {
+  const supabaseError = error as {
+    code?: unknown;
+    details?: unknown;
+    hint?: unknown;
+    message?: unknown;
+  };
+  const valuesToRedact = [
+    redactions.plaintextToken,
+    redactions.tokenHash,
+    redactions.lineUserId,
+  ].filter(Boolean);
+
+  console.error('LINE binding confirm RPC failed', {
+    code: sanitizeDiagnosticValue(supabaseError.code, valuesToRedact),
+    details: sanitizeDiagnosticValue(supabaseError.details, valuesToRedact),
+    hint: sanitizeDiagnosticValue(supabaseError.hint, valuesToRedact),
+    message: sanitizeDiagnosticValue(supabaseError.message, valuesToRedact),
+  });
+};
+
 const assertResult = (value: unknown) => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new InternalServerError();
@@ -130,15 +165,23 @@ export const confirmPublicLineBinding = async (
     ...(input.accessToken ? { accessToken: input.accessToken } : {}),
     idToken: input.idToken,
   });
+  const tokenHash = hashLineBindToken(input.token);
   const { data, error } = await supabase.rpc('confirm_public_line_binding', {
     p_display_name: identity.displayName ?? undefined,
     p_friendship_checked: identity.friendship !== 'unknown',
     p_is_friend: identity.friendship === 'friend',
     p_line_user_id: identity.lineUserId,
     p_picture_url: identity.pictureUrl ?? undefined,
-    p_token_hash: hashLineBindToken(input.token),
+    p_token_hash: tokenHash,
   });
-  if (error) throwMappedSupabaseError(error);
+  if (error) {
+    reportLineConfirmRpcError(error, {
+      lineUserId: identity.lineUserId,
+      plaintextToken: input.token,
+      tokenHash,
+    });
+    throwMappedSupabaseError(error);
+  }
   const result = assertResult(data);
 
   switch (result.outcome) {
