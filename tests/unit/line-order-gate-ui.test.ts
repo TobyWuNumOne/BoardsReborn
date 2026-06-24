@@ -3,6 +3,10 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const pageSource = readFileSync(resolve(process.cwd(), 'app/pages/line/order-gate.vue'), 'utf8');
+const pathRouteSource = readFileSync(
+  resolve(process.cwd(), 'app/pages/line/order-gate/t/[...parts].vue'),
+  'utf8',
+);
 const liffSource = readFileSync(resolve(process.cwd(), 'app/utils/line-liff.ts'), 'utf8');
 
 describe('LINE order gate UI contract', () => {
@@ -250,6 +254,18 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('mountedManualSecondaryRedirectTarget');
     expect(liffSource).toContain('if (!normalizedToken) throw new Error');
     expect(liffSource).toContain("url.searchParams.set('t', normalizedToken)");
+  });
+
+  it('canonicalizes LINE secondary path-token URLs back to the main order-gate query URL', () => {
+    expect(pathRouteSource).toContain('normalizeLineOrderGateTokenValue(routeParts.value[0])');
+    expect(pathRouteSource).toContain("routeParts.value.includes('debug')");
+    expect(pathRouteSource).toContain(
+      'buildOrderGateUrl(token, debugEnabled.value, statusOrigin())',
+    );
+    expect(pathRouteSource).toContain("window.location.replace('/line/order-gate')");
+    expect(pathRouteSource).toContain('window.location.replace(buildOrderGateUrl');
+    expect(pathRouteSource).not.toContain("query: { t: ''");
+    expect(pathRouteSource).not.toContain('/line/order-gate?t');
   });
 
   it('keeps the bind action as a plain button without link or form navigation', () => {

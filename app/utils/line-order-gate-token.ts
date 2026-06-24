@@ -50,6 +50,13 @@ const readTokenFromSearch = (value: string) => {
   return params.get('t') ?? '';
 };
 
+const readTokenFromPath = (pathname: string) => {
+  const segments = pathname.split('/').filter(Boolean);
+  const tokenMarkerIndex = segments.findIndex((segment) => segment === 't');
+  if (tokenMarkerIndex < 0) return '';
+  return decodeCandidate(segments[tokenMarkerIndex + 1] ?? '').trim();
+};
+
 const readTokenFromUrlCandidate = (
   candidate: string,
   source: LineOrderGateTokenSource,
@@ -65,6 +72,9 @@ const readTokenFromUrlCandidate = (
 
     try {
       const url = new URL(value, 'https://status.surfboards-reborn.com');
+      const pathToken = readTokenFromPath(url.pathname);
+      if (pathToken) return { source, token: pathToken };
+
       const searchToken = url.searchParams.get('t');
       if (searchToken) return { source, token: searchToken };
 

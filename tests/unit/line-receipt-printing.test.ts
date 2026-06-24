@@ -136,7 +136,7 @@ describe('customer receipt worker dispatch', () => {
     const dispatched = buildCustomerReceiptDispatchPayload(payload, runtimeConfig);
     expect(payload).not.toHaveProperty('publicLookupUrl');
     expect(dispatched.publicLookupUrl).toBe(
-      `https://liff.line.me/1234567890-test/?t=${deriveLineBindPlaintextToken(TOKEN_ID, SECRET)}`,
+      `https://liff.line.me/1234567890-test/t/${deriveLineBindPlaintextToken(TOKEN_ID, SECRET)}`,
     );
   });
 

@@ -60,37 +60,37 @@ describe('LINE bind token cryptography', () => {
     );
   });
 
-  it('builds and rebuilds the same LIFF URL with an encoded token query', () => {
+  it('builds and rebuilds the same LIFF URL with the token in the additional path', () => {
     const config = resolveLineBindTokenConfig({
       lineBindTokenSecret: SECRET,
       liffId: '1234567890-test',
     });
     const token = deriveLineBindPlaintextToken(TOKEN_ID, SECRET);
 
-    const expectedUrl = `https://liff.line.me/1234567890-test/?t=${token}`;
+    const expectedUrl = `https://liff.line.me/1234567890-test/t/${token}`;
     expect(buildLineBindLiffUrl(config.liffId, token)).toBe(expectedUrl);
     expect(expectedUrl).not.toContain('/line/order-gate');
+    expect(expectedUrl).not.toContain('/?t=');
     expect(rebuildLineBindLiffUrl(TOKEN_ID, config)).toEqual({
       plaintextToken: token,
       url: expectedUrl,
     });
   });
 
-  it('does not duplicate the LINE Developers endpoint path in the LIFF additional path', () => {
+  it('uses a LIFF additional path that can be canonicalized by the order-gate path route', () => {
     const liffId = '1234567890-test';
     const token = deriveLineBindPlaintextToken(TOKEN_ID, SECRET);
     const liffUrl = new URL(buildLineBindLiffUrl(liffId, token));
     const liffAdditionalPath = liffUrl.pathname.replace(`/${liffId}`, '') || '/';
     const endpointUrl = new URL('https://status.surfboards-reborn.com/line/order-gate');
     const secondaryRedirect = new URL(
-      `${endpointUrl.pathname}${liffAdditionalPath}`.replace(/\/+$/, ''),
+      `${endpointUrl.pathname}${liffAdditionalPath}`,
       endpointUrl.origin,
     );
-    secondaryRedirect.search = liffUrl.search;
 
-    expect(liffAdditionalPath).toBe('/');
+    expect(liffAdditionalPath).toBe(`/t/${token}`);
     expect(secondaryRedirect.toString()).toBe(
-      `https://status.surfboards-reborn.com/line/order-gate?t=${token}`,
+      `https://status.surfboards-reborn.com/line/order-gate/t/${token}`,
     );
     expect(secondaryRedirect.pathname).not.toContain('/line/order-gate/line/order-gate');
   });
@@ -169,7 +169,7 @@ describe('LINE bind token persistence service', () => {
     ]);
     expect(JSON.stringify(calls)).not.toContain(plaintextToken);
     expect(result.plaintextToken).toBe(plaintextToken);
-    expect(result.url).toContain(`?t=${plaintextToken}`);
+    expect(result.url).toContain(`/t/${plaintextToken}`);
     expect(
       new Date(result.row.expires_at).getTime() - new Date(result.row.created_at).getTime(),
     ).toBe(30 * 24 * 60 * 60 * 1000);

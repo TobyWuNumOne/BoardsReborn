@@ -50,6 +50,25 @@ describe('LINE order-gate token extraction', () => {
     ).toBe('encoded-token');
   });
 
+  it('extracts token from LINE additional path token format', () => {
+    expect(extractLineOrderGateToken({ 'liff.state': '/t/path-token' }, '')).toBe('path-token');
+    expect(extractLineOrderGateToken({ 'liff.state': '/t/path-token/debug' }, '')).toBe(
+      'path-token',
+    );
+    expect(
+      extractLineOrderGateToken(
+        {},
+        'https://status.surfboards-reborn.com/line/order-gate/t/current-path-token',
+      ),
+    ).toBe('current-path-token');
+  });
+
+  it('extracts token from encoded LINE additional path in liff.state', () => {
+    expect(
+      extractLineOrderGateToken({ 'liff.state': encodeURIComponent('/t/path-token') }, ''),
+    ).toBe('path-token');
+  });
+
   it('extracts token from alternate liff_state query key', () => {
     expect(
       extractLineOrderGateToken(

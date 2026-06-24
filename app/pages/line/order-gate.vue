@@ -223,6 +223,7 @@ const hasDebugFlag = (value: string): boolean => {
   try {
     const url = new URL(value, 'https://status.surfboards-reborn.com');
     if (url.searchParams.get('debug') === '1') return true;
+    if (url.pathname.split('/').filter(Boolean).includes('debug')) return true;
     for (const key of ['liff.state', 'liff_state']) {
       if (hasDebugFlag(url.searchParams.get(key) ?? '')) return true;
     }
@@ -243,6 +244,7 @@ const hasQueryFlag = (name: string, value: string): boolean => {
   try {
     const url = new URL(value, 'https://status.surfboards-reborn.com');
     if (url.searchParams.get(name) === '1') return true;
+    if (url.pathname.split('/').filter(Boolean).includes(name)) return true;
     for (const key of ['liff.state', 'liff_state']) {
       if (hasQueryFlag(name, url.searchParams.get(key) ?? '')) return true;
     }
