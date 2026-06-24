@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  LineAccessTokenInvalidError,
   LineIdTokenInvalidError,
   LinePlatformUnavailableError,
 } from '../../server/utils/api-errors';
@@ -62,7 +61,7 @@ describe('LINE Platform verification', () => {
     ).resolves.toMatchObject({ friendship: 'friend', lineUserId: 'U-trusted' });
   });
 
-  it('rejects invalid ID and mismatched access-token identities', async () => {
+  it('rejects invalid ID tokens', async () => {
     await expect(
       verifyLineIdentity(
         { idToken: 'invalid' },
@@ -70,8 +69,28 @@ describe('LINE Platform verification', () => {
         vi.fn().mockResolvedValue(jsonResponse({ error: 'invalid_request' }, 400)),
       ),
     ).rejects.toBeInstanceOf(LineIdTokenInvalidError);
+  });
 
-    const fetch = vi
+  it('treats optional access token failures as best-effort enrichment misses', async () => {
+    const invalidAccessFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ name: 'ID Name', picture: 'id-picture', sub: 'U-one' }))
+      .mockResolvedValueOnce(jsonResponse({ error: 'invalid_token' }, 401));
+
+    await expect(
+      verifyLineIdentity(
+        { accessToken: 'bad-access', idToken: 'id' },
+        { channelId: '1234567890' },
+        invalidAccessFetch,
+      ),
+    ).resolves.toEqual({
+      displayName: 'ID Name',
+      friendship: 'unknown',
+      lineUserId: 'U-one',
+      pictureUrl: 'id-picture',
+    });
+
+    const mismatchedProfileFetch = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ sub: 'U-one' }))
       .mockResolvedValueOnce(jsonResponse({ client_id: '1234567890', expires_in: 1000 }))
@@ -80,9 +99,9 @@ describe('LINE Platform verification', () => {
       verifyLineIdentity(
         { accessToken: 'access', idToken: 'id' },
         { channelId: '1234567890' },
-        fetch,
+        mismatchedProfileFetch,
       ),
-    ).rejects.toBeInstanceOf(LineAccessTokenInvalidError);
+    ).resolves.toMatchObject({ friendship: 'unknown', lineUserId: 'U-one' });
   });
 
   it('maps LINE network and 5xx failures to platform unavailable', async () => {

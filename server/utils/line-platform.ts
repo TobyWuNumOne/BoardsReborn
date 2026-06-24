@@ -63,34 +63,48 @@ export const verifyLineIdentity = async (
   let friendship: 'friend' | 'not_friend' | 'unknown' = 'unknown';
 
   if (input.accessToken) {
-    const accessResponse = await fetchLine(
-      fetch,
-      `https://api.line.me/oauth2/v2.1/verify?${new URLSearchParams({ access_token: input.accessToken })}`,
-    );
-    if (accessResponse.status >= 500) throw new LinePlatformUnavailableError();
-    if (!accessResponse.ok) throw new LineAccessTokenInvalidError();
-    const accessPayload = await parseJson(accessResponse);
-    if (accessPayload.client_id !== channelId) throw new LineAccessTokenInvalidError();
+    try {
+      const accessResponse = await fetchLine(
+        fetch,
+        `https://api.line.me/oauth2/v2.1/verify?${new URLSearchParams({ access_token: input.accessToken })}`,
+      );
+      if (accessResponse.status >= 500) throw new LinePlatformUnavailableError();
+      if (!accessResponse.ok) throw new LineAccessTokenInvalidError();
+      const accessPayload = await parseJson(accessResponse);
+      if (accessPayload.client_id !== channelId) throw new LineAccessTokenInvalidError();
 
-    const authorization = { Authorization: `Bearer ${input.accessToken}` };
-    const profileResponse = await fetchLine(fetch, 'https://api.line.me/v2/profile', {
-      headers: authorization,
-    });
-    if (profileResponse.status >= 500) throw new LinePlatformUnavailableError();
-    if (!profileResponse.ok) throw new LineAccessTokenInvalidError();
-    const profile = await parseJson(profileResponse);
-    if (profile.userId !== idPayload.sub) throw new LineAccessTokenInvalidError();
-    displayName = typeof profile.displayName === 'string' ? profile.displayName : displayName;
-    pictureUrl = typeof profile.pictureUrl === 'string' ? profile.pictureUrl : pictureUrl;
+      const authorization = { Authorization: `Bearer ${input.accessToken}` };
+      const profileResponse = await fetchLine(fetch, 'https://api.line.me/v2/profile', {
+        headers: authorization,
+      });
+      if (profileResponse.status >= 500) throw new LinePlatformUnavailableError();
+      if (!profileResponse.ok) throw new LineAccessTokenInvalidError();
+      const profile = await parseJson(profileResponse);
+      if (profile.userId !== idPayload.sub) throw new LineAccessTokenInvalidError();
+      displayName = typeof profile.displayName === 'string' ? profile.displayName : displayName;
+      pictureUrl = typeof profile.pictureUrl === 'string' ? profile.pictureUrl : pictureUrl;
 
-    const friendshipResponse = await fetchLine(fetch, 'https://api.line.me/friendship/v1/status', {
-      headers: authorization,
-    });
-    if (friendshipResponse.status >= 500) throw new LinePlatformUnavailableError();
-    if (!friendshipResponse.ok) throw new LineAccessTokenInvalidError();
-    const friendshipPayload = await parseJson(friendshipResponse);
-    if (typeof friendshipPayload.friendFlag !== 'boolean') throw new LineAccessTokenInvalidError();
-    friendship = friendshipPayload.friendFlag ? 'friend' : 'not_friend';
+      const friendshipResponse = await fetchLine(
+        fetch,
+        'https://api.line.me/friendship/v1/status',
+        {
+          headers: authorization,
+        },
+      );
+      if (friendshipResponse.status >= 500) throw new LinePlatformUnavailableError();
+      if (!friendshipResponse.ok) throw new LineAccessTokenInvalidError();
+      const friendshipPayload = await parseJson(friendshipResponse);
+      if (typeof friendshipPayload.friendFlag !== 'boolean')
+        throw new LineAccessTokenInvalidError();
+      friendship = friendshipPayload.friendFlag ? 'friend' : 'not_friend';
+    } catch (error) {
+      if (
+        !(error instanceof LineAccessTokenInvalidError) &&
+        !(error instanceof LinePlatformUnavailableError)
+      ) {
+        throw error;
+      }
+    }
   }
 
   return {
