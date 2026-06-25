@@ -143,6 +143,13 @@ const publicLineBindingConfirmMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621091907_public_line_binding_confirm.sql'),
   'utf8',
 );
+const lineConfirmServiceRoleCustomerLockGrantMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260625110031_line_confirm_service_role_customer_lock_grant.sql',
+  ),
+  'utf8',
+);
 const testPaperOrderNoMigrationPath = resolve(
   process.cwd(),
   'supabase/migrations/20260618110000_test_work_order_numbers.sql',
@@ -752,5 +759,8 @@ describe('initial Supabase migration', () => {
       "'line_binding_success'::public.line_job_type",
     );
     expect(publicLineBindingConfirmMigration).not.toContain('http');
+    expect(lineConfirmServiceRoleCustomerLockGrantMigration).toContain(
+      'grant update on table public.customers to service_role',
+    );
   });
 });
