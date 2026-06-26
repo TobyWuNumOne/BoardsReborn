@@ -1,6 +1,7 @@
 import { readBody, setHeader } from 'h3';
 import { defineApiHandler } from '../../../utils/api-handler';
 import { verifyLineIdentity } from '../../../utils/line-platform';
+import { drainLineJobsAfterLinkedBindingBestEffort } from '../../../utils/line-job-drain';
 import {
   confirmPublicLineBinding,
   parsePublicLineBindConfirmBody,
@@ -15,9 +16,16 @@ export default defineApiHandler(async (event) => {
   const config = useRuntimeConfig(event);
   const supabase = await getServiceRoleSupabaseClient(event);
 
-  return confirmPublicLineBinding(supabase, input, {
+  const response = await confirmPublicLineBinding(supabase, input, {
     officialLineUrl: config.public.lineOfficialUrl,
     verifyLineIdentity: (tokens) =>
       verifyLineIdentity(tokens, { channelId: config.lineLoginChannelId }),
   });
+
+  await drainLineJobsAfterLinkedBindingBestEffort(response, {
+    channelAccessToken: config.lineChannelAccessToken,
+    supabase,
+  });
+
+  return response;
 });

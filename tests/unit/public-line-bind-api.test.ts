@@ -31,6 +31,19 @@ describe('public LINE binding validation and resolve', () => {
     }
   });
 
+  it('uses best-effort drain after confirm without exposing the internal processor endpoint', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'server/api/public/line-bind/confirm.post.ts'),
+      'utf8',
+    );
+
+    expect(source).toContain('drainLineJobsAfterLinkedBindingBestEffort');
+    expect(source).toContain('lineChannelAccessToken');
+    expect(source).not.toContain('/api/internal/line-jobs/process');
+    expect(source).not.toContain('LINE_JOB_PROCESSOR_SECRET');
+    expect(source).not.toContain('requireLineJobProcessorSecret');
+  });
+
   it('accepts only token, idToken, and optional accessToken', () => {
     expect(parsePublicLineBindResolveBody({ token: 'token-value' })).toEqual({
       token: 'token-value',

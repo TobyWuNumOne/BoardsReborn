@@ -1701,6 +1701,7 @@ Admin、Public LIFF與最小 follow/unfollow webhook已實作；internal process
 - Body：`{ token, idToken, accessToken? }`；不接受 `line_user_id` 或前端 profile。
 - Server先向 LINE Platform驗證 ID token；optional access token只做 best-effort channel/profile identity與 friendship status補強，access token驗證失敗或 friendship API暫時不可用時不阻斷綁定，通知狀態降級為 `unknown`。外部 HTTP完成後才呼叫 DB transaction。
 - 成功 outcome為 `linked` 或 `already_linked`；回工單號、通知狀態、token used time、`/repair-status` 與官方 LINE URL。
+- `linked` 成功後，server會 best-effort 立即 drain一次既有 `line_jobs` processor，以降低 `line_binding_success` 通知延遲；processor失敗不得改變 confirm response或回傳給前端，Supabase Cron仍是補償機制。`already_linked` 不觸發 immediate drain。
 - 支援 `TOKEN_INVALID`、`TOKEN_EXPIRED`、`TOKEN_USED`、`TOKEN_REVOKED`、`LINE_ID_TOKEN_INVALID`、`LINE_PLATFORM_UNAVAILABLE`、`LINE_ALREADY_BOUND_TO_OTHER_CUSTOMER`、`CUSTOMER_ALREADY_BOUND_TO_OTHER_LINE`、`VALIDATION_ERROR`、`TOO_MANY_REQUESTS`。`LINE_ACCESS_TOKEN_INVALID` 保留為歷史錯誤碼，但 MVP confirm不應因 optional access token失敗而回此錯誤。
 - ID/access token只存在 request記憶體，不儲存、不記錄。
 
