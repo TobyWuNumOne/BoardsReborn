@@ -412,7 +412,7 @@ TypeScript 名稱：`PrintJobType`
 
 ## LINE MVP 資料模型（PR 1 至 PR 12 implemented）
 
-基礎 enum、table、constraint、index、RLS與 grants已建立；Token service、Admin/Public API、LIFF、條件式列印、最小 webhook、Processor、READY status通知、建單收件通知與工單詳情 Admin UI均已實作。Production Cron仍未啟用。
+基礎 enum、table、constraint、index、RLS與 grants已建立；Token service、Admin/Public API、LIFF、條件式列印、最小 webhook、Processor、READY status通知、建單收件通知與工單詳情 Admin UI均已實作。Production Cron已啟用；READY與老客新工單通知仍需完成production E2E驗收。
 
 ### `customer_line_accounts`
 
@@ -444,6 +444,7 @@ TypeScript 名稱：`PrintJobType`
 - 無有效綁定或不可通知時標記 `skipped`。LINE API accepted 只表示平台接受 request，不表示顧客實際收到。
 - `work_order_ready_for_pickup` job 成功後，以 `coalesce(work_orders.notified_at, line_jobs.sent_at)` 維護 `work_orders.notified_at`。
 - `claim_line_jobs` 原子 claim最多 20 筆 due pending或超過 5 分鐘的 stale locked jobs；`prepare_line_job`重新解析 binding並凍結 send資料；`record_line_job_result`處理 success/retry/failure與 READY `notified_at`。三者各自 commit，LINE HTTP不在 DB transaction內。
+- `record_line_job_result` 由 Nuxt service-role client呼叫；因 READY success會更新 `work_orders.notified_at`，`service_role` 需要 `work_orders` 的 `UPDATE` privilege。
 - MVP 暫不執行 retention；used/revoked/expired token 與終態 job 暫時保留。
 
 ### Transaction 與一致性邊界
