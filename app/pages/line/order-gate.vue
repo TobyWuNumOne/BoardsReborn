@@ -68,6 +68,7 @@ const debugState = reactive({
   confirmApiCalled: false,
   confirmApiErrorCode: '',
   confirmApiStatus: '',
+  friendshipPromptResult: '',
   hasHashAccessToken: '',
   hasHashIdToken: '',
   hasLiffState: '',
@@ -395,6 +396,7 @@ const debugRows = computed(() => [
   ['confirmApiCalled', String(debugState.confirmApiCalled)],
   ['confirmApiStatus', debugState.confirmApiStatus],
   ['confirmApiErrorCode', debugState.confirmApiErrorCode],
+  ['friendshipPromptResult', debugState.friendshipPromptResult],
   ...lastClickDebugRows.value,
 ]);
 
@@ -422,6 +424,7 @@ const persistClickDebug = (extra: Record<string, string> = {}) => {
       clickEventDefaultPreventedBefore: debugState.clickEventDefaultPreventedBefore,
       computedLoginRedirectUriMasked: maskTokenInUrl(debugState.loginRedirectUri),
       confirmApiCalled: String(debugState.confirmApiCalled),
+      friendshipPromptResult: debugState.friendshipPromptResult,
       hasHashAccessToken: debugState.hasHashAccessToken,
       hasHashIdToken: debugState.hasHashIdToken,
       hasLiffHashAccessToken: String(hasLiffHashAccessToken.value),
@@ -637,6 +640,7 @@ const handleBindClick = async (event?: Event) => {
   debugState.confirmApiCalled = false;
   debugState.confirmApiErrorCode = '';
   debugState.confirmApiStatus = '';
+  debugState.friendshipPromptResult = '';
   debugState.lastErrorCode = '';
   debugState.lastStep = 'bind_start';
   debugState.actualLoginRedirectUri = '';
@@ -716,6 +720,10 @@ const handleBindClick = async (event?: Event) => {
                 debugState.redirectReason = 'liff_login';
                 persistClickDebug();
               },
+              onFriendshipPrompt: (value) => {
+                debugState.friendshipPromptResult = value;
+                persistClickDebug();
+              },
               onStep: (value) => {
                 debugState.lastStep = value;
                 if (value === 'before_liff_login') debugState.beforeLiffLogin = 'true';
@@ -727,6 +735,7 @@ const handleBindClick = async (event?: Event) => {
           debug: debugEnabled.value,
           hasLiffHashTokens: hasLiffHashTokens.value,
           redirectOrigin: statusOrigin(),
+          requestFriendshipBeforeToken: true,
         },
       );
     } catch (liffError) {

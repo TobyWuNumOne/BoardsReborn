@@ -1,6 +1,7 @@
 import { normalizeLineOrderGateTokenValue } from './line-order-gate-token';
 
 export interface LineLiffDebugHooks {
+  onFriendshipPrompt?: (state: string) => void;
   onInitState?: (state: string) => void;
   onIsLoggedIn?: (isLoggedIn: boolean) => void;
   onLoginRedirectUri?: (redirectUri: string) => void;
@@ -13,6 +14,7 @@ export interface LineLiffClient {
   init: (options: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
   login: (options: { redirectUri: string }) => void;
+  requestFriendship?: () => Promise<void>;
 }
 
 interface LineLiffTokenOptions {
@@ -20,6 +22,7 @@ interface LineLiffTokenOptions {
   hasLiffHashTokens?: boolean;
   loadLiff?: () => Promise<LineLiffClient>;
   redirectOrigin?: string;
+  requestFriendshipBeforeToken?: boolean;
 }
 
 interface LineLiffInitOptions {
@@ -136,6 +139,20 @@ export const getLineLiffTokens = async (
     debugHooks.onStep?.('liff_login_redirect');
     liff.login({ redirectUri });
     return null;
+  }
+
+  if (options.requestFriendshipBeforeToken) {
+    if (typeof liff.requestFriendship === 'function') {
+      debugHooks.onFriendshipPrompt?.('attempted');
+      try {
+        await liff.requestFriendship();
+        debugHooks.onFriendshipPrompt?.('completed');
+      } catch {
+        debugHooks.onFriendshipPrompt?.('failed');
+      }
+    } else {
+      debugHooks.onFriendshipPrompt?.('unavailable');
+    }
   }
 
   debugHooks.onStep?.('before_get_id_token');

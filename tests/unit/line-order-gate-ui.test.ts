@@ -66,6 +66,7 @@ describe('LINE order gate UI contract', () => {
       'confirmApiCalled',
       'confirmApiStatus',
       'confirmApiErrorCode',
+      'friendshipPromptResult',
       '正在初始化 LINE...',
       'isLiffPrimaryRedirect',
       'hasLiffState',
@@ -97,6 +98,7 @@ describe('LINE order gate UI contract', () => {
     expect(liffSource).toContain('liff.login');
     expect(liffSource).toContain('liff.getIDToken');
     expect(liffSource).toContain('liff.getAccessToken');
+    expect(liffSource).toContain('requestFriendship?: () => Promise<void>');
     expect(liffSource).toContain("new URL('/line/order-gate'");
     expect(liffSource).toContain("url.searchParams.set('t'");
     expect(liffSource).toContain("url.searchParams.set('debug'");
@@ -121,6 +123,9 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('canUseDebugHashTokenFallback');
     expect(pageSource).toContain('confirmLineBinding(bindToken');
     expect(pageSource).toContain('body: { token: bindToken, ...tokens }');
+    expect(pageSource).toContain('requestFriendshipBeforeToken: true');
+    expect(pageSource).toContain('onFriendshipPrompt');
+    expect(pageSource).toContain('friendshipPromptResult');
     expect(pageSource).toContain('dry_run_ready');
     expect(pageSource).toContain('dryRunEnabled.value');
     expect(pageSource).toContain('debugVisible');
@@ -148,6 +153,7 @@ describe('LINE order gate UI contract', () => {
       'after_get_id_token',
       'before_confirm_api',
       'after_confirm_api',
+      'requestFriendshipBeforeToken',
       'LIFF_LOGGED_IN_MISMATCH',
       'LIFF_ID_TOKEN_MISSING',
       'LIFF_INIT_FAILED',

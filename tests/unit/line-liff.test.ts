@@ -136,6 +136,113 @@ describe('LINE LIFF login redirect', () => {
     ]);
   });
 
+  it('can request friendship before reading LIFF tokens when already logged in', async () => {
+    const calls: string[] = [];
+    const tokens = await getLineLiffTokens(
+      'liff-id',
+      'resolved-token',
+      {
+        onFriendshipPrompt: (value) => calls.push(`friendship:${value}`),
+        onStep: (value) => calls.push(value),
+      },
+      {
+        loadLiff: async () => ({
+          getAccessToken: () => {
+            calls.push('get-access-token');
+            return 'access-token';
+          },
+          getIDToken: () => {
+            calls.push('get-id-token');
+            return 'id-token';
+          },
+          init: async () => {
+            calls.push('init-called');
+          },
+          isLoggedIn: () => true,
+          login: () => {
+            throw new Error('login should not be called');
+          },
+          requestFriendship: async () => {
+            calls.push('request-friendship');
+          },
+        }),
+        redirectOrigin: 'https://status.surfboards-reborn.com',
+        requestFriendshipBeforeToken: true,
+      },
+    );
+
+    expect(tokens).toEqual({ accessToken: 'access-token', idToken: 'id-token' });
+    expect(calls).toEqual([
+      'before_liff_import',
+      'before_liff_init',
+      'init-called',
+      'after_liff_init',
+      'before_is_logged_in',
+      'friendship:attempted',
+      'request-friendship',
+      'friendship:completed',
+      'before_get_id_token',
+      'get-id-token',
+      'after_get_id_token',
+      'get-access-token',
+    ]);
+  });
+
+  it('continues token extraction when requestFriendship fails', async () => {
+    const friendshipStates: string[] = [];
+    const tokens = await getLineLiffTokens(
+      'liff-id',
+      'resolved-token',
+      {
+        onFriendshipPrompt: (value) => friendshipStates.push(value),
+      },
+      {
+        loadLiff: async () => ({
+          getAccessToken: () => null,
+          getIDToken: () => 'id-token',
+          init: async () => undefined,
+          isLoggedIn: () => true,
+          login: () => {
+            throw new Error('login should not be called');
+          },
+          requestFriendship: async () => {
+            throw new Error('user cancelled');
+          },
+        }),
+        requestFriendshipBeforeToken: true,
+      },
+    );
+
+    expect(tokens).toEqual({ idToken: 'id-token' });
+    expect(friendshipStates).toEqual(['attempted', 'failed']);
+  });
+
+  it('continues token extraction when requestFriendship is unavailable', async () => {
+    const friendshipStates: string[] = [];
+    const tokens = await getLineLiffTokens(
+      'liff-id',
+      'resolved-token',
+      {
+        onFriendshipPrompt: (value) => friendshipStates.push(value),
+      },
+      {
+        loadLiff: async () => ({
+          getAccessToken: () => null,
+          getIDToken: () => 'id-token',
+          init: async () => undefined,
+          isLoggedIn: () => true,
+          login: () => {
+            throw new Error('login should not be called');
+          },
+        }),
+        requestFriendshipBeforeToken: true,
+      },
+    );
+
+    expect(tokens).toEqual({ idToken: 'id-token' });
+    expect(friendshipStates).toEqual(['unavailable']);
+  });
+
   it('can initialize LIFF for the primary redirect without login or token lookup work', async () => {
     const calls: string[] = [];
     const initStates: string[] = [];
@@ -247,6 +354,38 @@ describe('LINE LIFF login redirect', () => {
     expect(steps).toContain(`redirect:${loginCalledWith}`);
     expect(steps).toContain('before_liff_login');
     expect(steps).toContain('liff_login_redirect');
+  });
+
+  it('does not request friendship before redirecting a logged-out LIFF user', async () => {
+    let requestFriendshipCalled = false;
+    let loginCalledWith = '';
+    const tokens = await getLineLiffTokens(
+      'liff-id',
+      'resolved-token',
+      {},
+      {
+        loadLiff: async () => ({
+          getAccessToken: () => null,
+          getIDToken: () => null,
+          init: async () => undefined,
+          isLoggedIn: () => false,
+          login: ({ redirectUri }) => {
+            loginCalledWith = redirectUri;
+          },
+          requestFriendship: async () => {
+            requestFriendshipCalled = true;
+          },
+        }),
+        redirectOrigin: 'https://status.surfboards-reborn.com',
+        requestFriendshipBeforeToken: true,
+      },
+    );
+
+    expect(tokens).toBeNull();
+    expect(requestFriendshipCalled).toBe(false);
+    expect(loginCalledWith).toBe(
+      'https://status.surfboards-reborn.com/line/order-gate?t=resolved-token',
+    );
   });
 
   it('does not call login when LIFF hash tokens exist but the SDK reports logged out', async () => {
