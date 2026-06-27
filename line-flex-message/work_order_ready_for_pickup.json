@@ -1,0 +1,154 @@
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "維修完成!",
+        "weight": "bold",
+        "size": "xl",
+        "margin": "sm",
+        "style": "normal",
+        "align": "center"
+      },
+      {
+        "type": "text",
+        "text": "取板前請先預約！",
+        "weight": "bold",
+        "size": "xl",
+        "margin": "sm",
+        "style": "normal",
+        "align": "center"
+      },
+      {
+        "type": "text",
+        "text": "單號：260001",
+        "weight": "bold",
+        "size": "xl",
+        "margin": "sm",
+        "style": "normal",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "lg",
+        "spacing": "sm",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "baseline",
+            "spacing": "md",
+            "contents": [
+              {
+                "type": "text",
+                "text": "地址",
+                "color": "#aaaaaa",
+                "size": "sm",
+                "flex": 1,
+                "wrap": true
+              },
+              {
+                "type": "text",
+                "text": "宜蘭縣頭城鎮青雲路三段387巷1號",
+                "wrap": true,
+                "color": "#666666",
+                "size": "sm",
+                "flex": 8,
+                "align": "center",
+                "weight": "regular"
+              }
+            ],
+            "margin": "sm"
+          },
+          {
+            "type": "box",
+            "layout": "baseline",
+            "spacing": "sm",
+            "contents": [
+              {
+                "type": "text",
+                "text": "平日營業時間",
+                "color": "#aaaaaa",
+                "size": "sm",
+                "flex": 3
+              },
+              {
+                "type": "text",
+                "text": "08:00 - 17:00",
+                "wrap": true,
+                "color": "#666666",
+                "size": "sm",
+                "flex": 5,
+                "align": "center",
+                "weight": "bold"
+              }
+            ],
+            "margin": "md"
+          },
+          {
+            "type": "box",
+            "layout": "baseline",
+            "spacing": "sm",
+            "contents": [
+              {
+                "type": "text",
+                "text": "假日營業時間",
+                "color": "#aaaaaa",
+                "size": "sm",
+                "flex": 3
+              },
+              {
+                "type": "text",
+                "text": "07:00 - 12:00",
+                "wrap": true,
+                "color": "#666666",
+                "size": "sm",
+                "flex": 5,
+                "align": "center",
+                "weight": "bold"
+              }
+            ],
+            "margin": "sm"
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "sm",
+    "contents": [
+      {
+        "type": "button",
+        "style": "primary",
+        "height": "sm",
+        "action": {
+          "type": "message",
+          "label": "預約取板",
+          "text": "預約取板"
+        }
+      },
+      {
+        "type": "button",
+        "style": "secondary",
+        "height": "sm",
+        "action": {
+          "type": "uri",
+          "label": "導航至板再生",
+          "uri": "https://maps.app.goo.gl/KF3KPyJduwaTP6WMA"
+        }
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [],
+        "margin": "none"
+      }
+    ],
+    "flex": 0
+  }
+}

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { InternalUnauthorizedError } from '../../server/utils/api-errors';
 import {
   classifyLinePushResult,
+  processLineJobs,
   processLineJobBatch,
   requireLineJobProcessorSecret,
   sendLinePushMessage,
@@ -116,5 +117,86 @@ describe('LINE job batch isolation', () => {
         send,
       }),
     ).resolves.toEqual({ claimed: 3, failed: 1, retried: 0, skipped: 1, succeeded: 1 });
+  });
+});
+
+describe('LINE job Flex message preparation', () => {
+  it('freezes a Flex message from the repository template before sending', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetch);
+    const updates: unknown[] = [];
+    const supabase = {
+      from(table: string) {
+        expect(table).toBe('line_jobs');
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  maybeSingle() {
+                    return Promise.resolve({
+                      data: {
+                        job_type: 'work_order_received',
+                        payload: { paperOrderNo: '880002' },
+                        work_orders: null,
+                      },
+                      error: null,
+                    });
+                  },
+                };
+              },
+            };
+          },
+          update(value: unknown) {
+            updates.push(value);
+            const chain = {
+              eq: () => chain,
+              error: null,
+            };
+            return chain;
+          },
+        };
+      },
+      rpc(name: string) {
+        if (name === 'claim_line_jobs') {
+          return Promise.resolve({ data: { jobs: [{ id: 'job-1' }] }, error: null });
+        }
+        if (name === 'prepare_line_job') {
+          return Promise.resolve({
+            data: {
+              messages: [{ text: '維修工單已收件。工單：880002', type: 'text' }],
+              outcome: 'ready',
+              recipient: 'U123',
+              retryKey: '11111111-1111-4111-8111-111111111111',
+            },
+            error: null,
+          });
+        }
+        if (name === 'record_line_job_result') {
+          return Promise.resolve({ data: { outcome: 'succeeded' }, error: null });
+        }
+        return Promise.resolve({ data: null, error: { message: `unexpected rpc ${name}` } });
+      },
+    };
+
+    await expect(processLineJobs(supabase as never, 'channel-access-token')).resolves.toEqual({
+      claimed: 1,
+      failed: 0,
+      retried: 0,
+      skipped: 0,
+      succeeded: 1,
+    });
+
+    expect(updates).toHaveLength(1);
+    expect(JSON.stringify(updates[0])).toContain('"type":"flex"');
+    expect(JSON.stringify(updates[0])).toContain('880002');
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.line.me/v2/bot/message/push',
+      expect.objectContaining({
+        body: expect.stringContaining('"type":"flex"'),
+      }),
+    );
+
+    vi.unstubAllGlobals();
   });
 });

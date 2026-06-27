@@ -1649,7 +1649,7 @@ Request rules：
 
 ## LINE MVP API
 
-Admin、Public LIFF與最小 follow/unfollow webhook已實作；internal processor仍為 planned / not implemented。所有 endpoint使用既有 error envelope與 request ID規則。
+Admin、Public LIFF、最小 follow/unfollow webhook與 internal processor已實作。所有 endpoint使用既有 error envelope與 request ID規則。
 
 ### Planned endpoints
 
@@ -1720,6 +1720,7 @@ Admin、Public LIFF與最小 follow/unfollow webhook已實作；internal process
 - Confirm 若 LINE 已綁同一 Customer，回 idempotent success；若任一方已綁其他對象，拒絕且不得覆蓋。
 - Admin 發卡回傳可列印的 LIFF URL，但不得在 DB、`print_jobs.payload` 或 log 持久化明文 token。
 - Internal processor 以 `Authorization: Bearer <LINE_JOB_PROCESSOR_SECRET>` 驗證；secret 不得放 query string、public runtime config、response 或 log。
+- Processor送出前會依 `job_type` 使用 repo 內 `line-flex-message/*.json` 產生 Flex Message，並以實際工單號替換模板測試單號；產生後的 `prepared_messages` 會回寫並凍結，retry不重新產生訊息。此變更不改 internal endpoint request / response shape。
 - Webhook 必須先以 raw request body 與 `LINE_CHANNEL_SECRET` 驗證 `x-line-signature`，才可更新 `is_friend` / `blocked_at`。
 - LINE Login channel 與 Messaging API channel 必須位於同一 Provider，且 Login channel 必須連結官方帳號。
 - LINE push 回應 accepted / HTTP 200 只能使 job 成為 `succeeded`，語意是「平台已接受」，不是「顧客已讀或已送達」。

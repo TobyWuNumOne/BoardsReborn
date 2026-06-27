@@ -439,6 +439,7 @@ TypeScript 名稱：`PrintJobType`
 - `line_job_type` 目前只包含 `line_binding_success`、`work_order_received`、`work_order_ready_for_pickup`。
 - `line_job_status` 包含 `pending`、`locked`、`succeeded`、`failed`、`skipped`；`line_job_skip_reason` 包含 `no_active_line_binding`、`line_not_notifyable`、`recipient_binding_changed`。
 - Processor欄位包含 attempts、available/lock、error、frozen recipient、`prepared_messages`、retry key與 `first_attempt_at`；`payload`仍是 enqueue時的內部事件資料，不作為 LINE request payload。
+- LINE Flex Message版型由 repo 內 `line-flex-message/line_binding_success.json`、`line-flex-message/work_order_received.json`、`line-flex-message/work_order_ready_for_pickup.json` 維護。Processor第一次 prepare 後會以實際 `paper_order_no` 替換模板內的測試單號，並把結果回寫到 `prepared_messages`；後續 retry沿用 frozen message，不重新讀模板。
 - 自動事件必須有 stable dedupe key；每張工單只建立一次自動 `work_order_ready_for_pickup` job。未來手動補發不得重用自動 dedupe key。
 - pending job 第一次實際送出前，worker 先以 `customer_id` 重新解析目前有效綁定與可通知狀態，再凍結 recipient、payload 與 retry key。後續 retry 使用相同 `X-Line-Retry-Key`。
 - 無有效綁定或不可通知時標記 `skipped`。LINE API accepted 只表示平台接受 request，不表示顧客實際收到。

@@ -1,0 +1,60 @@
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "綁定成功!",
+        "weight": "bold",
+        "size": "xl",
+        "margin": "sm",
+        "style": "normal",
+        "align": "center"
+      },
+      {
+        "type": "text",
+        "text": "單號：260001，已收件",
+        "weight": "bold",
+        "size": "xl",
+        "margin": "sm",
+        "style": "normal",
+        "align": "center"
+      },
+      {
+        "type": "text",
+        "text": "後續進度將由官方LINE通知！",
+        "weight": "bold",
+        "size": "lg",
+        "margin": "sm",
+        "style": "normal",
+        "align": "center"
+      }
+    ]
+  },
+  "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "sm",
+    "contents": [
+      {
+        "type": "button",
+        "style": "primary",
+        "height": "sm",
+        "action": {
+          "type": "uri",
+          "label": "進度查詢",
+          "uri": "https://status.surfboards-reborn.com/repair-status"
+        }
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [],
+        "margin": "none"
+      }
+    ],
+    "flex": 0
+  }
+}

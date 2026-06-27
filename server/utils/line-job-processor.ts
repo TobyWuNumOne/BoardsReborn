@@ -1,6 +1,8 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
+import type { Json } from '../../types/database.types';
 import type { ServiceRoleSupabaseClient } from './supabase-clients';
 import { InternalServerError, InternalUnauthorizedError } from './api-errors';
+import { buildLineFlexMessages, isLineFlexMessageArray } from './line-flex-messages';
 import { throwMappedSupabaseError } from './supabase-errors';
 
 const BATCH_SIZE = 20;
@@ -73,6 +75,11 @@ interface PreparedJob {
   retryKey?: string;
 }
 
+interface LineJobFlexContext {
+  jobType: 'line_binding_success' | 'work_order_ready_for_pickup' | 'work_order_received';
+  paperOrderNo: string;
+}
+
 interface BatchDependencies {
   claim: () => Promise<ClaimedJob[]>;
   prepare: (job: ClaimedJob) => Promise<PreparedJob>;
@@ -141,12 +148,80 @@ const prepareJob = async (
   ) {
     throw new InternalServerError();
   }
-  return {
+  const prepared: PreparedJob = {
     messages: result.messages as PreparedMessage[],
     outcome: 'ready',
     recipient: result.recipient,
     retryKey: result.retryKey,
   };
+
+  if (isLineFlexMessageArray(prepared.messages)) {
+    return prepared;
+  }
+
+  const flexMessages = await freezeFlexMessagesForJob(supabase, lockedBy, job);
+  return { ...prepared, messages: flexMessages };
+};
+
+const readFlexContext = async (
+  supabase: ServiceRoleSupabaseClient,
+  job: ClaimedJob,
+): Promise<LineJobFlexContext | null> => {
+  const { data, error } = await supabase
+    .from('line_jobs')
+    .select('job_type, payload, work_orders(paper_order_no)')
+    .eq('id', job.id)
+    .maybeSingle();
+  if (error) throwMappedSupabaseError(error);
+  if (!data) return null;
+
+  const jobType = data.job_type;
+  if (
+    jobType !== 'line_binding_success' &&
+    jobType !== 'work_order_ready_for_pickup' &&
+    jobType !== 'work_order_received'
+  ) {
+    return null;
+  }
+
+  const payload = data.payload;
+  const payloadPaperOrderNo =
+    payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>).paperOrderNo
+      : null;
+  const relatedWorkOrder = Array.isArray(data.work_orders) ? data.work_orders[0] : data.work_orders;
+  const relatedPaperOrderNo =
+    relatedWorkOrder && typeof relatedWorkOrder === 'object' && 'paper_order_no' in relatedWorkOrder
+      ? relatedWorkOrder.paper_order_no
+      : null;
+  const paperOrderNo =
+    typeof payloadPaperOrderNo === 'string' && payloadPaperOrderNo.trim()
+      ? payloadPaperOrderNo.trim()
+      : typeof relatedPaperOrderNo === 'string' && relatedPaperOrderNo.trim()
+        ? relatedPaperOrderNo.trim()
+        : '—';
+
+  return { jobType, paperOrderNo };
+};
+
+const freezeFlexMessagesForJob = async (
+  supabase: ServiceRoleSupabaseClient,
+  lockedBy: string,
+  job: ClaimedJob,
+) => {
+  const context = await readFlexContext(supabase, job);
+  if (!context) throw new InternalServerError();
+
+  const messages = buildLineFlexMessages(context);
+  const { error } = await supabase
+    .from('line_jobs')
+    .update({ prepared_messages: messages as unknown as Json })
+    .eq('id', job.id)
+    .eq('locked_by', lockedBy)
+    .eq('status', 'locked');
+  if (error) throwMappedSupabaseError(error);
+
+  return messages;
 };
 
 const recordResult = async (
