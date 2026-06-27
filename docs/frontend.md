@@ -537,6 +537,7 @@ Table 欄位順序：
 - 未綁定顧客的留存聯以 `https://liff.line.me/{LIFF_ID}/t/{token}` 進入綁定；LINE Developers LIFF endpoint 已是 `/line/order-gate`，因此 LIFF URL 使用中性的 `/t/{token}` additional path，避免 root query 在 LINE iOS 入口被改寫成 bare `?t`，也避免 secondary redirect 變成 `/line/order-gate/line/order-gate`。若 LINE SDK secondary redirect 到 `/line/order-gate/t/{token}`，前端會 canonicalize 回 `/line/order-gate?t={token}`。已綁定顧客留存聯仍指向 `/repair-status`。
 - Order-gate 必須同時支援從 `?t=...` 與 LINE redirect 後的 `liff.state` 取回 token，避免 LIFF login / redirect 過程遺失綁定憑證。
 - 加官方帳號不是綁定必要條件，但 order-gate 與綁定成功畫面必須明確引導加入官方 LINE。
+- 點擊「綁定 LINE 接收通知」後，order-gate 在已登入 LIFF 且 confirm 前會 best-effort 呼叫 `liff.requestFriendship()` 引導加入官方帳號；成功、取消、失敗或 SDK 不支援都不得阻擋後續 confirm binding。
 - UI 必須分開顯示「已綁定」與「可通知」。後台可通知狀態至少區分可通知、尚未加好友 / 未知、已封鎖，以及最近發送只獲 LINE API accepted。
 - Pending token 顯示工單安全摘要與主要綁定 action；expired、revoked、invalid 顯示聯絡店家重新發卡。
 - Used token 若 Customer 仍有有效綁定，顯示「已綁定」與前往查詢 CTA；若綁定已解除，只顯示憑證失效並要求聯絡店家重新發卡。
