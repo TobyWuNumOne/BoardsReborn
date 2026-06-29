@@ -47,7 +47,20 @@ const ADMIN_WORK_ORDER_SCAN_LOOKUP_ALLOWED_QUERY_FIELDS = ['code'] as const;
 const ADMIN_WORK_ORDER_SCAN_QUICK_NOTE_ALLOWED_FIELDS = ['note'] as const;
 const STATUS_TRANSITION_ALLOWED_FIELDS = ['status', 'note', 'internalNote'] as const;
 const NEXT_PAPER_ORDER_NO_ALLOWED_QUERY_FIELDS = ['mode'] as const;
+const ADMIN_CUSTOMER_LIST_ALLOWED_QUERY_FIELDS = ['lineStatus', 'page', 'pageSize', 'q', 'sort'] as const;
+const ADMIN_CUSTOMER_DETAIL_ALLOWED_QUERY_FIELDS = ['page', 'pageSize'] as const;
+const ADMIN_CUSTOMER_UPDATE_ALLOWED_FIELDS = ['name', 'note', 'phone'] as const;
+const WORK_ORDER_TRANSFER_CUSTOMER_ALLOWED_FIELDS = ['targetCustomerId'] as const;
 const PAPER_ORDER_MODES = ['standard', 'test'] as const;
+const ADMIN_CUSTOMER_LINE_STATUS_FILTERS = ['all', 'linked', 'unlinked', 'not_notifyable'] as const;
+const ADMIN_CUSTOMER_LIST_SORT_FIELDS = [
+  'activeWorkOrderCount',
+  'createdAt',
+  'name',
+  'phone',
+  'updatedAt',
+  'workOrderCount',
+] as const;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,6 +73,30 @@ export type RepairMarkBoardSide = Database['public']['Enums']['repair_mark_board
 export type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 export type WorkOrderListSortField = (typeof WORK_ORDER_LIST_SORT_FIELDS)[number];
 export type PaperOrderMode = (typeof PAPER_ORDER_MODES)[number];
+export type AdminCustomerLineStatusFilter = (typeof ADMIN_CUSTOMER_LINE_STATUS_FILTERS)[number];
+
+export interface AdminCustomerListQuery {
+  lineStatus: AdminCustomerLineStatusFilter;
+  page: number;
+  pageSize: number;
+  q?: string;
+  sort: string;
+}
+
+export interface AdminCustomerDetailQuery {
+  page: number;
+  pageSize: number;
+}
+
+export interface AdminCustomerUpdateBody {
+  name: string;
+  note: string | null;
+  phone: string;
+}
+
+export interface WorkOrderTransferCustomerBody {
+  targetCustomerId: string;
+}
 
 export interface CustomerLookupQuery {
   normalizedPhone: string;
@@ -566,6 +603,43 @@ export const parseUuid = (value: unknown, field: string): string => {
   return parsedValue as string;
 };
 
+const parseAdminCustomerSort = (value: unknown, errors: ErrorCollector): string | undefined => {
+  if (value === undefined) {
+    return 'updatedAt:desc';
+  }
+
+  if (typeof value !== 'string') {
+    addError(errors, 'sort', 'Must be a string.');
+    return undefined;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return 'updatedAt:desc';
+  }
+
+  const [field, direction] = trimmedValue.split(':');
+
+  if (
+    !field ||
+    !direction ||
+    !ADMIN_CUSTOMER_LIST_SORT_FIELDS.includes(
+      field as (typeof ADMIN_CUSTOMER_LIST_SORT_FIELDS)[number],
+    ) ||
+    !['asc', 'desc'].includes(direction)
+  ) {
+    addError(
+      errors,
+      'sort',
+      `Must be one of: ${ADMIN_CUSTOMER_LIST_SORT_FIELDS.map((fieldName) => `${fieldName}:asc, ${fieldName}:desc`).join(', ')}.`,
+    );
+    return undefined;
+  }
+
+  return `${field}:${direction}`;
+};
+
 const parsePaperOrderNoValue = (
   value: unknown,
   field: string,
@@ -634,6 +708,170 @@ export const parseCustomerLookupQuery = (query: Record<string, unknown>): Custom
   assertNoErrors(errors);
 
   return { normalizedPhone: normalizedPhone as string };
+};
+
+export const parseAdminCustomerListQuery = (
+  query: Record<string, unknown>,
+): AdminCustomerListQuery => {
+  const errors: ErrorCollector = {};
+  const unknownFields = Object.keys(query).filter(
+    (field) =>
+      !ADMIN_CUSTOMER_LIST_ALLOWED_QUERY_FIELDS.includes(
+        field as (typeof ADMIN_CUSTOMER_LIST_ALLOWED_QUERY_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const pageValue = getSingleQueryValue(query, 'page', errors);
+  const pageSizeValue = getSingleQueryValue(query, 'pageSize', errors);
+  const qValue = getSingleQueryValue(query, 'q', errors);
+  const lineStatusValue = getSingleQueryValue(query, 'lineStatus', errors);
+  const sortValue = getSingleQueryValue(query, 'sort', errors);
+  const page = pageValue ? parsePositiveInteger(pageValue, 'page', errors) : 1;
+  const parsedPageSize = pageSizeValue
+    ? parsePositiveInteger(pageSizeValue, 'pageSize', errors)
+    : 20;
+  const pageSize = parsedPageSize && parsedPageSize > 100 ? undefined : parsedPageSize;
+  const lineStatus =
+    lineStatusValue === undefined
+      ? 'all'
+      : parseEnum(
+          lineStatusValue,
+          'lineStatus',
+          ADMIN_CUSTOMER_LINE_STATUS_FILTERS,
+          errors,
+        );
+  const sort = parseAdminCustomerSort(sortValue, errors);
+
+  if (parsedPageSize && parsedPageSize > 100) {
+    addError(errors, 'pageSize', 'Must be less than or equal to 100.');
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    lineStatus: lineStatus as AdminCustomerLineStatusFilter,
+    page: page as number,
+    pageSize: pageSize as number,
+    q: qValue?.trim() || undefined,
+    sort: sort as string,
+  };
+};
+
+export const parseAdminCustomerDetailQuery = (
+  query: Record<string, unknown>,
+): AdminCustomerDetailQuery => {
+  const errors: ErrorCollector = {};
+  const unknownFields = Object.keys(query).filter(
+    (field) =>
+      !ADMIN_CUSTOMER_DETAIL_ALLOWED_QUERY_FIELDS.includes(
+        field as (typeof ADMIN_CUSTOMER_DETAIL_ALLOWED_QUERY_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const pageValue = getSingleQueryValue(query, 'page', errors);
+  const pageSizeValue = getSingleQueryValue(query, 'pageSize', errors);
+  const page = pageValue ? parsePositiveInteger(pageValue, 'page', errors) : 1;
+  const parsedPageSize = pageSizeValue
+    ? parsePositiveInteger(pageSizeValue, 'pageSize', errors)
+    : 20;
+  const pageSize = parsedPageSize && parsedPageSize > 100 ? undefined : parsedPageSize;
+
+  if (parsedPageSize && parsedPageSize > 100) {
+    addError(errors, 'pageSize', 'Must be less than or equal to 100.');
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    page: page as number,
+    pageSize: pageSize as number,
+  };
+};
+
+export const parseAdminCustomerUpdateBody = (body: unknown): AdminCustomerUpdateBody => {
+  const errors: ErrorCollector = {};
+
+  if (!isRecord(body)) {
+    throw new ValidationError({ body: ['Must be a JSON object.'] });
+  }
+
+  const unknownFields = Object.keys(body).filter(
+    (field) =>
+      !ADMIN_CUSTOMER_UPDATE_ALLOWED_FIELDS.includes(
+        field as (typeof ADMIN_CUSTOMER_UPDATE_ALLOWED_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const name = hasOwn(body, 'name') ? parseRequiredString(body.name, 'name', errors) : undefined;
+  const normalizedPhone = normalizeTaiwanMobilePhone(body.phone);
+  const note = parseOptionalString(body.note, 'note', errors, {
+    maxLength: 1000,
+  });
+
+  if (!hasOwn(body, 'name')) {
+    addError(errors, 'name', 'Is required.');
+  }
+
+  if (!hasOwn(body, 'phone')) {
+    addError(errors, 'phone', 'Is required.');
+  } else if (!normalizedPhone) {
+    addError(errors, 'phone', 'Must be a Taiwan mobile phone number.');
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    name: name as string,
+    note: note ?? null,
+    phone: normalizedPhone as string,
+  };
+};
+
+export const parseWorkOrderTransferCustomerBody = (
+  body: unknown,
+): WorkOrderTransferCustomerBody => {
+  const errors: ErrorCollector = {};
+
+  if (!isRecord(body)) {
+    throw new ValidationError({ body: ['Must be a JSON object.'] });
+  }
+
+  const unknownFields = Object.keys(body).filter(
+    (field) =>
+      !WORK_ORDER_TRANSFER_CUSTOMER_ALLOWED_FIELDS.includes(
+        field as (typeof WORK_ORDER_TRANSFER_CUSTOMER_ALLOWED_FIELDS)[number],
+      ),
+  );
+
+  for (const field of unknownFields) {
+    addError(errors, field, 'Cannot be used by this endpoint.');
+  }
+
+  const targetCustomerId = hasOwn(body, 'targetCustomerId')
+    ? parseUuidValue(body.targetCustomerId, 'targetCustomerId', errors)
+    : undefined;
+
+  if (!hasOwn(body, 'targetCustomerId')) {
+    addError(errors, 'targetCustomerId', 'Is required.');
+  }
+
+  assertNoErrors(errors);
+
+  return {
+    targetCustomerId: targetCustomerId as string,
+  };
 };
 
 export const parsePublicWorkOrderLookupBody = (body: unknown): PublicWorkOrderLookupInput => {
