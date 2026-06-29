@@ -32,7 +32,7 @@ const expectValidationField = (callback: () => unknown, field: string) => {
 const createListClient = (result: { count: number | null; data: unknown[]; error: unknown }) => {
   const calls = {
     eq: [] as Array<{ column: string; value: unknown }>,
-    or: [] as string[],
+    ilike: [] as Array<{ column: string; value: string }>,
     order: [] as Array<{ ascending?: boolean; column: string; nullsFirst?: boolean }>,
     range: { from: -1, to: -1 },
     select: { columns: '', options: {} as Record<string, unknown> },
@@ -44,8 +44,8 @@ const createListClient = (result: { count: number | null; data: unknown[]; error
       calls.eq.push({ column, value });
       return query;
     },
-    or(value: string) {
-      calls.or.push(value);
+    ilike(column: string, value: string) {
+      calls.ilike.push({ column, value });
       return query;
     },
     order(column: string, options: { ascending?: boolean; nullsFirst?: boolean }) {
@@ -342,10 +342,10 @@ describe('admin customer services', () => {
     });
 
     expect(calls.table).toBe('admin_customer_list');
-    expect(calls.select).toEqual({ columns: '*', options: { count: 'exact' } });
-    expect(calls.or).toEqual([
-      'normalized_phone.ilike.%0912%,name.ilike.%0912%,note.ilike.%0912%',
-    ]);
+    expect(calls.select.columns).not.toBe('*');
+    expect(calls.select.columns).toContain('line_notify_status');
+    expect(calls.select.columns).not.toContain('line_user_id');
+    expect(calls.ilike).toEqual([{ column: 'search_text', value: '%0912%' }]);
     expect(calls.eq).toEqual([{ column: 'line_linked', value: true }]);
     expect(calls.order).toEqual([
       { ascending: false, column: 'updated_at', nullsFirst: false },
@@ -391,6 +391,98 @@ describe('admin customer services', () => {
     });
     expect(JSON.stringify(response)).not.toContain('line_user_id');
     expect(JSON.stringify(response)).not.toContain('token_hash');
+  });
+
+  it('escapes list search LIKE wildcards and PostgREST OR delimiters by avoiding raw or filters', async () => {
+    const { calls, client } = createListClient({
+      count: 0,
+      data: [],
+      error: null,
+    });
+
+    await listAdminCustomers(client as never, {
+      lineStatus: 'all',
+      page: 1,
+      pageSize: 20,
+      q: '王%,_(),',
+      sort: 'updatedAt:desc',
+    });
+
+    expect(calls.ilike).toEqual([{ column: 'search_text', value: '%王\\%,\\_(),%' }]);
+  });
+
+  it('maps checked non-friend LINE state consistently in list and detail summaries', async () => {
+    const { client: listClient } = createListClient({
+      count: 1,
+      data: [
+        {
+          active_work_order_count: 0,
+          created_at: '2026-06-01T10:00:00.000Z',
+          id: CUSTOMER_ID,
+          latest_paper_order_no: null,
+          latest_work_order_id: null,
+          latest_work_order_status: null,
+          latest_work_order_updated_at: null,
+          line_blocked_at: null,
+          line_display_name: '王小明',
+          line_friendship_checked_at: '2026-06-10T10:00:00.000Z',
+          line_is_friend: false,
+          line_linked: true,
+          line_notify_status: 'not_notifyable',
+          name: '王小明',
+          note: null,
+          phone: '0912345678',
+          updated_at: '2026-06-10T11:00:00.000Z',
+          work_order_count: 0,
+        },
+      ],
+      error: null,
+    });
+
+    const listResponse = await listAdminCustomers(listClient as never, {
+      lineStatus: 'not_notifyable',
+      page: 1,
+      pageSize: 20,
+      sort: 'updatedAt:desc',
+    });
+
+    const { client: detailClient } = createDetailClient({
+      customer: {
+        data: {
+          created_at: '2026-06-01T10:00:00.000Z',
+          id: CUSTOMER_ID,
+          name: '王小明',
+          note: null,
+          phone: '0912345678',
+          updated_at: '2026-06-10T11:00:00.000Z',
+        },
+        error: null,
+      },
+      line: {
+        data: {
+          blocked_at: null,
+          display_name: '王小明',
+          friendship_checked_at: '2026-06-10T10:00:00.000Z',
+          is_friend: false,
+          last_seen_at: null,
+          linked_at: '2026-06-05T10:00:00.000Z',
+        },
+        error: null,
+      },
+      workOrders: {
+        count: 0,
+        data: [],
+        error: null,
+      },
+    });
+
+    const detailResponse = await getAdminCustomerDetail(detailClient as never, CUSTOMER_ID, {
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(listResponse.data[0]?.line.notificationStatus).toBe('not_notifyable');
+    expect(detailResponse.data.line.notificationStatus).toBe('not_notifyable');
   });
 
   it('loads customer detail with safe line summary and embedded work-order pageInfo', async () => {

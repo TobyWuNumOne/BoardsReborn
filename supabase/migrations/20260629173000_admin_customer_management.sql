@@ -8,6 +8,13 @@ select
   customers.note,
   customers.created_at,
   customers.updated_at,
+  concat_ws(
+    ' ',
+    customers.normalized_phone,
+    customers.phone,
+    customers.name,
+    customers.note
+  ) as search_text,
   count(work_orders.id)::integer as work_order_count,
   count(work_orders.id) filter (
     where work_orders.current_status not in (
@@ -45,6 +52,10 @@ left join lateral (
 left join public.customer_line_accounts on customer_line_accounts.customer_id = customers.id
 group by
   customers.id,
+  customers.normalized_phone,
+  customers.phone,
+  customers.name,
+  customers.note,
   customer_line_accounts.id,
   latest_work_order.id,
   latest_work_order.paper_order_no,

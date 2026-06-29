@@ -810,6 +810,8 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).toContain('with (security_invoker = true)');
     expect(adminCustomerManagementMigration).toContain('work_order_count');
     expect(adminCustomerManagementMigration).toContain('active_work_order_count');
+    expect(adminCustomerManagementMigration).toContain('search_text');
+    expect(adminCustomerManagementMigration).toContain('concat_ws');
     expect(adminCustomerManagementMigration).toContain('latest_work_order_id');
     expect(adminCustomerManagementMigration).toContain('line_notify_status');
     expect(adminCustomerManagementMigration).toContain("when customer_line_accounts.id is null then 'unlinked'");

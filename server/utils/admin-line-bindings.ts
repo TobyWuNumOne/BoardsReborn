@@ -99,13 +99,19 @@ export const parseAdminLineBindTokenBody = (body: unknown): Record<string, never
 };
 
 export const deriveLineNotificationStatus = (
-  binding: Pick<LineBindingStatusRow, 'blocked_at' | 'is_friend' | 'last_seen_at'>,
+  binding: Pick<
+    LineBindingStatusRow,
+    'blocked_at' | 'friendship_checked_at' | 'is_friend' | 'last_seen_at'
+  >,
 ) => {
   if (binding.is_friend && binding.blocked_at === null) {
     return 'notifyable' as const;
   }
 
-  if (!binding.is_friend && binding.blocked_at !== null) {
+  if (
+    !binding.is_friend &&
+    (binding.blocked_at !== null || binding.friendship_checked_at != null)
+  ) {
     return 'not_notifyable' as const;
   }
 

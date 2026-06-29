@@ -719,6 +719,32 @@ export type Database = {
       };
     };
     Views: {
+      admin_customer_list: {
+        Row: {
+          active_work_order_count: number | null;
+          created_at: string | null;
+          id: string | null;
+          latest_paper_order_no: string | null;
+          latest_work_order_id: string | null;
+          latest_work_order_status: Database['public']['Enums']['work_order_status'] | null;
+          latest_work_order_updated_at: string | null;
+          line_blocked_at: string | null;
+          line_display_name: string | null;
+          line_friendship_checked_at: string | null;
+          line_is_friend: boolean | null;
+          line_linked: boolean | null;
+          line_notify_status: string | null;
+          line_picture_url: string | null;
+          name: string | null;
+          normalized_phone: string | null;
+          note: string | null;
+          phone: string | null;
+          search_text: string | null;
+          updated_at: string | null;
+          work_order_count: number | null;
+        };
+        Relationships: [];
+      };
       admin_print_device_list: {
         Row: {
           created_at: string | null;

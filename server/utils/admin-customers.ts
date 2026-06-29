@@ -31,6 +31,27 @@ type AdminCustomerWorkOrderRow = Pick<
   | 'repair_count'
   | 'updated_at'
 >;
+type AdminCustomerListRow = Pick<
+  Database['public']['Views']['admin_customer_list']['Row'],
+  | 'active_work_order_count'
+  | 'created_at'
+  | 'id'
+  | 'latest_paper_order_no'
+  | 'latest_work_order_id'
+  | 'latest_work_order_status'
+  | 'latest_work_order_updated_at'
+  | 'line_blocked_at'
+  | 'line_display_name'
+  | 'line_friendship_checked_at'
+  | 'line_is_friend'
+  | 'line_linked'
+  | 'line_notify_status'
+  | 'name'
+  | 'note'
+  | 'phone'
+  | 'updated_at'
+  | 'work_order_count'
+>;
 
 interface PageInfo {
   hasNextPage: boolean;
@@ -39,28 +60,6 @@ interface PageInfo {
   pageSize: number;
   total: number;
   totalPages: number;
-}
-
-interface AdminCustomerListRow {
-  active_work_order_count: number | null;
-  created_at: string | null;
-  id: string | null;
-  latest_paper_order_no: string | null;
-  latest_work_order_id: string | null;
-  latest_work_order_status: Database['public']['Enums']['work_order_status'] | null;
-  latest_work_order_updated_at: string | null;
-  line_blocked_at: string | null;
-  line_display_name: string | null;
-  line_friendship_checked_at: string | null;
-  line_is_friend: boolean | null;
-  line_linked: boolean | null;
-  line_notify_status: 'not_notifyable' | 'notifyable' | 'unknown' | 'unlinked' | null;
-  name: string | null;
-  normalized_phone: string | null;
-  note: string | null;
-  phone: string | null;
-  updated_at: string | null;
-  work_order_count: number | null;
 }
 
 interface TransferAdminWorkOrderCustomerRow {
@@ -78,6 +77,27 @@ const ADMIN_CUSTOMER_LIST_SORT_COLUMN_MAP = {
   updatedAt: 'updated_at',
   workOrderCount: 'work_order_count',
 } as const;
+
+const ADMIN_CUSTOMER_LIST_SELECT = [
+  'id',
+  'name',
+  'phone',
+  'note',
+  'created_at',
+  'updated_at',
+  'work_order_count',
+  'active_work_order_count',
+  'latest_work_order_id',
+  'latest_paper_order_no',
+  'latest_work_order_status',
+  'latest_work_order_updated_at',
+  'line_linked',
+  'line_display_name',
+  'line_is_friend',
+  'line_blocked_at',
+  'line_friendship_checked_at',
+  'line_notify_status',
+].join(', ');
 
 const calculatePageInfo = (page: number, pageSize: number, total: number): PageInfo => {
   const totalPages = Math.ceil(total / pageSize);
@@ -217,8 +237,8 @@ const getListSortConfig = (sort: string) => {
   };
 };
 
-const fromAdminCustomerList = (supabase: UserScopedSupabaseClient) =>
-  supabase.from('admin_customer_list' as never) as never;
+const escapePostgrestLikePattern = (value: string) =>
+  value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 
 const throwMappedTransferRpcError = (error: SupabaseLikeError): never => {
   const details = [error.message, error.details, error.hint].filter(Boolean).join(' ');
@@ -247,14 +267,13 @@ export const listAdminCustomers = async (
   const from = (query.page - 1) * query.pageSize;
   const to = from + query.pageSize - 1;
   const sort = getListSortConfig(query.sort);
-  let request = fromAdminCustomerList(supabase).select('*', { count: 'exact' });
+  let request = supabase.from('admin_customer_list').select(ADMIN_CUSTOMER_LIST_SELECT, {
+    count: 'exact',
+  });
 
   if (query.q) {
-    const digitsOnlyQuery = query.q.replace(/\D/g, '');
-    const phoneTerm = digitsOnlyQuery || query.q;
-    request = request.or(
-      `normalized_phone.ilike.%${phoneTerm}%,name.ilike.%${query.q}%,note.ilike.%${query.q}%`,
-    );
+    const escapedQuery = escapePostgrestLikePattern(query.q);
+    request = request.ilike('search_text', `%${escapedQuery}%`);
   }
 
   if (query.lineStatus === 'linked') {
