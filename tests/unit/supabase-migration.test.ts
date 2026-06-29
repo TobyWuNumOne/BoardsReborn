@@ -135,6 +135,14 @@ const lineBindTokenRpcsMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621064536_line_bind_token_rpcs.sql'),
   'utf8',
 );
+const adminCustomerManagementMigration = existsSync(
+  resolve(process.cwd(), 'supabase/migrations/20260629173000_admin_customer_management.sql'),
+)
+  ? readFileSync(
+      resolve(process.cwd(), 'supabase/migrations/20260629173000_admin_customer_management.sql'),
+      'utf8',
+    )
+  : '';
 const adminLineBindingManagementMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621065543_admin_line_binding_management.sql'),
   'utf8',
@@ -771,6 +779,25 @@ describe('initial Supabase migration', () => {
     );
     expect(lineReadyNotificationServiceRoleWorkOrdersGrantMigration).toContain(
       'grant update on table public.work_orders to service_role',
+    );
+  });
+
+  it('adds admin customer management read model and transfer RPC', () => {
+    expect(adminCustomerManagementMigration).toContain(
+      'create or replace view public.admin_customer_list',
+    );
+    expect(adminCustomerManagementMigration).toContain('work_order_count');
+    expect(adminCustomerManagementMigration).toContain('active_work_order_count');
+    expect(adminCustomerManagementMigration).toContain('latest_work_order_id');
+    expect(adminCustomerManagementMigration).toContain('line_notify_status');
+    expect(adminCustomerManagementMigration).toContain(
+      'grant select on table public.admin_customer_list to authenticated',
+    );
+    expect(adminCustomerManagementMigration).toContain(
+      'create or replace function public.transfer_admin_work_order_customer',
+    );
+    expect(adminCustomerManagementMigration).toContain(
+      'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated',
     );
   });
 });
