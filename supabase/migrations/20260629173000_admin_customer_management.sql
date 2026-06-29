@@ -1,4 +1,5 @@
-create or replace view public.admin_customer_list as
+create or replace view public.admin_customer_list
+with (security_invoker = true) as
 select
   customers.id,
   customers.name,
@@ -94,6 +95,24 @@ begin
       using errcode = '23514';
   end if;
 
+  if exists (
+    select 1
+    from public.line_bind_tokens
+    where line_bind_tokens.work_order_id = p_work_order_id
+  ) then
+    raise exception 'Work order has LINE bind tokens'
+      using errcode = '23503';
+  end if;
+
+  if exists (
+    select 1
+    from public.line_jobs
+    where line_jobs.work_order_id = p_work_order_id
+  ) then
+    raise exception 'Work order has LINE jobs'
+      using errcode = '23503';
+  end if;
+
   update public.work_orders
   set
     customer_id = p_target_customer_id,
@@ -109,4 +128,5 @@ begin
 end;
 $$;
 
+revoke all on function public.transfer_admin_work_order_customer(uuid, uuid) from public;
 grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated;

@@ -786,6 +786,7 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).toContain(
       'create or replace view public.admin_customer_list',
     );
+    expect(adminCustomerManagementMigration).toContain('with (security_invoker = true)');
     expect(adminCustomerManagementMigration).toContain('work_order_count');
     expect(adminCustomerManagementMigration).toContain('active_work_order_count');
     expect(adminCustomerManagementMigration).toContain('latest_work_order_id');
@@ -795,11 +796,14 @@ describe('initial Supabase migration', () => {
       "when customer_line_accounts.blocked_at is not null then 'not_notifyable'",
     );
     expect(adminCustomerManagementMigration).toContain(
-      "when customer_line_accounts.friendship_checked_at is not null\n      and customer_line_accounts.is_friend is false then 'not_notifyable'",
+      "when customer_line_accounts.friendship_checked_at is not null",
     );
     expect(adminCustomerManagementMigration).toContain(
-      "when customer_line_accounts.is_friend is true then 'notifyable'",
+      "customer_line_accounts.is_friend is false",
     );
+    expect(adminCustomerManagementMigration).toContain("then 'not_notifyable'");
+    expect(adminCustomerManagementMigration).toContain("when customer_line_accounts.is_friend is true");
+    expect(adminCustomerManagementMigration).toContain("then 'notifyable'");
     expect(adminCustomerManagementMigration).toContain(
       'grant select on table public.admin_customer_list to authenticated',
     );
@@ -811,6 +815,19 @@ describe('initial Supabase migration', () => {
     );
     expect(adminCustomerManagementMigration).toContain('security invoker');
     expect(adminCustomerManagementMigration).toContain('for update');
+    expect(adminCustomerManagementMigration).toContain(
+      'if exists (\n    select 1\n    from public.line_bind_tokens\n    where line_bind_tokens.work_order_id = p_work_order_id',
+    );
+    expect(adminCustomerManagementMigration).toContain(
+      "raise exception 'Work order has LINE bind tokens'",
+    );
+    expect(adminCustomerManagementMigration).toContain(
+      "if exists (\n    select 1\n    from public.line_jobs\n    where line_jobs.work_order_id = p_work_order_id",
+    );
+    expect(adminCustomerManagementMigration).toContain("raise exception 'Work order has LINE jobs'");
+    expect(adminCustomerManagementMigration).toContain(
+      "using errcode = '23503'",
+    );
     expect(adminCustomerManagementMigration).toContain('Work order not found');
     expect(adminCustomerManagementMigration).toContain('Target customer not found');
     expect(adminCustomerManagementMigration).toContain('Target customer must be different');
@@ -818,6 +835,9 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).toContain("using errcode = '23514'");
     expect(adminCustomerManagementMigration).toContain('customer_id = p_target_customer_id');
     expect(adminCustomerManagementMigration).toContain('updated_at = now()');
+    expect(adminCustomerManagementMigration).toContain(
+      'revoke all on function public.transfer_admin_work_order_customer(uuid, uuid) from public;',
+    );
     expect(adminCustomerManagementMigration).toContain(
       'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated',
     );
