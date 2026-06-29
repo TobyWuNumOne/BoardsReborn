@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Database } from '../../types/database.types';
 import { ConflictError, NotFoundError, ValidationError } from '../../server/utils/api-errors';
 import {
   getAdminCustomerDetail,
@@ -16,6 +17,22 @@ import {
 const CUSTOMER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_CUSTOMER_ID = '22222222-2222-4222-8222-222222222222';
 const WORK_ORDER_ID = '33333333-3333-4333-8333-333333333333';
+type TransferAdminWorkOrderCustomerFunction =
+  Database['public']['Functions']['transfer_admin_work_order_customer'];
+type TransferAdminWorkOrderCustomerArgs = TransferAdminWorkOrderCustomerFunction['Args'];
+type TransferAdminWorkOrderCustomerReturn = TransferAdminWorkOrderCustomerFunction['Returns'][number];
+const transferRpcArgsTypeCheck: TransferAdminWorkOrderCustomerArgs = {
+  p_target_customer_id: OTHER_CUSTOMER_ID,
+  p_work_order_id: WORK_ORDER_ID,
+};
+const transferRpcReturnTypeCheck: TransferAdminWorkOrderCustomerReturn = {
+  previous_customer_id: CUSTOMER_ID,
+  target_customer_id: OTHER_CUSTOMER_ID,
+  transferred_at: '2026-06-11T12:00:00.000Z',
+  work_order_id: WORK_ORDER_ID,
+};
+void transferRpcArgsTypeCheck;
+void transferRpcReturnTypeCheck;
 
 const expectValidationField = (callback: () => unknown, field: string) => {
   try {
@@ -543,6 +560,10 @@ describe('admin customer services', () => {
       'id, paper_order_no, current_status, board_type, board_length_class, board_color, repair_count, intake_date, updated_at',
     );
     expect(calls.workOrders.eq).toEqual([{ column: 'customer_id', value: CUSTOMER_ID }]);
+    expect(calls.workOrders.order).toEqual([
+      { ascending: false, column: 'updated_at', nullsFirst: false },
+      { ascending: false, column: 'id', nullsFirst: false },
+    ]);
     expect(response).toEqual({
       data: {
         customer: {

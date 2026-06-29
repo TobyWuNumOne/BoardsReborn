@@ -338,6 +338,7 @@ export const getAdminCustomerDetail = async (
       )
       .eq('customer_id', id)
       .order('updated_at', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: false, nullsFirst: false })
       .range(from, to),
   ]);
 
