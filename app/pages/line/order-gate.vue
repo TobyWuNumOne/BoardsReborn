@@ -400,9 +400,21 @@ const debugRows = computed(() => [
   ...lastClickDebugRows.value,
 ]);
 
-const debugVisible = computed(() => debugEnabled.value || lastClickDebugRows.value.length > 0);
+const debugVisible = computed(
+  () => debugEnabled.value && state.value !== 'success' && state.value !== 'already_linked',
+);
+
+const clearClickDebug = () => {
+  try {
+    sessionStorage.removeItem(clickDebugStorageKey);
+  } catch {
+    // Debug cleanup is best-effort and must not affect customer flow.
+  }
+  lastClickDebugRows.value = [];
+};
 
 const persistClickDebug = (extra: Record<string, string> = {}) => {
+  if (!debugEnabled.value) return;
   try {
     const snapshot = {
       actualLoginRedirectUriMasked: maskTokenInUrl(debugState.actualLoginRedirectUri),
@@ -457,6 +469,10 @@ const persistClickDebug = (extra: Record<string, string> = {}) => {
 };
 
 const restoreClickDebug = () => {
+  if (!debugEnabled.value) {
+    clearClickDebug();
+    return;
+  }
   try {
     const raw = sessionStorage.getItem(clickDebugStorageKey);
     if (!raw) return;
@@ -491,6 +507,7 @@ const confirmLineBinding = async (bindToken: string, tokens: LineLiffTokens) => 
   summary.value = { boardType: summary.value?.boardType ?? '', ...response.data.workOrder };
   notificationStatus.value = response.data.binding.notificationStatus;
   state.value = response.data.outcome === 'already_linked' ? 'already_linked' : 'success';
+  clearClickDebug();
 };
 
 const syncMountedDebugState = () => {

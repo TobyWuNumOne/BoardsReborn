@@ -129,7 +129,9 @@ describe('LINE order gate UI contract', () => {
     expect(pageSource).toContain('dry_run_ready');
     expect(pageSource).toContain('dryRunEnabled.value');
     expect(pageSource).toContain('debugVisible');
-    expect(pageSource).toContain('lastClickDebugRows.value.length > 0');
+    expect(pageSource).toContain("debugEnabled.value && state.value !== 'success'");
+    expect(pageSource).toContain("state.value !== 'already_linked'");
+    expect(pageSource).toContain('clearClickDebug()');
     expect(pageSource).toContain('initLineLiff');
     expect(pageSource).toContain('handleLiffPrimaryRedirect');
     expect(pageSource).toContain('syncMountedDebugState');
@@ -169,8 +171,10 @@ describe('LINE order gate UI contract', () => {
 
     expect(pageSource).toContain('maskSearchParams');
     expect(pageSource).toContain("params.set(key, '[masked]')");
+    expect(pageSource).toContain('if (!debugEnabled.value) return');
     expect(pageSource).toContain('sessionStorage.setItem(clickDebugStorageKey');
     expect(pageSource).toContain('sessionStorage.getItem(clickDebugStorageKey');
+    expect(pageSource).toContain('sessionStorage.removeItem(clickDebugStorageKey');
     expect(pageSource).toContain('computedLoginRedirectUriMasked');
     expect(pageSource).toContain('actualLoginRedirectUriMasked');
     expect(pageSource).toContain('navigateToTargetMasked');
