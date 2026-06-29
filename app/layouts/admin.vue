@@ -9,6 +9,7 @@ import {
   PrinterIcon,
   ScanLineIcon,
   SettingsIcon,
+  UsersIcon,
 } from 'lucide-vue-next';
 
 const adminSession = useAdminSession();
@@ -19,7 +20,7 @@ await adminSession.refreshAdminSession();
 const displayName = computed(() => adminSession.profile.value?.displayName || 'Admin');
 
 const navItems = [
-{
+  {
     label: '首頁',
     to: '/admin',
     icon: HomeIcon,
@@ -58,6 +59,14 @@ const navItems = [
     enabled: true,
   },
   {
+    label: '顧客',
+    description: '查看顧客資料與 LINE 綁定狀態',
+    featured: true,
+    to: '/admin/customers',
+    icon: UsersIcon,
+    enabled: true,
+  },
+  {
     label: '列印',
     to: '/admin/printing',
     icon: PrinterIcon,
@@ -80,7 +89,14 @@ const topNavItems = [
     exact: false,
     exclude: ['/admin/work-orders/bulk-status', '/admin/work-orders/new'],
   },
-  { label: '批量', to: '/admin/work-orders/bulk-status', icon: Layers3Icon, exact: false, exclude: [] },
+  { label: '顧客', to: '/admin/customers', icon: UsersIcon, exact: false, exclude: [] },
+  {
+    label: '批量',
+    to: '/admin/work-orders/bulk-status',
+    icon: Layers3Icon,
+    exact: false,
+    exclude: [],
+  },
   { label: '掃描', to: '/admin/scan', icon: ScanLineIcon, exact: false, exclude: [] },
 ];
 
