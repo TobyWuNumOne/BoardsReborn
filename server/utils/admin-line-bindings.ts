@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/database.types';
-import { InternalServerError, NotFoundError, ValidationError } from './api-errors';
+import { ConflictError, InternalServerError, NotFoundError, ValidationError } from './api-errors';
 import {
   deriveLineBindPlaintextToken,
   deriveLineBindTokenState,
@@ -162,24 +162,38 @@ export const issueAdminCustomerLineBindToken = async (
   config: LineBindTokenConfig,
   tokenRowId = randomUUID(),
 ) => {
-  const { data: workOrder, error } = await supabase
-    .from('work_orders')
-    .select('id')
-    .eq('customer_id', customerId)
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .order('id', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
+  const plaintextToken = deriveLineBindPlaintextToken(tokenRowId, config.lineBindTokenSecret);
+  const { data, error } = await supabase.rpc('issue_admin_customer_line_bind_token', {
+    p_created_by: userId,
+    p_customer_id: customerId,
+    p_token_hash: hashLineBindToken(plaintextToken),
+    p_token_id: tokenRowId,
+  });
 
   if (error) {
+    if (
+      error.code === '23514' &&
+      [error.message, error.details, error.hint].some((value) =>
+        value?.includes('Customer has no work orders for LINE binding'),
+      )
+    ) {
+      throw new ConflictError('Customer has no work orders for LINE binding.');
+    }
+
     throwMappedSupabaseError(error);
   }
 
-  if (!workOrder?.id) {
-    throw new NotFoundError('Customer has no work orders for LINE binding.');
-  }
+  const result = assertRecord(data);
+  const rebuilt = rebuildLineBindLiffUrl(tokenRowId, config);
 
-  return issueAdminWorkOrderLineBindToken(supabase, workOrder.id, userId, config, tokenRowId);
+  return {
+    data: {
+      expiresAt: assertString(result.expiresAt),
+      id: assertString(result.id),
+      liffUrl: rebuilt.url,
+      revokedTokenCount: assertCount(result.revokedTokenCount),
+    },
+  };
 };
 
 export const unlinkAdminCustomerLineBinding = async (

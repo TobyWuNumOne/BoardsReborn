@@ -956,6 +956,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      issue_admin_customer_line_bind_token: {
+        Args: {
+          p_created_by?: string;
+          p_customer_id: string;
+          p_token_hash: string;
+          p_token_id: string;
+        };
+        Returns: Json;
+      };
       issue_line_bind_token: {
         Args: {
           p_created_by?: string;

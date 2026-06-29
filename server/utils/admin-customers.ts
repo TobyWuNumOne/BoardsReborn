@@ -249,6 +249,12 @@ const throwMappedTransferRpcError = (error: SupabaseLikeError): never => {
     });
   }
 
+  if (error.code === 'P0002' && details.includes('Target customer not found')) {
+    throw new ValidationError({
+      targetCustomerId: ['Customer not found.'],
+    });
+  }
+
   if (error.code === '23503' && details.includes('Work order has LINE bind tokens')) {
     throw new ConflictError('Cannot transfer a work order with LINE bind tokens.');
   }

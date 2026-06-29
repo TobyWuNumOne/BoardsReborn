@@ -3,8 +3,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   CustomerAlreadyBoundError,
+  ConflictError,
   NoActiveLineBindingError,
-  NotFoundError,
   ValidationError,
 } from '../../server/utils/api-errors';
 import {
@@ -139,40 +139,9 @@ describe('admin LINE binding mutations', () => {
     ).rejects.toBeInstanceOf(CustomerAlreadyBoundError);
   });
 
-  it('issues a customer token by resolving the latest work order first and preserving the safe response shape', async () => {
-    const fromCalls: Array<{ table: string }> = [];
-    const workOrderCalls = {
-      eq: [] as Array<{ column: string; value: unknown }>,
-      limit: [] as number[],
-      order: [] as Array<{ ascending?: boolean; column: string; nullsFirst?: boolean }>,
-      select: [] as string[],
-    };
+  it('issues a customer token through the customer-scoped transaction without exposing raw token fields', async () => {
     const rpcCalls: Array<{ args: Record<string, unknown>; name: string }> = [];
     const client = {
-      from(table: string) {
-        fromCalls.push({ table });
-        return {
-          eq(column: string, value: unknown) {
-            workOrderCalls.eq.push({ column, value });
-            return this;
-          },
-          limit(value: number) {
-            workOrderCalls.limit.push(value);
-            return this;
-          },
-          maybeSingle() {
-            return Promise.resolve({ data: { id: WORK_ORDER_ID }, error: null });
-          },
-          order(column: string, options: { ascending?: boolean; nullsFirst?: boolean }) {
-            workOrderCalls.order.push({ column, ...options });
-            return this;
-          },
-          select(columns: string) {
-            workOrderCalls.select.push(columns);
-            return this;
-          },
-        };
-      },
       async rpc(name: string, args: Record<string, unknown>) {
         rpcCalls.push({ args, name });
         return {
@@ -180,6 +149,7 @@ describe('admin LINE binding mutations', () => {
             expiresAt: '2026-07-21T10:00:00.000Z',
             id: TOKEN_ID,
             revokedTokenCount: 1,
+            workOrderId: WORK_ORDER_ID,
           },
           error: null,
         };
@@ -193,22 +163,14 @@ describe('admin LINE binding mutations', () => {
       TOKEN_ID,
     );
 
-    expect(fromCalls).toEqual([{ table: 'work_orders' }]);
-    expect(workOrderCalls.select).toEqual(['id']);
-    expect(workOrderCalls.eq).toEqual([{ column: 'customer_id', value: CUSTOMER_ID }]);
-    expect(workOrderCalls.order).toEqual([
-      { ascending: false, column: 'updated_at', nullsFirst: false },
-      { ascending: false, column: 'id', nullsFirst: false },
-    ]);
-    expect(workOrderCalls.limit).toEqual([1]);
     expect(rpcCalls).toHaveLength(1);
     expect(rpcCalls[0]).toMatchObject({
       args: {
         p_created_by: USER_ID,
+        p_customer_id: CUSTOMER_ID,
         p_token_id: TOKEN_ID,
-        p_work_order_id: WORK_ORDER_ID,
       },
-      name: 'issue_admin_line_bind_token',
+      name: 'issue_admin_customer_line_bind_token',
     });
     expect(rpcCalls[0]?.args).toHaveProperty('p_token_hash');
     expect(response).toEqual({
@@ -223,25 +185,12 @@ describe('admin LINE binding mutations', () => {
     expect(response.data).not.toHaveProperty('token_hash');
   });
 
-  it('maps customers without work orders to a typed not-found error', async () => {
+  it('maps customers without work orders to a typed conflict error', async () => {
     const client = {
-      from() {
+      async rpc() {
         return {
-          eq() {
-            return this;
-          },
-          limit() {
-            return this;
-          },
-          maybeSingle() {
-            return Promise.resolve({ data: null, error: null });
-          },
-          order() {
-            return this;
-          },
-          select() {
-            return this;
-          },
+          data: null,
+          error: { code: '23514', message: 'Customer has no work orders for LINE binding' },
         };
       },
     };
@@ -252,9 +201,9 @@ describe('admin LINE binding mutations', () => {
       config,
     );
 
-    await expect(responsePromise).rejects.toBeInstanceOf(NotFoundError);
+    await expect(responsePromise).rejects.toBeInstanceOf(ConflictError);
     await expect(responsePromise).rejects.toMatchObject({
-      code: 'NOT_FOUND',
+      code: 'CONFLICT',
       message: 'Customer has no work orders for LINE binding.',
     });
   });

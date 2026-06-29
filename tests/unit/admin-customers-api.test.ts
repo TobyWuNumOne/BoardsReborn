@@ -774,6 +774,28 @@ describe('admin customer services', () => {
       },
     });
 
+    const missingTargetCustomerClient = {
+      async rpc() {
+        return {
+          data: null,
+          error: { code: 'P0002', message: 'Target customer not found' },
+        };
+      },
+    };
+
+    await expect(
+      transferAdminWorkOrderCustomer(
+        missingTargetCustomerClient as never,
+        WORK_ORDER_ID,
+        OTHER_CUSTOMER_ID,
+      ),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+      fieldErrors: {
+        targetCustomerId: ['Customer not found.'],
+      },
+    });
+
     const lineArtifactClient = {
       async rpc() {
         return {

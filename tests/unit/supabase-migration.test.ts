@@ -786,6 +786,12 @@ describe('initial Supabase migration', () => {
   });
 
   it('adds admin customer management read model and transfer RPC', () => {
+    const adminCustomerListViewSql = adminCustomerManagementMigration.slice(
+      0,
+      adminCustomerManagementMigration.indexOf(
+        'create or replace function public.transfer_admin_work_order_customer',
+      ),
+    );
     const lineBindTokenGuard = normalizedAdminCustomerManagementMigration.indexOf(
       'if exists ( select 1 from public.line_bind_tokens where line_bind_tokens.work_order_id = p_work_order_id',
     );
@@ -837,8 +843,22 @@ describe('initial Supabase migration', () => {
     expect(databaseTypes).toContain('transfer_admin_work_order_customer');
     expect(databaseTypes).toContain('p_target_customer_id: string');
     expect(databaseTypes).toContain('p_work_order_id: string');
+    expect(databaseTypes).toContain('issue_admin_customer_line_bind_token');
+    expect(databaseTypes).toContain('p_customer_id: string');
     expect(adminCustomerManagementMigration).toContain(
       'create or replace function public.transfer_admin_work_order_customer',
+    );
+    expect(adminCustomerManagementMigration).toContain(
+      'create or replace function public.issue_admin_customer_line_bind_token',
+    );
+    expect(normalizedAdminCustomerManagementMigration).toContain(
+      'from public.customers where customers.id = p_customer_id for update',
+    );
+    expect(normalizedAdminCustomerManagementMigration).toContain(
+      'order by work_orders.updated_at desc, work_orders.id desc',
+    );
+    expect(adminCustomerManagementMigration).toContain(
+      'Customer has no work orders for LINE binding',
     );
     expect(adminCustomerManagementMigration).toContain(
       'when customer_line_accounts.friendship_checked_at is not null',
@@ -872,12 +892,12 @@ describe('initial Supabase migration', () => {
       'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated',
     );
     expect(adminCustomerManagementMigration).toContain('set search_path = public');
-    expect(adminCustomerManagementMigration).not.toContain('line_user_id');
-    expect(adminCustomerManagementMigration).not.toContain('token_hash');
-    expect(adminCustomerManagementMigration).not.toContain('recipient');
-    expect(adminCustomerManagementMigration).not.toContain('prepared_messages');
-    expect(adminCustomerManagementMigration).not.toContain('prepared_payload');
-    expect(adminCustomerManagementMigration).not.toContain('LINE_BIND_TOKEN_SECRET');
+    expect(adminCustomerListViewSql).not.toContain('line_user_id');
+    expect(adminCustomerListViewSql).not.toContain('token_hash');
+    expect(adminCustomerListViewSql).not.toContain('recipient');
+    expect(adminCustomerListViewSql).not.toContain('prepared_messages');
+    expect(adminCustomerListViewSql).not.toContain('prepared_payload');
+    expect(adminCustomerListViewSql).not.toContain('LINE_BIND_TOKEN_SECRET');
     expect(adminCustomerManagementMigration).not.toContain('status_history');
     expect(adminCustomerManagementMigration).not.toContain('current_status =');
     expect(adminCustomerManagementMigration).not.toContain('notified_at =');

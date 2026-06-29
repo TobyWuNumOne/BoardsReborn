@@ -141,3 +141,95 @@ $$;
 
 revoke all on function public.transfer_admin_work_order_customer(uuid, uuid) from public;
 grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated;
+
+create or replace function public.issue_admin_customer_line_bind_token(
+  p_token_id uuid,
+  p_token_hash text,
+  p_customer_id uuid,
+  p_created_by uuid default null
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_expires_at timestamptz;
+  v_latest_work_order_id uuid;
+  v_revoked_count integer;
+begin
+  if p_token_hash is null or p_token_hash !~ '^[a-f0-9]{64}$' then
+    raise exception 'Invalid LINE bind token hash'
+      using errcode = '23514';
+  end if;
+
+  perform 1
+  from public.customers
+  where customers.id = p_customer_id
+  for update;
+
+  if not found then
+    raise exception 'Customer not found'
+      using errcode = 'P0002';
+  end if;
+
+  if exists (
+    select 1
+    from public.customer_line_accounts
+    where customer_line_accounts.customer_id = p_customer_id
+  ) then
+    raise exception 'Customer already has active LINE binding'
+      using errcode = '23514';
+  end if;
+
+  select work_orders.id
+  into v_latest_work_order_id
+  from public.work_orders
+  where work_orders.customer_id = p_customer_id
+  order by work_orders.updated_at desc, work_orders.id desc
+  limit 1;
+
+  if v_latest_work_order_id is null then
+    raise exception 'Customer has no work orders for LINE binding'
+      using errcode = '23514';
+  end if;
+
+  update public.line_bind_tokens
+  set revoked_at = statement_timestamp()
+  where customer_id = p_customer_id
+    and used_at is null
+    and revoked_at is null;
+
+  get diagnostics v_revoked_count = row_count;
+  v_expires_at := statement_timestamp() + interval '30 days';
+
+  insert into public.line_bind_tokens (
+    id,
+    token_hash,
+    customer_id,
+    work_order_id,
+    expires_at,
+    created_by
+  )
+  values (
+    p_token_id,
+    p_token_hash,
+    p_customer_id,
+    v_latest_work_order_id,
+    v_expires_at,
+    p_created_by
+  );
+
+  return jsonb_build_object(
+    'id', p_token_id,
+    'expiresAt', v_expires_at,
+    'revokedTokenCount', v_revoked_count,
+    'workOrderId', v_latest_work_order_id
+  );
+end;
+$$;
+
+revoke all on function public.issue_admin_customer_line_bind_token(uuid, text, uuid, uuid)
+from public;
+grant execute on function public.issue_admin_customer_line_bind_token(uuid, text, uuid, uuid)
+to authenticated;
