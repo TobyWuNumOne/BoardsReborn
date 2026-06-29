@@ -797,7 +797,25 @@ describe('initial Supabase migration', () => {
       'create or replace function public.transfer_admin_work_order_customer',
     );
     expect(adminCustomerManagementMigration).toContain(
+      'when customer_line_accounts.friendship_checked_at is not null',
+    );
+    expect(adminCustomerManagementMigration).toContain('security invoker');
+    expect(adminCustomerManagementMigration).toContain('for update');
+    expect(adminCustomerManagementMigration).toContain('Work order not found');
+    expect(adminCustomerManagementMigration).toContain('Target customer not found');
+    expect(adminCustomerManagementMigration).toContain('Target customer must be different');
+    expect(adminCustomerManagementMigration).toContain("using errcode = 'P0002'");
+    expect(adminCustomerManagementMigration).toContain("using errcode = '23514'");
+    expect(adminCustomerManagementMigration).toContain('customer_id = p_target_customer_id');
+    expect(adminCustomerManagementMigration).toContain('updated_at = now()');
+    expect(adminCustomerManagementMigration).toContain(
       'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated',
     );
+    expect(adminCustomerManagementMigration).not.toContain('line_user_id');
+    expect(adminCustomerManagementMigration).not.toContain('token_hash');
+    expect(adminCustomerManagementMigration).not.toContain('recipient');
+    expect(adminCustomerManagementMigration).not.toContain('prepared_messages');
+    expect(adminCustomerManagementMigration).not.toContain('prepared_payload');
+    expect(adminCustomerManagementMigration).not.toContain('LINE_BIND_TOKEN_SECRET');
   });
 });

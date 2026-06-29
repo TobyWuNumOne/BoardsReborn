@@ -27,6 +27,8 @@ select
   case
     when customer_line_accounts.id is null then 'unlinked'
     when customer_line_accounts.blocked_at is not null then 'not_notifyable'
+    when customer_line_accounts.friendship_checked_at is not null
+      and customer_line_accounts.is_friend is false then 'not_notifyable'
     when customer_line_accounts.is_friend is true then 'notifyable'
     else 'unknown'
   end as line_notify_status
