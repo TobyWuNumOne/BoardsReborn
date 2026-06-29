@@ -790,6 +790,16 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).toContain('active_work_order_count');
     expect(adminCustomerManagementMigration).toContain('latest_work_order_id');
     expect(adminCustomerManagementMigration).toContain('line_notify_status');
+    expect(adminCustomerManagementMigration).toContain("when customer_line_accounts.id is null then 'unlinked'");
+    expect(adminCustomerManagementMigration).toContain(
+      "when customer_line_accounts.blocked_at is not null then 'not_notifyable'",
+    );
+    expect(adminCustomerManagementMigration).toContain(
+      "when customer_line_accounts.friendship_checked_at is not null\n      and customer_line_accounts.is_friend is false then 'not_notifyable'",
+    );
+    expect(adminCustomerManagementMigration).toContain(
+      "when customer_line_accounts.is_friend is true then 'notifyable'",
+    );
     expect(adminCustomerManagementMigration).toContain(
       'grant select on table public.admin_customer_list to authenticated',
     );
@@ -811,11 +821,18 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).toContain(
       'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated',
     );
+    expect(adminCustomerManagementMigration).toContain('set search_path = public');
     expect(adminCustomerManagementMigration).not.toContain('line_user_id');
     expect(adminCustomerManagementMigration).not.toContain('token_hash');
     expect(adminCustomerManagementMigration).not.toContain('recipient');
     expect(adminCustomerManagementMigration).not.toContain('prepared_messages');
     expect(adminCustomerManagementMigration).not.toContain('prepared_payload');
     expect(adminCustomerManagementMigration).not.toContain('LINE_BIND_TOKEN_SECRET');
+    expect(adminCustomerManagementMigration).not.toContain('status_history');
+    expect(adminCustomerManagementMigration).not.toContain('current_status =');
+    expect(adminCustomerManagementMigration).not.toContain('notified_at =');
+    expect(adminCustomerManagementMigration).not.toContain('delivered_at =');
+    expect(adminCustomerManagementMigration).not.toContain('picked_up_at =');
+    expect(adminCustomerManagementMigration).not.toContain('cancelled_at =');
   });
 });
