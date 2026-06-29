@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest';
 import {
   CustomerAlreadyBoundError,
   NoActiveLineBindingError,
+  NotFoundError,
   ValidationError,
 } from '../../server/utils/api-errors';
 import {
   deriveLineNotificationStatus,
+  issueAdminCustomerLineBindToken,
   issueAdminWorkOrderLineBindToken,
   mapAdminWorkOrderLineStatus,
   parseAdminLineBindTokenBody,
@@ -38,9 +40,10 @@ describe('admin LINE API validation and routing', () => {
     });
   });
 
-  it('keeps all three routes admin-only and free of print integration', () => {
+  it('keeps all LINE management routes admin-only and free of print integration', () => {
     const routePaths = [
       'server/api/admin/work-orders/[id]/line-bind-token.post.ts',
+      'server/api/admin/customers/[id]/line-bind-token.post.ts',
       'server/api/admin/customers/[id]/line-binding.delete.ts',
       'server/api/admin/work-orders/[id]/line-status.get.ts',
     ];
@@ -51,6 +54,21 @@ describe('admin LINE API validation and routing', () => {
       expect(source).not.toContain('printJob');
       expect(source).not.toContain('createAdminPrintJob');
     }
+  });
+
+  it('uses the customer-scoped issue route as a thin wrapper over the shared LINE token config flow', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'server/api/admin/customers/[id]/line-bind-token.post.ts'),
+      'utf8',
+    );
+
+    expect(source).toContain('defineApiHandler');
+    expect(source).toContain('requireAdminContext(event)');
+    expect(source).toContain("parseUuid(getRouterParam(event, 'id'), 'id')");
+    expect(source).toContain('parseAdminLineBindTokenBody(await readBody(event))');
+    expect(source).toContain('resolveLineBindTokenConfig');
+    expect(source).toContain('issueAdminCustomerLineBindToken');
+    expect(source).toContain('setResponseStatus(event, 201)');
   });
 });
 
@@ -119,6 +137,126 @@ describe('admin LINE binding mutations', () => {
     await expect(
       issueAdminWorkOrderLineBindToken(client as never, WORK_ORDER_ID, USER_ID, config, TOKEN_ID),
     ).rejects.toBeInstanceOf(CustomerAlreadyBoundError);
+  });
+
+  it('issues a customer token by resolving the latest work order first and preserving the safe response shape', async () => {
+    const fromCalls: Array<{ table: string }> = [];
+    const workOrderCalls = {
+      eq: [] as Array<{ column: string; value: unknown }>,
+      limit: [] as number[],
+      order: [] as Array<{ ascending?: boolean; column: string; nullsFirst?: boolean }>,
+      select: [] as string[],
+    };
+    const rpcCalls: Array<{ args: Record<string, unknown>; name: string }> = [];
+    const client = {
+      from(table: string) {
+        fromCalls.push({ table });
+        return {
+          eq(column: string, value: unknown) {
+            workOrderCalls.eq.push({ column, value });
+            return this;
+          },
+          limit(value: number) {
+            workOrderCalls.limit.push(value);
+            return this;
+          },
+          maybeSingle() {
+            return Promise.resolve({ data: { id: WORK_ORDER_ID }, error: null });
+          },
+          order(column: string, options: { ascending?: boolean; nullsFirst?: boolean }) {
+            workOrderCalls.order.push({ column, ...options });
+            return this;
+          },
+          select(columns: string) {
+            workOrderCalls.select.push(columns);
+            return this;
+          },
+        };
+      },
+      async rpc(name: string, args: Record<string, unknown>) {
+        rpcCalls.push({ args, name });
+        return {
+          data: {
+            expiresAt: '2026-07-21T10:00:00.000Z',
+            id: TOKEN_ID,
+            revokedTokenCount: 1,
+          },
+          error: null,
+        };
+      },
+    };
+
+    const response = await issueAdminCustomerLineBindToken(
+      client as never,
+      { customerId: CUSTOMER_ID, userId: USER_ID },
+      config,
+      TOKEN_ID,
+    );
+
+    expect(fromCalls).toEqual([{ table: 'work_orders' }]);
+    expect(workOrderCalls.select).toEqual(['id']);
+    expect(workOrderCalls.eq).toEqual([{ column: 'customer_id', value: CUSTOMER_ID }]);
+    expect(workOrderCalls.order).toEqual([
+      { ascending: false, column: 'updated_at', nullsFirst: false },
+      { ascending: false, column: 'id', nullsFirst: false },
+    ]);
+    expect(workOrderCalls.limit).toEqual([1]);
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0]).toMatchObject({
+      args: {
+        p_created_by: USER_ID,
+        p_token_id: TOKEN_ID,
+        p_work_order_id: WORK_ORDER_ID,
+      },
+      name: 'issue_admin_line_bind_token',
+    });
+    expect(rpcCalls[0]?.args).toHaveProperty('p_token_hash');
+    expect(response).toEqual({
+      data: {
+        expiresAt: '2026-07-21T10:00:00.000Z',
+        id: TOKEN_ID,
+        liffUrl: expect.stringMatching(/^https:\/\/liff\.line\.me\/1234567890-test\/t\//),
+        revokedTokenCount: 1,
+      },
+    });
+    expect(response.data).not.toHaveProperty('plaintextToken');
+    expect(response.data).not.toHaveProperty('token_hash');
+  });
+
+  it('maps customers without work orders to a typed not-found error', async () => {
+    const client = {
+      from() {
+        return {
+          eq() {
+            return this;
+          },
+          limit() {
+            return this;
+          },
+          maybeSingle() {
+            return Promise.resolve({ data: null, error: null });
+          },
+          order() {
+            return this;
+          },
+          select() {
+            return this;
+          },
+        };
+      },
+    };
+
+    const responsePromise = issueAdminCustomerLineBindToken(
+      client as never,
+      { customerId: CUSTOMER_ID, userId: USER_ID },
+      config,
+    );
+
+    await expect(responsePromise).rejects.toBeInstanceOf(NotFoundError);
+    await expect(responsePromise).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Customer has no work orders for LINE binding.',
+    });
   });
 
   it('unlinks through one RPC and maps its mutation summary', async () => {

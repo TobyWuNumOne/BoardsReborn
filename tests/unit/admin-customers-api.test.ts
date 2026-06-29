@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Database } from '../../types/database.types';
 import { ConflictError, NotFoundError, ValidationError } from '../../server/utils/api-errors';
@@ -220,6 +222,58 @@ const createUpdateClient = (result: { data: unknown; error: unknown }) => {
 };
 
 describe('admin customer validation', () => {
+  it('keeps customer management routes admin-only and wired to the expected parsers/helpers', () => {
+    const routeChecks = [
+      {
+        includes: [
+          'defineApiHandler',
+          'requireAdminContext(event)',
+          'parseAdminCustomerListQuery(getQuery(event))',
+          'listAdminCustomers(supabase, query)',
+        ],
+        path: 'server/api/admin/customers/index.get.ts',
+      },
+      {
+        includes: [
+          'defineApiHandler',
+          'requireAdminContext(event)',
+          "parseUuid(getRouterParam(event, 'id'), 'id')",
+          'parseAdminCustomerDetailQuery(getQuery(event))',
+          'getAdminCustomerDetail(supabase, id, query)',
+        ],
+        path: 'server/api/admin/customers/[id].get.ts',
+      },
+      {
+        includes: [
+          'defineApiHandler',
+          'requireAdminContext(event)',
+          "parseUuid(getRouterParam(event, 'id'), 'id')",
+          'parseAdminCustomerUpdateBody(await readBody(event))',
+          'updateAdminCustomer(supabase, id, body)',
+        ],
+        path: 'server/api/admin/customers/[id].patch.ts',
+      },
+      {
+        includes: [
+          'defineApiHandler',
+          'requireAdminContext(event)',
+          "parseUuid(getRouterParam(event, 'id'), 'id')",
+          'parseWorkOrderTransferCustomerBody(await readBody(event))',
+          'transferAdminWorkOrderCustomer(supabase, id, body.targetCustomerId)',
+        ],
+        path: 'server/api/admin/work-orders/[id]/transfer-customer.post.ts',
+      },
+    ];
+
+    for (const routeCheck of routeChecks) {
+      const source = readFileSync(resolve(process.cwd(), routeCheck.path), 'utf8');
+
+      for (const fragment of routeCheck.includes) {
+        expect(source).toContain(fragment);
+      }
+    }
+  });
+
   it('parses list filters with defaults', () => {
     expect(parseAdminCustomerListQuery({ q: '0912', page: '2', lineStatus: 'linked' })).toEqual({
       lineStatus: 'linked',

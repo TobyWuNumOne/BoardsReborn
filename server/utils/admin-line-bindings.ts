@@ -150,6 +150,38 @@ export const issueAdminWorkOrderLineBindToken = async (
   };
 };
 
+export const issueAdminCustomerLineBindToken = async (
+  supabase: AdminLineClient,
+  {
+    customerId,
+    userId,
+  }: {
+    customerId: string;
+    userId: string;
+  },
+  config: LineBindTokenConfig,
+  tokenRowId = randomUUID(),
+) => {
+  const { data: workOrder, error } = await supabase
+    .from('work_orders')
+    .select('id')
+    .eq('customer_id', customerId)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('id', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throwMappedSupabaseError(error);
+  }
+
+  if (!workOrder?.id) {
+    throw new NotFoundError('Customer has no work orders for LINE binding.');
+  }
+
+  return issueAdminWorkOrderLineBindToken(supabase, workOrder.id, userId, config, tokenRowId);
+};
+
 export const unlinkAdminCustomerLineBinding = async (
   supabase: AdminLineClient,
   customerId: string,
