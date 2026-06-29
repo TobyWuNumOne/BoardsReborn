@@ -231,6 +231,10 @@ describe('admin customer validation', () => {
     expectValidationField(() => parseAdminCustomerListQuery({ lineStatus: 'bad' }), 'lineStatus');
   });
 
+  it('rejects list unknown fields', () => {
+    expectValidationField(() => parseAdminCustomerListQuery({ q: '0912', extra: 'x' }), 'extra');
+  });
+
   it('rejects detail unknown fields', () => {
     expectValidationField(() => parseAdminCustomerDetailQuery({ unknown: 'bad' }), 'unknown');
   });
@@ -546,7 +550,7 @@ describe('admin customer services', () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  it('transfers work orders through the RPC and maps validation/conflict failures', async () => {
+  it('transfers work orders through the RPC and maps validation conflict failures', async () => {
     const calls: Array<{ args: Record<string, unknown>; name: string }> = [];
     const successClient = {
       async rpc(name: string, args: Record<string, unknown>) {
@@ -614,6 +618,21 @@ describe('admin customer services', () => {
 
     await expect(
       transferAdminWorkOrderCustomer(lineArtifactClient as never, WORK_ORDER_ID, OTHER_CUSTOMER_ID),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it('maps LINE jobs conflict to ConflictError', async () => {
+    const lineJobsClient = {
+      async rpc() {
+        return {
+          data: null,
+          error: { code: '23503', message: 'Work order has LINE jobs' },
+        };
+      },
+    };
+
+    await expect(
+      transferAdminWorkOrderCustomer(lineJobsClient as never, WORK_ORDER_ID, OTHER_CUSTOMER_ID),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });
