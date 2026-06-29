@@ -8,6 +8,7 @@ import {
 } from '../../server/utils/admin-customers';
 import {
   parseAdminCustomerListQuery,
+  parseAdminCustomerDetailQuery,
   parseAdminCustomerUpdateBody,
   parseWorkOrderTransferCustomerBody,
 } from '../../server/utils/work-order-validation';
@@ -212,8 +213,34 @@ describe('admin customer validation', () => {
     });
   });
 
+  it('parses detail filters with defaults', () => {
+    expect(parseAdminCustomerDetailQuery({})).toEqual({
+      page: 1,
+      pageSize: 20,
+    });
+  });
+
+  it('parses detail query with explicit page and pageSize', () => {
+    expect(parseAdminCustomerDetailQuery({ page: '2', pageSize: '50' })).toEqual({
+      page: 2,
+      pageSize: 50,
+    });
+  });
+
   it('rejects invalid lineStatus values', () => {
     expectValidationField(() => parseAdminCustomerListQuery({ lineStatus: 'bad' }), 'lineStatus');
+  });
+
+  it('rejects detail unknown fields', () => {
+    expectValidationField(() => parseAdminCustomerDetailQuery({ unknown: 'bad' }), 'unknown');
+  });
+
+  it('rejects pageSize greater than 100 for list query', () => {
+    expectValidationField(() => parseAdminCustomerListQuery({ pageSize: '101' }), 'pageSize');
+  });
+
+  it('rejects pageSize greater than 100 for detail query', () => {
+    expectValidationField(() => parseAdminCustomerDetailQuery({ pageSize: '101' }), 'pageSize');
   });
 
   it('normalizes update payload phone and empty note', () => {
@@ -488,7 +515,6 @@ describe('admin customer services', () => {
     expect(calls.table).toBe('customers');
     expect(calls.payload).toEqual({
       name: '王小明',
-      normalized_phone: '0912345678',
       note: null,
       phone: '0912345678',
     });

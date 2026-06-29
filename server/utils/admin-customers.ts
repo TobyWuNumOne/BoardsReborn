@@ -360,7 +360,6 @@ export const updateAdminCustomer = async (
     .from('customers')
     .update({
       name: body.name,
-      normalized_phone: body.phone,
       note: body.note,
       phone: body.phone,
     })
