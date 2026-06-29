@@ -143,6 +143,8 @@ const adminCustomerManagementMigration = existsSync(
       'utf8',
     )
   : '';
+const normalizedAdminCustomerManagementMigration =
+  adminCustomerManagementMigration.replace(/\s+/g, ' ').trim();
 const adminLineBindingManagementMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621065543_admin_line_binding_management.sql'),
   'utf8',
@@ -783,6 +785,25 @@ describe('initial Supabase migration', () => {
   });
 
   it('adds admin customer management read model and transfer RPC', () => {
+    const lineBindTokenGuard = normalizedAdminCustomerManagementMigration.indexOf(
+      'if exists ( select 1 from public.line_bind_tokens where line_bind_tokens.work_order_id = p_work_order_id',
+    );
+    const lineJobsGuard = normalizedAdminCustomerManagementMigration.indexOf(
+      'if exists ( select 1 from public.line_jobs where line_jobs.work_order_id = p_work_order_id',
+    );
+    const transferWorkOrderUpdateIndex = normalizedAdminCustomerManagementMigration.indexOf(
+      'update public.work_orders',
+    );
+    const transferCustomerIdAssignIndex = normalizedAdminCustomerManagementMigration.search(
+      /\bset customer_id = p_target_customer_id\b/,
+    );
+    const transferFunctionRevokeIndex = normalizedAdminCustomerManagementMigration.indexOf(
+      'revoke all on function public.transfer_admin_work_order_customer(uuid, uuid) from public',
+    );
+    const transferFunctionGrantIndex = normalizedAdminCustomerManagementMigration.indexOf(
+      'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated',
+    );
+
     expect(adminCustomerManagementMigration).toContain(
       'create or replace view public.admin_customer_list',
     );
@@ -815,14 +836,14 @@ describe('initial Supabase migration', () => {
     );
     expect(adminCustomerManagementMigration).toContain('security invoker');
     expect(adminCustomerManagementMigration).toContain('for update');
-    expect(adminCustomerManagementMigration).toContain(
-      'if exists (\n    select 1\n    from public.line_bind_tokens\n    where line_bind_tokens.work_order_id = p_work_order_id',
+    expect(normalizedAdminCustomerManagementMigration).toMatch(
+      /if exists \( select 1 from public\.line_bind_tokens where line_bind_tokens\.work_order_id = p_work_order_id/,
     );
     expect(adminCustomerManagementMigration).toContain(
       "raise exception 'Work order has LINE bind tokens'",
     );
-    expect(adminCustomerManagementMigration).toContain(
-      "if exists (\n    select 1\n    from public.line_jobs\n    where line_jobs.work_order_id = p_work_order_id",
+    expect(normalizedAdminCustomerManagementMigration).toMatch(
+      /if exists \( select 1 from public\.line_jobs where line_jobs\.work_order_id = p_work_order_id/,
     );
     expect(adminCustomerManagementMigration).toContain("raise exception 'Work order has LINE jobs'");
     expect(adminCustomerManagementMigration).toContain(
@@ -835,10 +856,10 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).toContain("using errcode = '23514'");
     expect(adminCustomerManagementMigration).toContain('customer_id = p_target_customer_id');
     expect(adminCustomerManagementMigration).toContain('updated_at = now()');
-    expect(adminCustomerManagementMigration).toContain(
-      'revoke all on function public.transfer_admin_work_order_customer(uuid, uuid) from public;',
+    expect(normalizedAdminCustomerManagementMigration).toContain(
+      'revoke all on function public.transfer_admin_work_order_customer(uuid, uuid) from public',
     );
-    expect(adminCustomerManagementMigration).toContain(
+    expect(normalizedAdminCustomerManagementMigration).toContain(
       'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to authenticated',
     );
     expect(adminCustomerManagementMigration).toContain('set search_path = public');
@@ -854,5 +875,23 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).not.toContain('delivered_at =');
     expect(adminCustomerManagementMigration).not.toContain('picked_up_at =');
     expect(adminCustomerManagementMigration).not.toContain('cancelled_at =');
+
+    expect(lineBindTokenGuard).toBeGreaterThan(-1);
+    expect(lineJobsGuard).toBeGreaterThan(-1);
+    expect(lineBindTokenGuard).toBeLessThan(transferWorkOrderUpdateIndex);
+    expect(lineJobsGuard).toBeLessThan(transferWorkOrderUpdateIndex);
+    expect(lineBindTokenGuard).toBeLessThan(transferCustomerIdAssignIndex);
+    expect(lineJobsGuard).toBeLessThan(transferCustomerIdAssignIndex);
+
+    expect(transferFunctionRevokeIndex).toBeGreaterThan(-1);
+    expect(transferFunctionGrantIndex).toBeGreaterThan(-1);
+    expect(transferFunctionRevokeIndex).toBeLessThan(transferFunctionGrantIndex);
+
+    expect(normalizedAdminCustomerManagementMigration).not.toContain(
+      'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to public',
+    );
+    expect(normalizedAdminCustomerManagementMigration).not.toContain(
+      'grant execute on function public.transfer_admin_work_order_customer(uuid, uuid) to anon',
+    );
   });
 });
