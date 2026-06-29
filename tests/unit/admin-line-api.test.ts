@@ -5,6 +5,7 @@ import {
   CustomerAlreadyBoundError,
   ConflictError,
   NoActiveLineBindingError,
+  NotFoundError,
   ValidationError,
 } from '../../server/utils/api-errors';
 import {
@@ -206,6 +207,25 @@ describe('admin LINE binding mutations', () => {
       code: 'CONFLICT',
       message: 'Customer has no work orders for LINE binding.',
     });
+  });
+
+  it('preserves missing customer failures as NOT_FOUND for customer-scoped token issue', async () => {
+    const client = {
+      async rpc() {
+        return {
+          data: null,
+          error: { code: 'P0002', message: 'Customer not found' },
+        };
+      },
+    };
+
+    await expect(
+      issueAdminCustomerLineBindToken(
+        client as never,
+        { customerId: CUSTOMER_ID, userId: USER_ID },
+        config,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('unlinks through one RPC and maps its mutation summary', async () => {
