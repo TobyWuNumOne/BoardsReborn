@@ -404,7 +404,7 @@ export const transferAdminWorkOrderCustomer = async (
   workOrderId: string,
   targetCustomerId: string,
 ) => {
-  const { data, error } = await (supabase.rpc as never)('transfer_admin_work_order_customer', {
+  const { data, error } = await supabase.rpc('transfer_admin_work_order_customer', {
     p_target_customer_id: targetCustomerId,
     p_work_order_id: workOrderId,
   });

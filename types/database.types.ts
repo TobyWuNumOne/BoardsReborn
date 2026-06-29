@@ -1020,6 +1020,15 @@ export type Database = {
         Returns: number;
       };
       to_printable_ascii: { Args: { p_value: string }; Returns: string };
+      transfer_admin_work_order_customer: {
+        Args: { p_target_customer_id: string; p_work_order_id: string };
+        Returns: {
+          previous_customer_id: string;
+          target_customer_id: string;
+          transferred_at: string;
+          work_order_id: string;
+        }[];
+      };
       transition_admin_work_order_status: {
         Args: {
           p_changed_by_user_id?: string;

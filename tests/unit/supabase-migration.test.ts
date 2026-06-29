@@ -143,6 +143,7 @@ const adminCustomerManagementMigration = existsSync(
       'utf8',
     )
   : '';
+const databaseTypes = readFileSync(resolve(process.cwd(), 'types/database.types.ts'), 'utf8');
 const normalizedAdminCustomerManagementMigration =
   adminCustomerManagementMigration.replace(/\s+/g, ' ').trim();
 const adminLineBindingManagementMigration = readFileSync(
@@ -813,6 +814,9 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).toContain('search_text');
     expect(adminCustomerManagementMigration).toContain('concat_ws');
     expect(adminCustomerManagementMigration).toContain('latest_work_order_id');
+    expect(normalizedAdminCustomerManagementMigration).toContain(
+      'order by latest_work_order.updated_at desc, latest_work_order.id desc',
+    );
     expect(adminCustomerManagementMigration).toContain('line_notify_status');
     expect(adminCustomerManagementMigration).toContain("when customer_line_accounts.id is null then 'unlinked'");
     expect(adminCustomerManagementMigration).toContain(
@@ -830,6 +834,9 @@ describe('initial Supabase migration', () => {
     expect(adminCustomerManagementMigration).toContain(
       'grant select on table public.admin_customer_list to authenticated',
     );
+    expect(databaseTypes).toContain('transfer_admin_work_order_customer');
+    expect(databaseTypes).toContain('p_target_customer_id: string');
+    expect(databaseTypes).toContain('p_work_order_id: string');
     expect(adminCustomerManagementMigration).toContain(
       'create or replace function public.transfer_admin_work_order_customer',
     );

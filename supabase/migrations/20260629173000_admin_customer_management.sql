@@ -46,7 +46,7 @@ left join lateral (
   select id, paper_order_no, current_status, updated_at
   from public.work_orders latest_work_order
   where latest_work_order.customer_id = customers.id
-  order by latest_work_order.updated_at desc
+  order by latest_work_order.updated_at desc, latest_work_order.id desc
   limit 1
 ) as latest_work_order on true
 left join public.customer_line_accounts on customer_line_accounts.customer_id = customers.id
