@@ -790,10 +790,8 @@ describe('admin customer services', () => {
         OTHER_CUSTOMER_ID,
       ),
     ).rejects.toMatchObject({
-      code: 'VALIDATION_ERROR',
-      fieldErrors: {
-        targetCustomerId: ['Customer not found.'],
-      },
+      code: 'NOT_FOUND',
+      message: 'Target customer not found.',
     });
 
     const lineArtifactClient = {
