@@ -8,8 +8,8 @@
 - Tailwind CSS 透過 `@tailwindcss/vite` 接入 Nuxt。
 - shadcn-vue 透過 `shadcn-nuxt` 與 CLI-generated primitives 接入。
 - 目前 `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎。
-- `/admin` 已接上 dashboard live data，顯示主要統計、月收件趨勢、處理中工單 breakdown、管理 summary 與 quick entries。
-- `/admin/statistics` 已實作詳細統計頁，顯示收件趨勢、目前狀態分布與近 12 個月板型分布。
+- `/admin` 已接上 dashboard live data，顯示主要統計、週 / 月收件長條圖、處理中工單 breakdown、管理 summary 與 quick entries。
+- `/admin/statistics` 已實作詳細統計頁，顯示收件長條圖、目前狀態分布與近 12 個月板型分布；衝浪板列可展開查看短板 / 中長板 / 長板比例。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
 - `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation，列印摘要卡可建立工單標籤或顧客留存聯補印任務，LINE 卡片可查綁定/通知/token/job狀態並執行發卡或店家端解除。
 - `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API，並已補 tablet-first F8A/F8B 快捷輸入、sticky 必填摘要，以及 Konva repair marks modal。
@@ -64,13 +64,15 @@ Production domain routing：
 - `/admin/printing`：列印中心，從任務視角看列印紀錄、狀態與 retry
 - `/admin/printing/workers`：Print Worker 管理，從設備視角看狀態、最後心跳、最近錯誤與啟停 / 輕量編輯
 
-`/admin` 是真正 dashboard，不是工單列表。Dashboard 放主要統計、summary cards、月收件趨勢與快速入口，不放完整 table。
+`/admin` 是真正 dashboard，不是工單列表。Dashboard 放主要統計、summary cards、收件長條圖與快速入口，不放完整 table。
 
 Dashboard 由三塊 summary 組成：
 
-- `月收件趨勢` 區塊
-  - 以收件日顯示近 12 個月收件曲線
-  - 顯示本月收件、較上月差值、近 12 個月收件、月均與最高月份
+- `收件趨勢` 區塊
+  - 使用 shadcn-vue chart primitive + Unovis 長條圖
+  - 預設顯示近 12 週，一週一根；可切換近 12 個月，一個月一根
+  - 顯示本週 / 本月收件、較前一週 / 前一月差值、近 12 週 / 12 個月總量與平均
+  - 收件量文案單位使用 `張板`
   - 提供詳細統計入口 `/admin/statistics`
 
 - `處理中工單` 區塊
@@ -85,7 +87,7 @@ Dashboard 由三塊 summary 組成：
 規則：
 
 - 只顯示 summary 與聚合統計，不放完整工單 table，不做 polling。
-- 月收件趨勢以 `GET /api/admin/dashboard` 的 `stats.monthlyIntake` 顯示；統計圖可用既有 UI tokens / SVG，不必為第一版強制新增 chart runtime dependency。
+- 收件長條圖以 `GET /api/admin/dashboard` 的 `stats.weeklyIntake` / `stats.monthlyIntake` 顯示；圖表 runtime 使用 `@unovis/vue` 與 shadcn-vue `chart` primitive。
 - `處理中工單` header 顯示總數 `activeWorkOrders`，且固定等於 `RECEIVED + DRYING + REPAIRING`。
 - `已收件` 可導到 `/admin/work-orders?status=RECEIVED`
 - `除濕中` 可導到 `/admin/work-orders?status=DRYING`
@@ -97,9 +99,9 @@ Dashboard 由三塊 summary 組成：
 
 `/admin/statistics` 是 dashboard 的詳細統計頁，不是會計報表。第一版只使用 `GET /api/admin/dashboard` 的聚合資料，顯示：
 
-- 收件趨勢與本月 / 上月 / 近 12 個月摘要
-- 目前狀態分布
-- 近 12 個月板型分布
+- 收件趨勢與週 / 月切換摘要
+- 目前狀態分布，只顯示 `RECEIVED`、`DRYING`、`REPAIRING`、`READY_FOR_PICKUP`
+- 近 12 個月板型分布；衝浪板 row 可展開顯示 `SHORTBOARD`、`MID_LENGTH`、`LONGBOARD` 比例，缺 `board_length_class` 的舊資料不列入長度比例
 
 詳細統計頁不顯示完整工單 table；需要看明細時導回工單列表或建單流程。
 

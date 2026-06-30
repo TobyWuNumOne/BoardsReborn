@@ -22,6 +22,7 @@ type AdminWorkOrderListRow = Database['public']['Views']['admin_work_order_list'
 type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
 type CustomerRow = Database['public']['Tables']['customers']['Row'];
 type BoardType = Database['public']['Enums']['board_type'];
+type BoardLengthClass = Database['public']['Enums']['board_length_class'];
 type WorkOrderStatus = Database['public']['Enums']['work_order_status'];
 type WorkOrderBulkLookupRow = Pick<WorkOrderRow, 'id' | 'paper_order_no'>;
 type QuoteItemRow = Pick<
@@ -93,7 +94,7 @@ type WorkOrderResolveRow = Pick<
 >;
 type DashboardMetricRow = Pick<
   AdminWorkOrderListRow,
-  'board_type' | 'current_status' | 'id' | 'intake_date'
+  'board_length_class' | 'board_type' | 'current_status' | 'id' | 'intake_date'
 >;
 type PublicLookupWorkOrderRow = Pick<
   WorkOrderRow,
@@ -121,14 +122,17 @@ const DASHBOARD_STATUS_ORDER = [
   'DRYING',
   'REPAIRING',
   'READY_FOR_PICKUP',
-  'DELIVERED',
-  'CANCELLED',
 ] as const satisfies ReadonlyArray<Database['public']['Enums']['work_order_status']>;
 const DASHBOARD_BOARD_TYPE_ORDER = [
   'SURFBOARD',
   'SUP',
   'SNOWBOARD',
 ] as const satisfies ReadonlyArray<Database['public']['Enums']['board_type']>;
+const DASHBOARD_SURFBOARD_LENGTH_ORDER = [
+  'SHORTBOARD',
+  'MID_LENGTH',
+  'LONGBOARD',
+] as const satisfies ReadonlyArray<Database['public']['Enums']['board_length_class']>;
 const DASHBOARD_STATUS_LABELS = {
   CANCELLED: '已取消',
   DELIVERED: '已交件',
@@ -142,7 +146,13 @@ const DASHBOARD_BOARD_TYPE_LABELS = {
   SUP: 'SUP',
   SURFBOARD: '衝浪板',
 } as const satisfies Record<Database['public']['Enums']['board_type'], string>;
+const DASHBOARD_SURFBOARD_LENGTH_LABELS = {
+  LONGBOARD: '長板',
+  MID_LENGTH: '中長板',
+  SHORTBOARD: '短板',
+} as const satisfies Record<Database['public']['Enums']['board_length_class'], string>;
 const DASHBOARD_MONTH_COUNT = 12;
+const DASHBOARD_WEEK_COUNT = 12;
 const DASHBOARD_METRIC_PAGE_SIZE = 1000;
 
 const PUBLIC_WORK_ORDER_LOOKUP_NOT_FOUND_MESSAGE = '查無符合的工單，請確認工單號與手機號碼。';
@@ -333,13 +343,22 @@ const formatMonthKey = (year: number, month: number) => `${year}-${String(month)
 const formatDateOnly = (year: number, month: number, day: number) =>
   `${formatMonthKey(year, month)}-${String(day).padStart(2, '0')}`;
 
+const toDateOnlyParts = (date: Date) => ({
+  day: date.getUTCDate(),
+  month: date.getUTCMonth() + 1,
+  year: date.getUTCFullYear(),
+});
+
+const addDays = (year: number, month: number, day: number, amount: number) => {
+  const date = new Date(Date.UTC(year, month - 1, day + amount, 0, 0, 0, 0));
+
+  return toDateOnlyParts(date);
+};
+
 const addMonths = (year: number, month: number, amount: number) => {
   const date = new Date(Date.UTC(year, month - 1 + amount, 1, 0, 0, 0, 0));
 
-  return {
-    month: date.getUTCMonth() + 1,
-    year: date.getUTCFullYear(),
-  };
+  return toDateOnlyParts(date);
 };
 
 const getTaipeiMonthBuckets = (date = new Date()) => {
@@ -360,6 +379,54 @@ const getTaipeiMonthBuckets = (date = new Date()) => {
     endExclusive: formatDateOnly(endMonth.year, endMonth.month, 1),
     months,
     startInclusive: formatDateOnly(firstMonth.year, firstMonth.month, 1),
+  };
+};
+
+const getTaipeiWeekBuckets = (date = new Date()) => {
+  const parts = getTaipeiDateParts(date);
+  const currentDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 0, 0, 0, 0));
+  const dayOfWeek = currentDate.getUTCDay();
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  const currentWeekStart = addDays(parts.year, parts.month, parts.day, -daysSinceMonday);
+  const firstWeekStart = addDays(
+    currentWeekStart.year,
+    currentWeekStart.month,
+    currentWeekStart.day,
+    -(DASHBOARD_WEEK_COUNT - 1) * 7,
+  );
+  const endWeekStart = addDays(
+    currentWeekStart.year,
+    currentWeekStart.month,
+    currentWeekStart.day,
+    7,
+  );
+  const weeks = Array.from({ length: DASHBOARD_WEEK_COUNT }, (_, index) => {
+    const weekStart = addDays(
+      firstWeekStart.year,
+      firstWeekStart.month,
+      firstWeekStart.day,
+      index * 7,
+    );
+    const weekEnd = addDays(weekStart.year, weekStart.month, weekStart.day, 6);
+    const startDate = formatDateOnly(weekStart.year, weekStart.month, weekStart.day);
+    const endDate = formatDateOnly(weekEnd.year, weekEnd.month, weekEnd.day);
+
+    return {
+      count: 0,
+      endDate,
+      label: `${String(weekStart.month).padStart(2, '0')}/${String(weekStart.day).padStart(
+        2,
+        '0',
+      )}`,
+      startDate,
+      week: startDate,
+    };
+  });
+
+  return {
+    endExclusive: formatDateOnly(endWeekStart.year, endWeekStart.month, endWeekStart.day),
+    startInclusive: formatDateOnly(firstWeekStart.year, firstWeekStart.month, firstWeekStart.day),
+    weeks,
   };
 };
 
@@ -389,7 +456,7 @@ const getDashboardMetricRows = async (
     const to = from + DASHBOARD_METRIC_PAGE_SIZE - 1;
     const { data, error } = await supabase
       .from('admin_work_order_list')
-      .select('id, intake_date, board_type, current_status')
+      .select('id, intake_date, board_type, board_length_class, current_status')
       .gte('intake_date', startInclusive)
       .lt('intake_date', endExclusive)
       .order('intake_date', { ascending: true })
@@ -1010,7 +1077,16 @@ export const getAdminDashboardSummary = async (
 ) => {
   const taipeiDayRange = getTaipeiDayRange(now);
   const taipeiMonthBuckets = getTaipeiMonthBuckets(now);
+  const taipeiWeekBuckets = getTaipeiWeekBuckets(now);
   const generatedAt = now.toISOString();
+  const metricStartInclusive =
+    taipeiMonthBuckets.startInclusive < taipeiWeekBuckets.startInclusive
+      ? taipeiMonthBuckets.startInclusive
+      : taipeiWeekBuckets.startInclusive;
+  const metricEndExclusive =
+    taipeiMonthBuckets.endExclusive > taipeiWeekBuckets.endExclusive
+      ? taipeiMonthBuckets.endExclusive
+      : taipeiWeekBuckets.endExclusive;
 
   const [statusCounts, overdue, createdToday, dashboardMetricRows] = await Promise.all([
     Promise.all(
@@ -1037,25 +1113,23 @@ export const getAdminDashboardSummary = async (
         .gte('created_at', taipeiDayRange.startInclusive)
         .lt('created_at', taipeiDayRange.endExclusive),
     ),
-    getDashboardMetricRows(
-      supabase,
-      taipeiMonthBuckets.startInclusive,
-      taipeiMonthBuckets.endExclusive,
-    ),
+    getDashboardMetricRows(supabase, metricStartInclusive, metricEndExclusive),
   ]);
   const received = statusCounts[0] ?? 0;
   const drying = statusCounts[1] ?? 0;
   const repairing = statusCounts[2] ?? 0;
   const readyForPickup = statusCounts[3] ?? 0;
-  const delivered = statusCounts[4] ?? 0;
-  const cancelled = statusCounts[5] ?? 0;
 
   const activeWorkOrders = received + drying + repairing;
   const monthlyCountsByKey = new Map(
     taipeiMonthBuckets.months.map((month) => [month.month, month.count]),
   );
+  const weeklyCountsByKey = new Map(taipeiWeekBuckets.weeks.map((week) => [week.week, week.count]));
   const boardTypeCounts = new Map<BoardType, number>(
     DASHBOARD_BOARD_TYPE_ORDER.map((boardType) => [boardType, 0]),
+  );
+  const surfboardLengthCounts = new Map<BoardLengthClass, number>(
+    DASHBOARD_SURFBOARD_LENGTH_ORDER.map((boardLengthClass) => [boardLengthClass, 0]),
   );
 
   for (const row of dashboardMetricRows) {
@@ -1065,10 +1139,38 @@ export const getAdminDashboardSummary = async (
       if (monthlyCountsByKey.has(monthKey)) {
         monthlyCountsByKey.set(monthKey, (monthlyCountsByKey.get(monthKey) ?? 0) + 1);
       }
-    }
 
-    if (row.board_type && boardTypeCounts.has(row.board_type)) {
-      boardTypeCounts.set(row.board_type, (boardTypeCounts.get(row.board_type) ?? 0) + 1);
+      const matchingWeek = taipeiWeekBuckets.weeks.find(
+        (week) =>
+          row.intake_date && row.intake_date >= week.startDate && row.intake_date <= week.endDate,
+      );
+
+      if (matchingWeek) {
+        weeklyCountsByKey.set(
+          matchingWeek.week,
+          (weeklyCountsByKey.get(matchingWeek.week) ?? 0) + 1,
+        );
+      }
+
+      const isInMonthlyRange =
+        row.intake_date >= taipeiMonthBuckets.startInclusive &&
+        row.intake_date < taipeiMonthBuckets.endExclusive;
+
+      if (isInMonthlyRange && row.board_type && boardTypeCounts.has(row.board_type)) {
+        boardTypeCounts.set(row.board_type, (boardTypeCounts.get(row.board_type) ?? 0) + 1);
+      }
+
+      if (
+        isInMonthlyRange &&
+        row.board_type === 'SURFBOARD' &&
+        row.board_length_class &&
+        surfboardLengthCounts.has(row.board_length_class)
+      ) {
+        surfboardLengthCounts.set(
+          row.board_length_class,
+          (surfboardLengthCounts.get(row.board_length_class) ?? 0) + 1,
+        );
+      }
     }
   }
 
@@ -1079,13 +1181,24 @@ export const getAdminDashboardSummary = async (
   const last12MonthsIntake = monthlyIntake.reduce((total, month) => total + month.count, 0);
   const receivedThisMonth = monthlyIntake.at(-1)?.count ?? 0;
   const receivedPreviousMonth = monthlyIntake.at(-2)?.count ?? 0;
+  const weeklyIntake = taipeiWeekBuckets.weeks.map((week) => ({
+    ...week,
+    count: weeklyCountsByKey.get(week.week) ?? 0,
+  }));
+  const last12WeeksIntake = weeklyIntake.reduce((total, week) => total + week.count, 0);
+  const receivedThisWeek = weeklyIntake.at(-1)?.count ?? 0;
+  const receivedPreviousWeek = weeklyIntake.at(-2)?.count ?? 0;
   const busiestMonth =
     last12MonthsIntake > 0
       ? monthlyIntake.reduce((currentMax, month) =>
           month.count > currentMax.count ? month : currentMax,
         )
       : null;
-  const currentStatusTotal = received + drying + repairing + readyForPickup + delivered + cancelled;
+  const currentStatusTotal = received + drying + repairing + readyForPickup;
+  const surfboardLengthTotal = Array.from(surfboardLengthCounts.values()).reduce(
+    (total, count) => total + count,
+    0,
+  );
 
   return {
     data: {
@@ -1104,9 +1217,12 @@ export const getAdminDashboardSummary = async (
         }),
         busiestMonth,
         last12MonthsIntake,
+        last12WeeksIntake,
         monthlyIntake,
         receivedPreviousMonth,
+        receivedPreviousWeek,
         receivedThisMonth,
+        receivedThisWeek,
         statusBreakdown: [
           { count: received, key: 'RECEIVED', label: DASHBOARD_STATUS_LABELS.RECEIVED },
           { count: drying, key: 'DRYING', label: DASHBOARD_STATUS_LABELS.DRYING },
@@ -1116,12 +1232,21 @@ export const getAdminDashboardSummary = async (
             key: 'READY_FOR_PICKUP',
             label: DASHBOARD_STATUS_LABELS.READY_FOR_PICKUP,
           },
-          { count: delivered, key: 'DELIVERED', label: DASHBOARD_STATUS_LABELS.DELIVERED },
-          { count: cancelled, key: 'CANCELLED', label: DASHBOARD_STATUS_LABELS.CANCELLED },
         ].map((item) => ({
           ...item,
           share: calculateShare(item.count, currentStatusTotal),
         })),
+        surfboardLengthBreakdown: DASHBOARD_SURFBOARD_LENGTH_ORDER.map((boardLengthClass) => {
+          const count = surfboardLengthCounts.get(boardLengthClass) ?? 0;
+
+          return {
+            count,
+            key: boardLengthClass,
+            label: DASHBOARD_SURFBOARD_LENGTH_LABELS[boardLengthClass],
+            share: calculateShare(count, surfboardLengthTotal),
+          };
+        }),
+        weeklyIntake,
       },
       summary: {
         activeWorkOrders,
@@ -1319,10 +1444,8 @@ export const createAdminWorkOrder = async (
   await timeCreateAdminWorkOrderPhase(timings, 'initialPrintJobEnqueue', () =>
     enqueueInitialPrintJobForWorkOrder(supabase, result.id, userId),
   );
-  const lineNotification = await timeCreateAdminWorkOrderPhase(
-    timings,
-    'lineReceivedEnqueue',
-    () => enqueueWorkOrderReceivedLineNotification(supabase, result.id),
+  const lineNotification = await timeCreateAdminWorkOrderPhase(timings, 'lineReceivedEnqueue', () =>
+    enqueueWorkOrderReceivedLineNotification(supabase, result.id),
   );
 
   logCreateAdminWorkOrderTimings({

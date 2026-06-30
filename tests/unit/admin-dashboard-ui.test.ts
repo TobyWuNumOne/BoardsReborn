@@ -1,12 +1,28 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  ADMIN_DASHBOARD_INTAKE_PERIOD_OPTIONS,
   ADMIN_DASHBOARD_PROCESSING_CARD_DEFINITIONS,
   ADMIN_DASHBOARD_SUMMARY_CARD_DEFINITIONS,
   createEmptyAdminDashboardResponse,
+  formatBoardCount,
   formatAdminDashboardDelta,
   formatAdminDashboardGeneratedAt,
   formatAdminDashboardMonthlyAverage,
+  getAdminDashboardCurrentIntake,
+  getAdminDashboardCurrentPeriodLabel,
+  getAdminDashboardIntakePeriodLabel,
+  getAdminDashboardIntakePoints,
+  getAdminDashboardIntakeTotal,
+  getAdminDashboardPreviousIntake,
+  getAdminDashboardPreviousPeriodLabel,
 } from '../../app/utils/admin-dashboard';
+
+const intakeBarChartSource = readFileSync(
+  resolve(process.cwd(), 'app/components/admin/IntakeBarChart.vue'),
+  'utf8',
+);
 
 describe('admin dashboard UI helpers', () => {
   it('keeps processing and summary card routes explicit', () => {
@@ -65,17 +81,24 @@ describe('admin dashboard UI helpers', () => {
           ],
           busiestMonth: null,
           last12MonthsIntake: 0,
+          last12WeeksIntake: 0,
           monthlyIntake: [],
           receivedPreviousMonth: 0,
+          receivedPreviousWeek: 0,
           receivedThisMonth: 0,
+          receivedThisWeek: 0,
           statusBreakdown: [
             { count: 0, key: 'RECEIVED', label: '已收件', share: 0 },
             { count: 0, key: 'DRYING', label: '除濕中', share: 0 },
             { count: 0, key: 'REPAIRING', label: '維修中', share: 0 },
             { count: 0, key: 'READY_FOR_PICKUP', label: '待取件', share: 0 },
-            { count: 0, key: 'DELIVERED', label: '已交件', share: 0 },
-            { count: 0, key: 'CANCELLED', label: '已取消', share: 0 },
           ],
+          surfboardLengthBreakdown: [
+            { count: 0, key: 'SHORTBOARD', label: '短板', share: 0 },
+            { count: 0, key: 'MID_LENGTH', label: '中長板', share: 0 },
+            { count: 0, key: 'LONGBOARD', label: '長板', share: 0 },
+          ],
+          weeklyIntake: [],
         },
         summary: {
           activeWorkOrders: 0,
@@ -102,5 +125,53 @@ describe('admin dashboard UI helpers', () => {
     expect(formatAdminDashboardDelta(8, 5)).toBe('+3');
     expect(formatAdminDashboardDelta(5, 8)).toBe('-3');
     expect(formatAdminDashboardDelta(5, 5)).toBe('0');
+    expect(formatBoardCount(7)).toBe('7 張板');
+  });
+
+  it('resolves dashboard intake period helpers', () => {
+    const stats = {
+      ...createEmptyAdminDashboardResponse().data.stats,
+      last12MonthsIntake: 9,
+      last12WeeksIntake: 4,
+      monthlyIntake: [{ count: 9, label: '2026/04', month: '2026-04' }],
+      receivedPreviousMonth: 6,
+      receivedPreviousWeek: 1,
+      receivedThisMonth: 9,
+      receivedThisWeek: 2,
+      weeklyIntake: [
+        {
+          count: 2,
+          endDate: '2026-04-26',
+          label: '04/20',
+          startDate: '2026-04-20',
+          week: '2026-04-20',
+        },
+      ],
+    };
+
+    expect(ADMIN_DASHBOARD_INTAKE_PERIOD_OPTIONS).toEqual([
+      { label: '近 12 週', value: 'weekly' },
+      { label: '近 12 個月', value: 'monthly' },
+    ]);
+    expect(getAdminDashboardIntakePoints(stats, 'weekly')).toEqual(stats.weeklyIntake);
+    expect(getAdminDashboardIntakePoints(stats, 'monthly')).toEqual(stats.monthlyIntake);
+    expect(getAdminDashboardIntakeTotal(stats, 'weekly')).toBe(4);
+    expect(getAdminDashboardIntakeTotal(stats, 'monthly')).toBe(9);
+    expect(getAdminDashboardCurrentIntake(stats, 'weekly')).toBe(2);
+    expect(getAdminDashboardCurrentIntake(stats, 'monthly')).toBe(9);
+    expect(getAdminDashboardPreviousIntake(stats, 'weekly')).toBe(1);
+    expect(getAdminDashboardPreviousIntake(stats, 'monthly')).toBe(6);
+    expect(getAdminDashboardIntakePeriodLabel('weekly')).toBe('近 12 週');
+    expect(getAdminDashboardIntakePeriodLabel('monthly')).toBe('近 12 個月');
+    expect(getAdminDashboardCurrentPeriodLabel('weekly')).toBe('本週收件');
+    expect(getAdminDashboardCurrentPeriodLabel('monthly')).toBe('本月收件');
+    expect(getAdminDashboardPreviousPeriodLabel('weekly')).toBe('較上週');
+    expect(getAdminDashboardPreviousPeriodLabel('monthly')).toBe('較上月');
+  });
+
+  it('keeps chart tooltip rendering outside manual Vue component rendering', () => {
+    expect(intakeBarChartSource).not.toContain('componentToString');
+    expect(intakeBarChartSource).not.toContain('ChartTooltipContent');
+    expect(intakeBarChartSource).toContain('escapeTooltipHtml');
   });
 });

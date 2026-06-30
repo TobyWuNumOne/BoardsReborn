@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import type { ApiErrorEnvelope } from '~/utils/admin-work-orders';
 import type {
+  AdminDashboardIntakePeriod,
   AdminDashboardProcessingCardDefinition,
   AdminDashboardResponse,
   AdminDashboardSummaryCardDefinition,
 } from '~/utils/admin-dashboard';
 import {
+  ADMIN_DASHBOARD_INTAKE_PERIOD_OPTIONS,
   ADMIN_DASHBOARD_PROCESSING_CARD_DEFINITIONS,
   ADMIN_DASHBOARD_SUMMARY_CARD_DEFINITIONS,
   createEmptyAdminDashboardResponse,
+  formatBoardCount,
   formatAdminDashboardDelta,
   formatAdminDashboardGeneratedAt,
   formatAdminDashboardMonthlyAverage,
+  getAdminDashboardCurrentIntake,
+  getAdminDashboardCurrentPeriodLabel,
+  getAdminDashboardIntakePeriodLabel,
+  getAdminDashboardIntakePoints,
+  getAdminDashboardIntakeTotal,
+  getAdminDashboardPreviousIntake,
+  getAdminDashboardPreviousPeriodLabel,
 } from '~/utils/admin-dashboard';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
 import { extractApiErrorEnvelope, getApiErrorStatusCode } from '~/utils/admin-work-orders';
@@ -30,6 +40,7 @@ useHead({
 const route = useRoute();
 const adminSession = useAdminSession();
 const lastSuccessfulResponse = shallowRef<AdminDashboardResponse | null>(null);
+const selectedIntakePeriod = ref<AdminDashboardIntakePeriod>('weekly');
 
 const getRequestFetch = (): RequestFetch => {
   if (import.meta.server) {
@@ -102,11 +113,35 @@ const summaryCards = computed<Array<AdminDashboardSummaryCardDefinition & { valu
   })),
 );
 const stats = computed(() => response.value.data.stats);
-const receivedMonthDeltaLabel = computed(() =>
-  formatAdminDashboardDelta(stats.value.receivedThisMonth, stats.value.receivedPreviousMonth),
+const intakePoints = computed(() =>
+  getAdminDashboardIntakePoints(stats.value, selectedIntakePeriod.value),
 );
-const averageMonthlyIntakeLabel = computed(() =>
-  formatAdminDashboardMonthlyAverage(stats.value.averageMonthlyIntake),
+const currentIntake = computed(() =>
+  getAdminDashboardCurrentIntake(stats.value, selectedIntakePeriod.value),
+);
+const previousIntake = computed(() =>
+  getAdminDashboardPreviousIntake(stats.value, selectedIntakePeriod.value),
+);
+const intakeDeltaLabel = computed(() =>
+  formatAdminDashboardDelta(currentIntake.value, previousIntake.value),
+);
+const currentPeriodLabel = computed(() =>
+  getAdminDashboardCurrentPeriodLabel(selectedIntakePeriod.value),
+);
+const previousPeriodLabel = computed(() =>
+  getAdminDashboardPreviousPeriodLabel(selectedIntakePeriod.value),
+);
+const intakePeriodLabel = computed(() =>
+  getAdminDashboardIntakePeriodLabel(selectedIntakePeriod.value),
+);
+const intakeTotal = computed(() =>
+  getAdminDashboardIntakeTotal(stats.value, selectedIntakePeriod.value),
+);
+const averageIntakeLabel = computed(() =>
+  formatAdminDashboardMonthlyAverage(intakeTotal.value / 12),
+);
+const averageIntakeUnitLabel = computed(() =>
+  selectedIntakePeriod.value === 'weekly' ? '週均' : '月均',
 );
 </script>
 
@@ -141,14 +176,29 @@ const averageMonthlyIntakeLabel = computed(() =>
       <Card class="xl:col-span-2">
         <CardHeader class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div class="space-y-1.5">
-            <CardTitle>月收件趨勢</CardTitle>
+            <CardTitle>收件趨勢</CardTitle>
             <CardDescription
-              >以收件日計算近 12 個月變化；詳細統計頁可看更多 breakdown。</CardDescription
+              >以收件日計算每週或每月收板量；詳細統計頁可看更多 breakdown。</CardDescription
             >
           </div>
-          <Button as-child variant="outline" size="sm" class="w-fit">
-            <NuxtLink to="/admin/statistics">查看詳細統計</NuxtLink>
-          </Button>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div class="flex rounded-md border bg-muted p-1">
+              <Button
+                v-for="option in ADMIN_DASHBOARD_INTAKE_PERIOD_OPTIONS"
+                :key="option.value"
+                type="button"
+                size="sm"
+                :variant="selectedIntakePeriod === option.value ? 'secondary' : 'ghost'"
+                class="h-8 px-3"
+                @click="selectedIntakePeriod = option.value"
+              >
+                {{ option.label }}
+              </Button>
+            </div>
+            <Button as-child variant="outline" size="sm" class="w-fit">
+              <NuxtLink to="/admin/statistics">查看詳細統計</NuxtLink>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div v-if="isInitialLoading" class="grid gap-4 lg:grid-cols-[1fr_16rem]">
@@ -159,24 +209,24 @@ const averageMonthlyIntakeLabel = computed(() =>
           </div>
 
           <div v-else class="grid gap-4 lg:grid-cols-[1fr_16rem]">
-            <AdminMonthlyIntakeChart :points="stats.monthlyIntake" />
+            <AdminIntakeBarChart :points="intakePoints" :period="selectedIntakePeriod" />
             <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
               <div class="rounded-lg border p-4">
-                <p class="text-sm text-muted-foreground">本月收件</p>
+                <p class="text-sm text-muted-foreground">{{ currentPeriodLabel }}</p>
                 <p class="mt-3 text-3xl font-semibold tracking-tight">
-                  {{ stats.receivedThisMonth }}
+                  {{ currentIntake }}
                 </p>
                 <p class="mt-2 text-sm text-muted-foreground">
-                  較上月 {{ receivedMonthDeltaLabel }} 件
+                  {{ previousPeriodLabel }} {{ intakeDeltaLabel }} 張板
                 </p>
               </div>
               <div class="rounded-lg border p-4">
-                <p class="text-sm text-muted-foreground">近 12 個月</p>
+                <p class="text-sm text-muted-foreground">{{ intakePeriodLabel }}</p>
                 <p class="mt-3 text-3xl font-semibold tracking-tight">
-                  {{ stats.last12MonthsIntake }}
+                  {{ intakeTotal }}
                 </p>
                 <p class="mt-2 text-sm text-muted-foreground">
-                  月均 {{ averageMonthlyIntakeLabel }} 件
+                  {{ averageIntakeUnitLabel }} {{ averageIntakeLabel }} 張板
                 </p>
               </div>
               <div class="rounded-lg border p-4">
@@ -185,7 +235,7 @@ const averageMonthlyIntakeLabel = computed(() =>
                   {{ stats.busiestMonth?.label ?? '—' }}
                 </p>
                 <p class="mt-2 text-sm text-muted-foreground">
-                  {{ stats.busiestMonth ? `${stats.busiestMonth.count} 件` : '尚無資料' }}
+                  {{ stats.busiestMonth ? formatBoardCount(stats.busiestMonth.count) : '尚無資料' }}
                 </p>
               </div>
             </div>

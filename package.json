@@ -25,6 +25,8 @@
     "@line/liff": "^2.29.0",
     "@nuxtjs/supabase": "^2.0.5",
     "@supabase/supabase-js": "2.104.0",
+    "@unovis/ts": "^1.6.7",
+    "@unovis/vue": "^1.6.7",
     "@vercel/speed-insights": "2.0.0",
     "@vueuse/core": "^14.2.1",
     "class-variance-authority": "^0.7.1",
@@ -57,6 +59,7 @@
   },
   "pnpm": {
     "overrides": {
+      "@mapbox/jsonlint-lines-primitives": "2.0.2",
       "@nuxt/cli": "3.28.0",
       "nitropack": "2.12.6"
     }

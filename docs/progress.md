@@ -19,10 +19,10 @@
 ### 以目前程式碼可確認的能力
 
 - Nuxt 4 主站與 Nitro server API 已建立，`app/`、`server/`、`tests/`、`supabase/`、`printer-worker/` 結構完整。
-- 前端工具鏈已接上 Nuxt 4、TypeScript、Tailwind CSS v4、shadcn-nuxt、Vitest、ESLint、Prettier。
+- 前端工具鏈已接上 Nuxt 4、TypeScript、Tailwind CSS v4、shadcn-nuxt、Unovis、Vitest、ESLint、Prettier。
 - Supabase migration 已從初始 schema 走到工單、列印、repair marks、自動工單號、測試工單號與 LINE MVP foundation。
 - Admin auth/session 最小流程已存在：`/login`、`/admin`、`/forbidden`、session endpoint 與 admin gate helper 已落地。
-- Admin dashboard 已存在，並有 server 端 summary / statistics API：`GET /api/admin/dashboard`。
+- Admin dashboard 已存在，並有 server 端 summary / statistics API：`GET /api/admin/dashboard`，支援近 12 週 / 近 12 個月收件統計。
 - 工單管理主流程已存在：建立、列表、詳情、編輯、單筆狀態更新、bulk status、掃碼 lookup、quick note、刪除測試/錯單流程。
 - 顧客詳情頁 `/admin/customers/[id]` 已存在，支援 profile 編輯、LINE 管理、工單列表與工單轉移。
 - 工單建立改走系統自動產生純數字 `paper_order_no`；測試工單號 `99` namespace migration 也已存在。
@@ -62,6 +62,7 @@
   - create/list/detail/patch/status/bulk-status/lookup/resolve/delete/quick-note 已落地。
 - Admin 前端第一版：done
   - dashboard、詳細統計、工單列表、詳情、顧客列表/詳情、建單、bulk status、scan、settings、printing、workers 頁面已落地。
+  - dashboard / 詳細統計頁已使用 Unovis 長條圖顯示收件趨勢，並支援近 12 週 / 近 12 個月切換；詳細統計頁可展開衝浪板長度比例。
   - 建單送出期間已有全頁可見 loading feedback；工單詳情頁初始資料與列印摘要採 lazy fetch，避免導頁被 detail payload 阻塞。
 - Public customer lookup：done
   - `/repair-status` 與 public lookup API 已存在，含 repair marks read-only 顯示。

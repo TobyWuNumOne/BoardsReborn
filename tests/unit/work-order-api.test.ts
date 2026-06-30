@@ -172,11 +172,10 @@ const createQuickNoteClient = ({
 };
 
 const createDashboardSummaryClient = (counts: {
-  cancelled?: number;
   createdToday: number;
-  delivered?: number;
   drying: number;
   metricRows?: Array<{
+    board_length_class: 'LONGBOARD' | 'MID_LENGTH' | 'SHORTBOARD' | null;
     board_type: 'SNOWBOARD' | 'SUP' | 'SURFBOARD' | null;
     current_status: string | null;
     id: string | null;
@@ -216,18 +215,6 @@ const createDashboardSummaryClient = (counts: {
       )
     ) {
       return counts.readyForPickup;
-    }
-
-    if (
-      eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'DELIVERED')
-    ) {
-      return counts.delivered ?? 0;
-    }
-
-    if (
-      eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'CANCELLED')
-    ) {
-      return counts.cancelled ?? 0;
     }
 
     if (
@@ -280,7 +267,23 @@ const createDashboardSummaryClient = (counts: {
       });
     },
     range(from: number, to: number) {
-      const rows = counts.metricRows ?? [];
+      const gteFilter = builder.gte as { column: string; value: string } | undefined;
+      const ltFilter = builder.lt as { column: string; value: string } | undefined;
+      const rows = (counts.metricRows ?? []).filter((row) => {
+        if (!row.intake_date) {
+          return false;
+        }
+
+        if (gteFilter?.column === 'intake_date' && row.intake_date < gteFilter.value) {
+          return false;
+        }
+
+        if (ltFilter?.column === 'intake_date' && row.intake_date >= ltFilter.value) {
+          return false;
+        }
+
+        return true;
+      });
 
       return Promise.resolve({
         data: rows.slice(from, to + 1),
@@ -761,28 +764,43 @@ describe('work order API validation', () => {
   it('aggregates dashboard summary counts from admin_work_order_list', async () => {
     const now = new Date('2026-04-29T02:45:00.000Z');
     const { client } = createDashboardSummaryClient({
-      cancelled: 1,
       createdToday: 4,
-      delivered: 2,
       drying: 4,
       metricRows: [
         {
+          board_length_class: null,
+          board_type: 'SUP',
+          current_status: 'DELIVERED',
+          id: 'work-order-0',
+          intake_date: '2026-01-15',
+        },
+        {
+          board_length_class: 'SHORTBOARD',
           board_type: 'SURFBOARD',
           current_status: 'DELIVERED',
           id: 'work-order-1',
           intake_date: '2026-03-10',
         },
         {
+          board_length_class: 'MID_LENGTH',
           board_type: 'SURFBOARD',
           current_status: 'REPAIRING',
           id: 'work-order-2',
           intake_date: '2026-04-11',
         },
         {
+          board_length_class: null,
           board_type: 'SNOWBOARD',
           current_status: 'RECEIVED',
           id: 'work-order-3',
           intake_date: '2026-04-20',
+        },
+        {
+          board_length_class: null,
+          board_type: 'SURFBOARD',
+          current_status: 'READY_FOR_PICKUP',
+          id: 'work-order-4',
+          intake_date: '2026-04-21',
         },
       ],
       overdue: 3,
@@ -795,18 +813,19 @@ describe('work order API validation', () => {
       data: {
         generatedAt: '2026-04-29T02:45:00.000Z',
         stats: {
-          averageMonthlyIntake: 0.3,
+          averageMonthlyIntake: 0.4,
           boardTypeBreakdown: [
-            { count: 2, key: 'SURFBOARD', label: '衝浪板', share: 67 },
-            { count: 0, key: 'SUP', label: 'SUP', share: 0 },
-            { count: 1, key: 'SNOWBOARD', label: '雪板', share: 33 },
+            { count: 3, key: 'SURFBOARD', label: '衝浪板', share: 60 },
+            { count: 1, key: 'SUP', label: 'SUP', share: 20 },
+            { count: 1, key: 'SNOWBOARD', label: '雪板', share: 20 },
           ],
           busiestMonth: {
-            count: 2,
+            count: 3,
             label: '2026/04',
             month: '2026-04',
           },
-          last12MonthsIntake: 3,
+          last12MonthsIntake: 5,
+          last12WeeksIntake: 4,
           monthlyIntake: [
             { count: 0, label: '2025/05', month: '2025-05' },
             { count: 0, label: '2025/06', month: '2025-06' },
@@ -816,20 +835,111 @@ describe('work order API validation', () => {
             { count: 0, label: '2025/10', month: '2025-10' },
             { count: 0, label: '2025/11', month: '2025-11' },
             { count: 0, label: '2025/12', month: '2025-12' },
-            { count: 0, label: '2026/01', month: '2026-01' },
+            { count: 1, label: '2026/01', month: '2026-01' },
             { count: 0, label: '2026/02', month: '2026-02' },
             { count: 1, label: '2026/03', month: '2026-03' },
-            { count: 2, label: '2026/04', month: '2026-04' },
+            { count: 3, label: '2026/04', month: '2026-04' },
           ],
           receivedPreviousMonth: 1,
-          receivedThisMonth: 2,
+          receivedPreviousWeek: 2,
+          receivedThisMonth: 3,
+          receivedThisWeek: 0,
           statusBreakdown: [
-            { count: 5, key: 'RECEIVED', label: '已收件', share: 19 },
-            { count: 4, key: 'DRYING', label: '除濕中', share: 15 },
-            { count: 9, key: 'REPAIRING', label: '維修中', share: 33 },
-            { count: 6, key: 'READY_FOR_PICKUP', label: '待取件', share: 22 },
-            { count: 2, key: 'DELIVERED', label: '已交件', share: 7 },
-            { count: 1, key: 'CANCELLED', label: '已取消', share: 4 },
+            { count: 5, key: 'RECEIVED', label: '已收件', share: 21 },
+            { count: 4, key: 'DRYING', label: '除濕中', share: 17 },
+            { count: 9, key: 'REPAIRING', label: '維修中', share: 38 },
+            { count: 6, key: 'READY_FOR_PICKUP', label: '待取件', share: 25 },
+          ],
+          surfboardLengthBreakdown: [
+            { count: 1, key: 'SHORTBOARD', label: '短板', share: 50 },
+            { count: 1, key: 'MID_LENGTH', label: '中長板', share: 50 },
+            { count: 0, key: 'LONGBOARD', label: '長板', share: 0 },
+          ],
+          weeklyIntake: [
+            {
+              count: 0,
+              endDate: '2026-02-15',
+              label: '02/09',
+              startDate: '2026-02-09',
+              week: '2026-02-09',
+            },
+            {
+              count: 0,
+              endDate: '2026-02-22',
+              label: '02/16',
+              startDate: '2026-02-16',
+              week: '2026-02-16',
+            },
+            {
+              count: 0,
+              endDate: '2026-03-01',
+              label: '02/23',
+              startDate: '2026-02-23',
+              week: '2026-02-23',
+            },
+            {
+              count: 0,
+              endDate: '2026-03-08',
+              label: '03/02',
+              startDate: '2026-03-02',
+              week: '2026-03-02',
+            },
+            {
+              count: 1,
+              endDate: '2026-03-15',
+              label: '03/09',
+              startDate: '2026-03-09',
+              week: '2026-03-09',
+            },
+            {
+              count: 0,
+              endDate: '2026-03-22',
+              label: '03/16',
+              startDate: '2026-03-16',
+              week: '2026-03-16',
+            },
+            {
+              count: 0,
+              endDate: '2026-03-29',
+              label: '03/23',
+              startDate: '2026-03-23',
+              week: '2026-03-23',
+            },
+            {
+              count: 0,
+              endDate: '2026-04-05',
+              label: '03/30',
+              startDate: '2026-03-30',
+              week: '2026-03-30',
+            },
+            {
+              count: 1,
+              endDate: '2026-04-12',
+              label: '04/06',
+              startDate: '2026-04-06',
+              week: '2026-04-06',
+            },
+            {
+              count: 0,
+              endDate: '2026-04-19',
+              label: '04/13',
+              startDate: '2026-04-13',
+              week: '2026-04-13',
+            },
+            {
+              count: 2,
+              endDate: '2026-04-26',
+              label: '04/20',
+              startDate: '2026-04-20',
+              week: '2026-04-20',
+            },
+            {
+              count: 0,
+              endDate: '2026-05-03',
+              label: '04/27',
+              startDate: '2026-04-27',
+              week: '2026-04-27',
+            },
           ],
         },
         summary: {

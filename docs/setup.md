@@ -22,6 +22,7 @@ The scaffold has been verified against the following versions:
 | Tailwind CSS             | `4.x`                                       | Integrated via `@tailwindcss/vite`.                                |
 | shadcn-vue               | CLI-generated components                    | `components/ui` uses CLI-generated primitives.                     |
 | shadcn-nuxt              | `2.x`                                       | Enables shadcn-vue component auto-import.                          |
+| Unovis                   | `1.6.x`                                     | Chart runtime for shadcn-vue dashboard statistics charts.          |
 | `@nuxtjs/supabase`       | `2.0.5`                                     | Pinned to enable server helpers and DB types alias.                |
 | `@vercel/speed-insights` | `2.0.0`                                     | Vercel Speed Insights Nuxt module for production web vitals.       |
 | `@nuxt/eslint`           | `1.15.2`                                    | Nuxt flat ESLint config.                                           |
@@ -30,7 +31,7 @@ The scaffold has been verified against the following versions:
 | ESLint                   | `9.39.4`                                    | Locked by lockfile.                                                |
 | Prettier                 | `3.8.3`                                     | Formatting config in `.prettierrc`.                                |
 
-Actual installed resolutions are governed by `package.json` and `pnpm-lock.yaml`. This document does not enumerate every shadcn-vue runtime dependency lockfile version. When upgrading Nuxt, Nitro, Node, Tailwind, shadcn packages, or formatting tools, update this table, re-run `pnpm install`, and at minimum run `pnpm format:check`, `pnpm lint`, `pnpm test`, `pnpm typecheck`, `pnpm build`.
+Actual installed resolutions are governed by `package.json` and `pnpm-lock.yaml`. This document does not enumerate every shadcn-vue runtime dependency lockfile version. `@mapbox/jsonlint-lines-primitives` is pinned through `pnpm.overrides` to keep the Unovis dependency chain compatible with Node 20. When upgrading Nuxt, Nitro, Node, Tailwind, shadcn packages, chart packages, or formatting tools, update this table, re-run `pnpm install`, and at minimum run `pnpm format:check`, `pnpm lint`, `pnpm test`, `pnpm typecheck`, `pnpm build`.
 
 ---
 

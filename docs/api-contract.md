@@ -198,7 +198,10 @@ Response：`200`
     "stats": {
       "receivedThisMonth": 12,
       "receivedPreviousMonth": 9,
+      "receivedThisWeek": 2,
+      "receivedPreviousWeek": 4,
       "last12MonthsIntake": 96,
+      "last12WeeksIntake": 28,
       "averageMonthlyIntake": 8,
       "busiestMonth": {
         "month": "2026-04",
@@ -219,18 +222,107 @@ Response：`200`
         { "month": "2026-03", "label": "2026/03", "count": 8 },
         { "month": "2026-04", "label": "2026/04", "count": 14 }
       ],
+      "weeklyIntake": [
+        {
+          "week": "2026-02-09",
+          "startDate": "2026-02-09",
+          "endDate": "2026-02-15",
+          "label": "02/09",
+          "count": 2
+        },
+        {
+          "week": "2026-02-16",
+          "startDate": "2026-02-16",
+          "endDate": "2026-02-22",
+          "label": "02/16",
+          "count": 1
+        },
+        {
+          "week": "2026-02-23",
+          "startDate": "2026-02-23",
+          "endDate": "2026-03-01",
+          "label": "02/23",
+          "count": 2
+        },
+        {
+          "week": "2026-03-02",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-08",
+          "label": "03/02",
+          "count": 3
+        },
+        {
+          "week": "2026-03-09",
+          "startDate": "2026-03-09",
+          "endDate": "2026-03-15",
+          "label": "03/09",
+          "count": 1
+        },
+        {
+          "week": "2026-03-16",
+          "startDate": "2026-03-16",
+          "endDate": "2026-03-22",
+          "label": "03/16",
+          "count": 4
+        },
+        {
+          "week": "2026-03-23",
+          "startDate": "2026-03-23",
+          "endDate": "2026-03-29",
+          "label": "03/23",
+          "count": 2
+        },
+        {
+          "week": "2026-03-30",
+          "startDate": "2026-03-30",
+          "endDate": "2026-04-05",
+          "label": "03/30",
+          "count": 1
+        },
+        {
+          "week": "2026-04-06",
+          "startDate": "2026-04-06",
+          "endDate": "2026-04-12",
+          "label": "04/06",
+          "count": 3
+        },
+        {
+          "week": "2026-04-13",
+          "startDate": "2026-04-13",
+          "endDate": "2026-04-19",
+          "label": "04/13",
+          "count": 4
+        },
+        {
+          "week": "2026-04-20",
+          "startDate": "2026-04-20",
+          "endDate": "2026-04-26",
+          "label": "04/20",
+          "count": 3
+        },
+        {
+          "week": "2026-04-27",
+          "startDate": "2026-04-27",
+          "endDate": "2026-05-03",
+          "label": "04/27",
+          "count": 2
+        }
+      ],
       "statusBreakdown": [
-        { "key": "RECEIVED", "label": "已收件", "count": 5, "share": 19 },
-        { "key": "DRYING", "label": "除濕中", "count": 4, "share": 15 },
-        { "key": "REPAIRING", "label": "維修中", "count": 9, "share": 33 },
-        { "key": "READY_FOR_PICKUP", "label": "待取件", "count": 6, "share": 22 },
-        { "key": "DELIVERED", "label": "已交件", "count": 2, "share": 7 },
-        { "key": "CANCELLED", "label": "已取消", "count": 1, "share": 4 }
+        { "key": "RECEIVED", "label": "已收件", "count": 5, "share": 21 },
+        { "key": "DRYING", "label": "除濕中", "count": 4, "share": 17 },
+        { "key": "REPAIRING", "label": "維修中", "count": 9, "share": 38 },
+        { "key": "READY_FOR_PICKUP", "label": "待取件", "count": 6, "share": 25 }
       ],
       "boardTypeBreakdown": [
         { "key": "SURFBOARD", "label": "衝浪板", "count": 62, "share": 65 },
         { "key": "SUP", "label": "SUP", "count": 24, "share": 25 },
         { "key": "SNOWBOARD", "label": "雪板", "count": 10, "share": 10 }
+      ],
+      "surfboardLengthBreakdown": [
+        { "key": "SHORTBOARD", "label": "短板", "count": 24, "share": 50 },
+        { "key": "MID_LENGTH", "label": "中長板", "count": 14, "share": 29 },
+        { "key": "LONGBOARD", "label": "長板", "count": 10, "share": 21 }
       ]
     },
     "generatedAt": "2026-04-29T10:45:00.000Z"
@@ -257,14 +349,22 @@ Response：`200`
 
 - `monthlyIntake`：
   以 `intake_date` 收件日彙整近 12 個月，固定回傳 12 個月份，無資料月份 count 為 `0`。
+- `weeklyIntake`：
+  以 `intake_date` 收件日彙整近 12 週，固定回傳 12 個週期，週期以 `Asia/Taipei` 週一到週日計算；最後一筆為目前週。
 - `receivedThisMonth` / `receivedPreviousMonth`：
   以 `monthlyIntake` 最後一個月與前一個月計算。
+- `receivedThisWeek` / `receivedPreviousWeek`：
+  以 `weeklyIntake` 最後一週與前一週計算。
 - `last12MonthsIntake` / `averageMonthlyIntake` / `busiestMonth`：
   均由 `monthlyIntake` 衍生；近 12 個月完全無資料時 `busiestMonth` 回 `null`。
+- `last12WeeksIntake`：
+  由 `weeklyIntake` 衍生。
 - `statusBreakdown`：
-  以所有工單目前狀態計算，順序固定為 `RECEIVED`、`DRYING`、`REPAIRING`、`READY_FOR_PICKUP`、`DELIVERED`、`CANCELLED`。
+  以目前仍需現場追蹤的工單狀態計算，順序固定為 `RECEIVED`、`DRYING`、`REPAIRING`、`READY_FOR_PICKUP`；不包含 `DELIVERED` 與 `CANCELLED`。
 - `boardTypeBreakdown`：
   以近 12 個月收件資料計算，順序固定為 `SURFBOARD`、`SUP`、`SNOWBOARD`；legacy row 若缺 `board_type` 不列入各板型 count。
+- `surfboardLengthBreakdown`：
+  以近 12 個月收件且 `board_type = SURFBOARD` 的資料計算，順序固定為 `SHORTBOARD`、`MID_LENGTH`、`LONGBOARD`；缺 `board_length_class` 的 legacy row 不列入比例分母。
 - `share`：
   使用整數百分比四捨五入；分母為 `0` 時回 `0`。
 

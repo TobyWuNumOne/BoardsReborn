@@ -1,11 +1,21 @@
 <script setup lang="ts">
+import { ChevronDownIcon } from 'lucide-vue-next';
 import type { ApiErrorEnvelope } from '~/utils/admin-work-orders';
-import type { AdminDashboardResponse } from '~/utils/admin-dashboard';
+import type { AdminDashboardIntakePeriod, AdminDashboardResponse } from '~/utils/admin-dashboard';
 import {
+  ADMIN_DASHBOARD_INTAKE_PERIOD_OPTIONS,
   createEmptyAdminDashboardResponse,
+  formatBoardCount,
   formatAdminDashboardDelta,
   formatAdminDashboardGeneratedAt,
   formatAdminDashboardMonthlyAverage,
+  getAdminDashboardCurrentIntake,
+  getAdminDashboardCurrentPeriodLabel,
+  getAdminDashboardIntakePeriodLabel,
+  getAdminDashboardIntakePoints,
+  getAdminDashboardIntakeTotal,
+  getAdminDashboardPreviousIntake,
+  getAdminDashboardPreviousPeriodLabel,
 } from '~/utils/admin-dashboard';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
 import { extractApiErrorEnvelope, getApiErrorStatusCode } from '~/utils/admin-work-orders';
@@ -24,6 +34,8 @@ useHead({
 const route = useRoute();
 const adminSession = useAdminSession();
 const lastSuccessfulResponse = shallowRef<AdminDashboardResponse | null>(null);
+const selectedIntakePeriod = ref<AdminDashboardIntakePeriod>('weekly');
+const isSurfboardBreakdownOpen = ref(false);
 
 const getRequestFetch = (): RequestFetch => {
   if (import.meta.server) {
@@ -84,22 +96,46 @@ const summary = computed(() => response.value.data.summary);
 const generatedAtLabel = computed(() =>
   formatAdminDashboardGeneratedAt(response.value.data.generatedAt),
 );
-const receivedMonthDeltaLabel = computed(() =>
-  formatAdminDashboardDelta(stats.value.receivedThisMonth, stats.value.receivedPreviousMonth),
+const intakePoints = computed(() =>
+  getAdminDashboardIntakePoints(stats.value, selectedIntakePeriod.value),
 );
-const averageMonthlyIntakeLabel = computed(() =>
-  formatAdminDashboardMonthlyAverage(stats.value.averageMonthlyIntake),
+const currentIntake = computed(() =>
+  getAdminDashboardCurrentIntake(stats.value, selectedIntakePeriod.value),
+);
+const previousIntake = computed(() =>
+  getAdminDashboardPreviousIntake(stats.value, selectedIntakePeriod.value),
+);
+const intakeDeltaLabel = computed(() =>
+  formatAdminDashboardDelta(currentIntake.value, previousIntake.value),
+);
+const currentPeriodLabel = computed(() =>
+  getAdminDashboardCurrentPeriodLabel(selectedIntakePeriod.value),
+);
+const previousPeriodLabel = computed(() =>
+  getAdminDashboardPreviousPeriodLabel(selectedIntakePeriod.value),
+);
+const intakePeriodLabel = computed(() =>
+  getAdminDashboardIntakePeriodLabel(selectedIntakePeriod.value),
+);
+const intakeTotal = computed(() =>
+  getAdminDashboardIntakeTotal(stats.value, selectedIntakePeriod.value),
+);
+const averageIntakeLabel = computed(() =>
+  formatAdminDashboardMonthlyAverage(intakeTotal.value / 12),
+);
+const averageIntakeUnitLabel = computed(() =>
+  selectedIntakePeriod.value === 'weekly' ? '週均' : '月均',
 );
 const topStats = computed(() => [
   {
-    description: `較上月 ${receivedMonthDeltaLabel.value} 件`,
-    label: '本月收件',
-    value: stats.value.receivedThisMonth,
+    description: `${previousPeriodLabel.value} ${intakeDeltaLabel.value} 張板`,
+    label: currentPeriodLabel.value,
+    value: currentIntake.value,
   },
   {
-    description: `月均 ${averageMonthlyIntakeLabel.value} 件`,
-    label: '近 12 個月收件',
-    value: stats.value.last12MonthsIntake,
+    description: `${averageIntakeUnitLabel.value} ${averageIntakeLabel.value} 張板`,
+    label: `${intakePeriodLabel.value}收件`,
+    value: intakeTotal.value,
   },
   {
     description: '已收件、除濕中、維修中',
@@ -168,16 +204,31 @@ const topStats = computed(() => [
     <Card>
       <CardHeader class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="space-y-1.5">
-          <CardTitle>月收件曲線</CardTitle>
-          <CardDescription>以收件日彙整近 12 個月。</CardDescription>
+          <CardTitle>收件長條圖</CardTitle>
+          <CardDescription>以收件日彙整每週或每月收板量。</CardDescription>
         </div>
-        <Button as-child variant="outline" size="sm" class="w-fit">
-          <NuxtLink to="/admin/work-orders/new">新增工單</NuxtLink>
-        </Button>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div class="flex rounded-md border bg-muted p-1">
+            <Button
+              v-for="option in ADMIN_DASHBOARD_INTAKE_PERIOD_OPTIONS"
+              :key="option.value"
+              type="button"
+              size="sm"
+              :variant="selectedIntakePeriod === option.value ? 'secondary' : 'ghost'"
+              class="h-8 px-3"
+              @click="selectedIntakePeriod = option.value"
+            >
+              {{ option.label }}
+            </Button>
+          </div>
+          <Button as-child variant="outline" size="sm" class="w-fit">
+            <NuxtLink to="/admin/work-orders/new">新增工單</NuxtLink>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Skeleton v-if="isInitialLoading" class="h-72 w-full" />
-        <AdminMonthlyIntakeChart v-else :points="stats.monthlyIntake" />
+        <AdminIntakeBarChart v-else :points="intakePoints" :period="selectedIntakePeriod" />
       </CardContent>
     </Card>
 
@@ -189,14 +240,14 @@ const topStats = computed(() => [
         </CardHeader>
         <CardContent>
           <div v-if="isInitialLoading" class="space-y-4">
-            <Skeleton v-for="index in 6" :key="`status-skeleton-${index}`" class="h-8 w-full" />
+            <Skeleton v-for="index in 4" :key="`status-skeleton-${index}`" class="h-8 w-full" />
           </div>
           <div v-else class="space-y-4">
             <div v-for="item in stats.statusBreakdown" :key="item.key" class="space-y-2">
               <div class="flex items-center justify-between gap-3 text-sm">
                 <span class="font-medium">{{ item.label }}</span>
                 <span class="tabular-nums text-muted-foreground"
-                  >{{ item.count }} 件 · {{ item.share }}%</span
+                  >{{ formatBoardCount(item.count) }} · {{ item.share }}%</span
                 >
               </div>
               <div class="h-2 overflow-hidden rounded-full bg-muted">
@@ -210,24 +261,81 @@ const topStats = computed(() => [
       <Card>
         <CardHeader>
           <CardTitle>近 12 個月板型</CardTitle>
-          <CardDescription>只統計近 12 個月收件資料，舊資料缺板型時不列入比例。</CardDescription>
+          <CardDescription
+            >只統計近 12 個月收件資料，衝浪板缺長度分類時不列入比例。</CardDescription
+          >
         </CardHeader>
         <CardContent>
           <div v-if="isInitialLoading" class="space-y-4">
             <Skeleton v-for="index in 3" :key="`board-skeleton-${index}`" class="h-8 w-full" />
           </div>
           <div v-else class="space-y-4">
-            <div v-for="item in stats.boardTypeBreakdown" :key="item.key" class="space-y-2">
-              <div class="flex items-center justify-between gap-3 text-sm">
-                <span class="font-medium">{{ item.label }}</span>
-                <span class="tabular-nums text-muted-foreground"
-                  >{{ item.count }} 件 · {{ item.share }}%</span
-                >
+            <template v-for="item in stats.boardTypeBreakdown" :key="item.key">
+              <Collapsible
+                v-if="item.key === 'SURFBOARD'"
+                v-model:open="isSurfboardBreakdownOpen"
+                class="space-y-2"
+              >
+                <CollapsibleTrigger as-child>
+                  <button
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3 rounded-md text-left text-sm outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    <span class="font-medium">{{ item.label }}</span>
+                    <span class="flex items-center gap-2 tabular-nums text-muted-foreground">
+                      {{ formatBoardCount(item.count) }} · {{ item.share }}%
+                      <ChevronDownIcon
+                        class="size-4 transition-transform"
+                        :class="isSurfboardBreakdownOpen ? 'rotate-180' : ''"
+                      />
+                    </span>
+                  </button>
+                </CollapsibleTrigger>
+                <div class="h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    class="h-full rounded-full bg-chart-1"
+                    :style="{ width: `${item.share}%` }"
+                  />
+                </div>
+                <CollapsibleContent class="pt-2">
+                  <div class="space-y-3 rounded-md bg-muted/40 p-3">
+                    <div
+                      v-for="lengthItem in stats.surfboardLengthBreakdown"
+                      :key="lengthItem.key"
+                      class="space-y-2"
+                    >
+                      <div class="flex items-center justify-between gap-3 text-sm">
+                        <span class="text-muted-foreground">{{ lengthItem.label }}</span>
+                        <span class="tabular-nums text-muted-foreground">
+                          {{ formatBoardCount(lengthItem.count) }} · {{ lengthItem.share }}%
+                        </span>
+                      </div>
+                      <div class="h-2 overflow-hidden rounded-full bg-background">
+                        <div
+                          class="h-full rounded-full bg-chart-2"
+                          :style="{ width: `${lengthItem.share}%` }"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <div v-else class="space-y-2">
+                <div class="flex items-center justify-between gap-3 text-sm">
+                  <span class="font-medium">{{ item.label }}</span>
+                  <span class="tabular-nums text-muted-foreground"
+                    >{{ formatBoardCount(item.count) }} · {{ item.share }}%</span
+                  >
+                </div>
+                <div class="h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    class="h-full rounded-full bg-chart-1"
+                    :style="{ width: `${item.share}%` }"
+                  />
+                </div>
               </div>
-              <div class="h-2 overflow-hidden rounded-full bg-muted">
-                <div class="h-full rounded-full bg-chart-1" :style="{ width: `${item.share}%` }" />
-              </div>
-            </div>
+            </template>
           </div>
         </CardContent>
       </Card>
