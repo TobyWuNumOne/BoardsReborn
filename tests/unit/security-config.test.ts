@@ -9,6 +9,8 @@ describe('security configuration', () => {
     for (const expected of [
       'Content-Security-Policy',
       "frame-ancestors 'none'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
       'Referrer-Policy',
       'no-referrer',
       'X-Content-Type-Options',

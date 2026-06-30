@@ -23,6 +23,10 @@ const intakeBarChartSource = readFileSync(
   resolve(process.cwd(), 'app/components/admin/IntakeBarChart.vue'),
   'utf8',
 );
+const intakeBarChartClientSource = readFileSync(
+  resolve(process.cwd(), 'app/components/admin/IntakeBarChartClient.client.vue'),
+  'utf8',
+);
 
 describe('admin dashboard UI helpers', () => {
   it('keeps processing and summary card routes explicit', () => {
@@ -170,8 +174,14 @@ describe('admin dashboard UI helpers', () => {
   });
 
   it('keeps chart tooltip rendering outside manual Vue component rendering', () => {
-    expect(intakeBarChartSource).not.toContain('componentToString');
-    expect(intakeBarChartSource).not.toContain('ChartTooltipContent');
-    expect(intakeBarChartSource).toContain('escapeTooltipHtml');
+    expect(intakeBarChartClientSource).not.toContain('componentToString');
+    expect(intakeBarChartClientSource).not.toContain('ChartTooltipContent');
+    expect(intakeBarChartClientSource).toContain('escapeTooltipHtml');
+  });
+
+  it('keeps the Unovis chart implementation out of server rendering', () => {
+    expect(intakeBarChartSource).toContain('<ClientOnly>');
+    expect(intakeBarChartSource).not.toContain('@unovis/vue');
+    expect(intakeBarChartSource).not.toContain('VisXYContainer');
   });
 });

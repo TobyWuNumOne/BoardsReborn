@@ -19,17 +19,17 @@
 ### 以目前程式碼可確認的能力
 
 - Nuxt 4 主站與 Nitro server API 已建立，`app/`、`server/`、`tests/`、`supabase/`、`printer-worker/` 結構完整。
-- 前端工具鏈已接上 Node 22、Nuxt 4.4、TypeScript、Tailwind CSS v4、shadcn-nuxt、Unovis、Vitest、ESLint、Prettier。
+- 前端工具鏈已接上 Node 22、Nuxt 4.4、Vue 3.5.39、TypeScript、Tailwind CSS v4、shadcn-nuxt、Unovis、Vitest、ESLint、Prettier。
 - Supabase migration 已從初始 schema 走到工單、列印、repair marks、自動工單號、測試工單號與 LINE MVP foundation。
 - Admin auth/session 最小流程已存在：`/login`、`/admin`、`/forbidden`、session endpoint 與 admin gate helper 已落地。
-- Admin dashboard 已存在，並有 server 端 summary / statistics API：`GET /api/admin/dashboard`，支援近 12 週 / 近 12 個月收件統計。
+- Admin dashboard 已存在，並有 server 端 summary / statistics API：`GET /api/admin/dashboard`，支援近 12 週 / 近 12 個月收件統計；Unovis chart 實作已隔離在 client-only component，避免 production SSR 載入 browser-dependent chart runtime。
 - 工單管理主流程已存在：建立、列表、詳情、編輯、單筆狀態更新、bulk status、掃碼 lookup、quick note、刪除測試/錯單流程。
 - 顧客詳情頁 `/admin/customers/[id]` 已存在，支援 profile 編輯、LINE 管理、工單列表與工單轉移。
 - 工單建立改走系統自動產生純數字 `paper_order_no`；測試工單號 `99` namespace migration 也已存在。
 - `repair_marks` 與 `repair_count` 已是正式資料模型，包含 migration、API 映射、前端 Konva editor 與 public read-only 預覽。
 - `board_length_class`、`board_color` 等板子快照欄位已進入 schema、API 與 admin UI。
 - Public `/repair-status` 顧客查詢頁與 `POST /api/public/work-orders/lookup` 已存在，並使用工單號 + 完整手機驗證；public lookup response 已設定 no-store、不回 repair mark DB UUID，rate limit 已改為 DB-backed，且同時套用 IP-only 與 lookup tuple buckets。
-- 上線前最低資安防護已加入：核心資料表 authenticated RLS hardening、admin unsafe method 同源檢查、全站安全 headers / Referrer-Policy、Supabase cookie SameSite、Nuxt dependency high/critical audit 修補基準。
+- 上線前最低資安防護已加入：核心資料表 authenticated RLS hardening、admin unsafe method 同源檢查、全站安全 headers / Referrer-Policy、Supabase cookie SameSite、CSP 與 Google Fonts host 同步、Nuxt dependency high/critical audit 修補基準。
 - 非同步列印主流程已存在：`print_jobs` / `print_devices` schema、admin 列印中心 API/UI、worker claim/succeed/fail API，以及 Python `printer-worker` 子專案。
 - `printer-worker` 已有 renderer、transport、realtime wake-up、`run-once` / `poll` / `serve` 相關程式與測試檔。
 - LINE MVP server/client 流程已在 repo 內存在：LIFF order-gate page、bind token service、public confirm/resolve API、webhook、job processor、Flex message helpers、admin line status / 發卡 / 解除綁定 API。
