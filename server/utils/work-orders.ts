@@ -779,9 +779,14 @@ export const getAdminWorkOrderScanAvailableActions = (
 
 export const getAdminWorkOrderScanAvailableStatusTransitions = (
   status: WorkOrderStatus,
+  boardType: BoardType,
 ): WorkOrderStatus[] => {
   switch (status) {
     case 'RECEIVED':
+      if (boardType === 'SNOWBOARD') {
+        return ['REPAIRING'];
+      }
+
       return ['DRYING', 'REPAIRING'];
     case 'DRYING':
       return ['REPAIRING'];
@@ -1689,7 +1694,10 @@ export const lookupAdminWorkOrderScan = async (
   return {
     data: {
       availableActions: getAdminWorkOrderScanAvailableActions(currentStatus),
-      availableStatusTransitions: getAdminWorkOrderScanAvailableStatusTransitions(currentStatus),
+      availableStatusTransitions: getAdminWorkOrderScanAvailableStatusTransitions(
+        currentStatus,
+        typedWorkOrder.board_type,
+      ),
       board: {
         boardLengthClass: typedWorkOrder.board_length_class,
         brand: typedWorkOrder.board_brand,

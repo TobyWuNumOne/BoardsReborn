@@ -443,7 +443,7 @@ Response：`200`
 規則：
 
 - 查無工單回 `404 NOT_FOUND`
-- `availableActions` 與 `availableStatusTransitions` 由 server 依目前狀態決定
+- `availableActions` 與 `availableStatusTransitions` 由 server 依目前狀態與板型決定；`SNOWBOARD` 不回傳 `DRYING`
 - `recentHistory` 第一版只回最近 3 筆
 
 ### `GET /api/admin/work-orders`

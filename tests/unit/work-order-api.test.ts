@@ -14,6 +14,7 @@ import {
   deleteAdminWorkOrder,
   getAdminDashboardSummary,
   getAdminWorkOrderScanAvailableActions,
+  getAdminWorkOrderScanAvailableStatusTransitions,
   getNextAdminPaperOrderNo,
   getStaleReceivedDays,
   getTaipeiDayRange,
@@ -1187,6 +1188,23 @@ describe('work order API validation', () => {
       'open_detail',
     ]);
     expect(getAdminWorkOrderScanAvailableActions('DELIVERED')).toEqual(['open_detail']);
+  });
+
+  it('filters scan-page status transitions by board type', () => {
+    expect(getAdminWorkOrderScanAvailableStatusTransitions('RECEIVED', 'SURFBOARD')).toEqual([
+      'DRYING',
+      'REPAIRING',
+    ]);
+    expect(getAdminWorkOrderScanAvailableStatusTransitions('RECEIVED', 'SUP')).toEqual([
+      'DRYING',
+      'REPAIRING',
+    ]);
+    expect(getAdminWorkOrderScanAvailableStatusTransitions('RECEIVED', 'SNOWBOARD')).toEqual([
+      'REPAIRING',
+    ]);
+    expect(getAdminWorkOrderScanAvailableStatusTransitions('DRYING', 'SNOWBOARD')).toEqual([
+      'REPAIRING',
+    ]);
   });
 
   it('maps recent scan history with from/to statuses and reverse chronological order', () => {
