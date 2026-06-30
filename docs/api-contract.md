@@ -16,7 +16,7 @@
 
 ### Admin API
 
-- `implemented` `GET /api/admin/dashboard`：回傳管理端 dashboard summary metrics。
+- `implemented` `GET /api/admin/dashboard`：回傳管理端 dashboard summary 與 statistics metrics。
 - `implemented` `GET /api/admin/session`：回傳目前 admin session 與最小 profile。
 - `implemented` `GET /api/admin/customers/lookup`：建單時查候選 customer。
 - `implemented` `GET /api/admin/work-orders`：工單列表。
@@ -177,7 +177,7 @@ Response：`200`
 
 ### `GET /api/admin/dashboard`
 
-回傳管理端 dashboard 第一版 summary metrics。這支 endpoint 只提供總覽數字，不回傳工單列表，也不取代 `/api/admin/work-orders`。
+回傳管理端 dashboard summary 與統計 metrics。這支 endpoint 只提供總覽與聚合數字，不回傳工單列表，也不取代 `/api/admin/work-orders`。
 
 Response：`200`
 
@@ -194,6 +194,44 @@ Response：`200`
       "readyForPickup": 6,
       "overdue": 3,
       "createdToday": 4
+    },
+    "stats": {
+      "receivedThisMonth": 12,
+      "receivedPreviousMonth": 9,
+      "last12MonthsIntake": 96,
+      "averageMonthlyIntake": 8,
+      "busiestMonth": {
+        "month": "2026-04",
+        "label": "2026/04",
+        "count": 14
+      },
+      "monthlyIntake": [
+        { "month": "2025-05", "label": "2025/05", "count": 5 },
+        { "month": "2025-06", "label": "2025/06", "count": 7 },
+        { "month": "2025-07", "label": "2025/07", "count": 6 },
+        { "month": "2025-08", "label": "2025/08", "count": 8 },
+        { "month": "2025-09", "label": "2025/09", "count": 10 },
+        { "month": "2025-10", "label": "2025/10", "count": 8 },
+        { "month": "2025-11", "label": "2025/11", "count": 6 },
+        { "month": "2025-12", "label": "2025/12", "count": 7 },
+        { "month": "2026-01", "label": "2026/01", "count": 9 },
+        { "month": "2026-02", "label": "2026/02", "count": 8 },
+        { "month": "2026-03", "label": "2026/03", "count": 8 },
+        { "month": "2026-04", "label": "2026/04", "count": 14 }
+      ],
+      "statusBreakdown": [
+        { "key": "RECEIVED", "label": "已收件", "count": 5, "share": 19 },
+        { "key": "DRYING", "label": "除濕中", "count": 4, "share": 15 },
+        { "key": "REPAIRING", "label": "維修中", "count": 9, "share": 33 },
+        { "key": "READY_FOR_PICKUP", "label": "待取件", "count": 6, "share": 22 },
+        { "key": "DELIVERED", "label": "已交件", "count": 2, "share": 7 },
+        { "key": "CANCELLED", "label": "已取消", "count": 1, "share": 4 }
+      ],
+      "boardTypeBreakdown": [
+        { "key": "SURFBOARD", "label": "衝浪板", "count": 62, "share": 65 },
+        { "key": "SUP", "label": "SUP", "count": 24, "share": 25 },
+        { "key": "SNOWBOARD", "label": "雪板", "count": 10, "share": 10 }
+      ]
     },
     "generatedAt": "2026-04-29T10:45:00.000Z"
   }
@@ -214,6 +252,21 @@ Response：`200`
   以 `created_at` 為準，依 `Asia/Taipei` 本地日曆日計算，邊界固定為 `created_at >= startOfDay` 且 `created_at < nextDay`。
 
 `generatedAt` 只用於 UI 顯示「最後更新時間」，不作為 cache key，也不參與邏輯判斷。
+
+`stats` 提供 dashboard 與 `/admin/statistics` 使用的營運聚合資料：
+
+- `monthlyIntake`：
+  以 `intake_date` 收件日彙整近 12 個月，固定回傳 12 個月份，無資料月份 count 為 `0`。
+- `receivedThisMonth` / `receivedPreviousMonth`：
+  以 `monthlyIntake` 最後一個月與前一個月計算。
+- `last12MonthsIntake` / `averageMonthlyIntake` / `busiestMonth`：
+  均由 `monthlyIntake` 衍生；近 12 個月完全無資料時 `busiestMonth` 回 `null`。
+- `statusBreakdown`：
+  以所有工單目前狀態計算，順序固定為 `RECEIVED`、`DRYING`、`REPAIRING`、`READY_FOR_PICKUP`、`DELIVERED`、`CANCELLED`。
+- `boardTypeBreakdown`：
+  以近 12 個月收件資料計算，順序固定為 `SURFBOARD`、`SUP`、`SNOWBOARD`；legacy row 若缺 `board_type` 不列入各板型 count。
+- `share`：
+  使用整數百分比四捨五入；分母為 `0` 時回 `0`。
 
 ## Admin Work Orders
 
@@ -1653,20 +1706,20 @@ Admin、Public LIFF、最小 follow/unfollow webhook與 internal processor已實
 
 ### Planned endpoints
 
-| Endpoint                                           | Auth                       | Purpose                                                         |
-| -------------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
-| `GET /api/admin/customers`                         | Admin                      | 搜尋 / 篩選 / 分頁顧客列表與 LINE 安全摘要                       |
-| `GET /api/admin/customers/{id}`                    | Admin                      | 顧客 profile、LINE 摘要與分頁工單列表                            |
-| `PATCH /api/admin/customers/{id}`                  | Admin                      | 更新顧客 name / phone / note                                    |
-| `POST /api/admin/customers/{id}/line-bind-token`   | Admin                      | 以顧客為單位發卡；撤銷其他 pending token                        |
-| `POST /api/admin/work-orders/{id}/transfer-customer` | Admin                    | 單筆工單轉移到另一個既有顧客                                    |
-| `GET /api/public/line-bind/token?t=...`            | Public token               | Resolve pending / used / expired / revoked token 與安全工單摘要 |
-| `POST /api/public/line-bind/confirm`               | LIFF ID token + bind token | 驗證 LINE 身分並原子建立綁定                                    |
-| `POST /api/admin/work-orders/{id}/line-bind-token` | Admin                      | 重新發卡；撤銷其他 pending token                                |
-| `DELETE /api/admin/customers/{id}/line-binding`    | Admin                      | hard delete 綁定並撤銷 pending token                            |
-| `GET /api/admin/work-orders/{id}/line-status`      | Admin                      | 查詢綁定、好友、latest token 與最近通知狀態                     |
-| `POST /api/internal/line-jobs/process`             | Server Bearer secret       | claim、prepare、send、retry、skip LINE jobs                     |
-| `POST /api/webhooks/line`                          | LINE signature             | 處理最小 follow / unfollow event                                |
+| Endpoint                                             | Auth                       | Purpose                                                         |
+| ---------------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| `GET /api/admin/customers`                           | Admin                      | 搜尋 / 篩選 / 分頁顧客列表與 LINE 安全摘要                      |
+| `GET /api/admin/customers/{id}`                      | Admin                      | 顧客 profile、LINE 摘要與分頁工單列表                           |
+| `PATCH /api/admin/customers/{id}`                    | Admin                      | 更新顧客 name / phone / note                                    |
+| `POST /api/admin/customers/{id}/line-bind-token`     | Admin                      | 以顧客為單位發卡；撤銷其他 pending token                        |
+| `POST /api/admin/work-orders/{id}/transfer-customer` | Admin                      | 單筆工單轉移到另一個既有顧客                                    |
+| `GET /api/public/line-bind/token?t=...`              | Public token               | Resolve pending / used / expired / revoked token 與安全工單摘要 |
+| `POST /api/public/line-bind/confirm`                 | LIFF ID token + bind token | 驗證 LINE 身分並原子建立綁定                                    |
+| `POST /api/admin/work-orders/{id}/line-bind-token`   | Admin                      | 重新發卡；撤銷其他 pending token                                |
+| `DELETE /api/admin/customers/{id}/line-binding`      | Admin                      | hard delete 綁定並撤銷 pending token                            |
+| `GET /api/admin/work-orders/{id}/line-status`        | Admin                      | 查詢綁定、好友、latest token 與最近通知狀態                     |
+| `POST /api/internal/line-jobs/process`               | Server Bearer secret       | claim、prepare、send、retry、skip LINE jobs                     |
+| `POST /api/webhooks/line`                            | LINE signature             | 處理最小 follow / unfollow event                                |
 
 ### `POST /api/admin/work-orders/{id}/line-bind-token`
 

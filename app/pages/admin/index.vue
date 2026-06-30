@@ -9,7 +9,9 @@ import {
   ADMIN_DASHBOARD_PROCESSING_CARD_DEFINITIONS,
   ADMIN_DASHBOARD_SUMMARY_CARD_DEFINITIONS,
   createEmptyAdminDashboardResponse,
+  formatAdminDashboardDelta,
   formatAdminDashboardGeneratedAt,
+  formatAdminDashboardMonthlyAverage,
 } from '~/utils/admin-dashboard';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
 import { extractApiErrorEnvelope, getApiErrorStatusCode } from '~/utils/admin-work-orders';
@@ -75,30 +77,37 @@ watch(
   { immediate: true },
 );
 
-const response = computed(() => data.value ?? lastSuccessfulResponse.value ?? createEmptyAdminDashboardResponse());
+const response = computed(
+  () => data.value ?? lastSuccessfulResponse.value ?? createEmptyAdminDashboardResponse(),
+);
 const apiError = computed<ApiErrorEnvelope | null>(() => extractApiErrorEnvelope(error.value));
-const isInitialLoading = computed(() => fetchStatus.value === 'pending' && !lastSuccessfulResponse.value);
+const isInitialLoading = computed(
+  () => fetchStatus.value === 'pending' && !lastSuccessfulResponse.value,
+);
 const hasError = computed(() => fetchStatus.value === 'error');
 const generatedAtLabel = computed(() =>
   formatAdminDashboardGeneratedAt(response.value.data.generatedAt),
 );
-const processingCards = computed<
-  Array<AdminDashboardProcessingCardDefinition & { value: number }>
->(() =>
-  ADMIN_DASHBOARD_PROCESSING_CARD_DEFINITIONS.map((card) => ({
-    ...card,
-    value: response.value.data.summary.activeWorkOrdersByStatus[card.key],
-  })),
+const processingCards = computed<Array<AdminDashboardProcessingCardDefinition & { value: number }>>(
+  () =>
+    ADMIN_DASHBOARD_PROCESSING_CARD_DEFINITIONS.map((card) => ({
+      ...card,
+      value: response.value.data.summary.activeWorkOrdersByStatus[card.key],
+    })),
 );
-const summaryCards = computed<
-  Array<AdminDashboardSummaryCardDefinition & { value: number }>
->(() =>
+const summaryCards = computed<Array<AdminDashboardSummaryCardDefinition & { value: number }>>(() =>
   ADMIN_DASHBOARD_SUMMARY_CARD_DEFINITIONS.map((card) => ({
     ...card,
     value: response.value.data.summary[card.key],
   })),
 );
-
+const stats = computed(() => response.value.data.stats);
+const receivedMonthDeltaLabel = computed(() =>
+  formatAdminDashboardDelta(stats.value.receivedThisMonth, stats.value.receivedPreviousMonth),
+);
+const averageMonthlyIntakeLabel = computed(() =>
+  formatAdminDashboardMonthlyAverage(stats.value.averageMonthlyIntake),
+);
 </script>
 
 <template>
@@ -109,7 +118,7 @@ const summaryCards = computed<
         <div>
           <h1 class="text-2xl font-semibold tracking-tight">管理端工作區</h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            第一版 dashboard 先提供處理中工單分布與管理 summary，讓你快速掌握現場進度與待追蹤項目。
+            主要統計、處理中工單與收件趨勢，讓你快速掌握現場進度與待追蹤項目。
           </p>
         </div>
 
@@ -129,11 +138,68 @@ const summaryCards = computed<
     </Alert>
 
     <div class="grid gap-6 xl:grid-cols-2 xl:items-stretch">
-      <Card class="flex flex-col xl:col-start-1 xl:row-start-1 xl:h-full">
+      <Card class="xl:col-span-2">
+        <CardHeader class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="space-y-1.5">
+            <CardTitle>月收件趨勢</CardTitle>
+            <CardDescription
+              >以收件日計算近 12 個月變化；詳細統計頁可看更多 breakdown。</CardDescription
+            >
+          </div>
+          <Button as-child variant="outline" size="sm" class="w-fit">
+            <NuxtLink to="/admin/statistics">查看詳細統計</NuxtLink>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div v-if="isInitialLoading" class="grid gap-4 lg:grid-cols-[1fr_16rem]">
+            <Skeleton class="h-72 w-full" />
+            <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              <Skeleton v-for="index in 3" :key="`trend-skeleton-${index}`" class="h-24 w-full" />
+            </div>
+          </div>
+
+          <div v-else class="grid gap-4 lg:grid-cols-[1fr_16rem]">
+            <AdminMonthlyIntakeChart :points="stats.monthlyIntake" />
+            <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              <div class="rounded-lg border p-4">
+                <p class="text-sm text-muted-foreground">本月收件</p>
+                <p class="mt-3 text-3xl font-semibold tracking-tight">
+                  {{ stats.receivedThisMonth }}
+                </p>
+                <p class="mt-2 text-sm text-muted-foreground">
+                  較上月 {{ receivedMonthDeltaLabel }} 件
+                </p>
+              </div>
+              <div class="rounded-lg border p-4">
+                <p class="text-sm text-muted-foreground">近 12 個月</p>
+                <p class="mt-3 text-3xl font-semibold tracking-tight">
+                  {{ stats.last12MonthsIntake }}
+                </p>
+                <p class="mt-2 text-sm text-muted-foreground">
+                  月均 {{ averageMonthlyIntakeLabel }} 件
+                </p>
+              </div>
+              <div class="rounded-lg border p-4">
+                <p class="text-sm text-muted-foreground">最高月份</p>
+                <p class="mt-3 text-2xl font-semibold tracking-tight">
+                  {{ stats.busiestMonth?.label ?? '—' }}
+                </p>
+                <p class="mt-2 text-sm text-muted-foreground">
+                  {{ stats.busiestMonth ? `${stats.busiestMonth.count} 件` : '尚無資料' }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card class="flex flex-col xl:col-start-1 xl:row-start-2 xl:h-full">
         <CardHeader class="flex flex-row items-start justify-between gap-4">
           <div class="space-y-1.5">
             <CardTitle>處理中工單</CardTitle>
-            <CardDescription>把進行中的工單拆成已收件、除濕中與維修中，方便直接進入對應清單。</CardDescription>
+            <CardDescription
+              >把進行中的工單拆成已收件、除濕中與維修中，方便直接進入對應清單。</CardDescription
+            >
           </div>
           <div class="text-right">
             <p class="text-sm text-muted-foreground">總數</p>
@@ -175,7 +241,7 @@ const summaryCards = computed<
 
       <div
         v-if="isInitialLoading"
-        class="grid gap-3 md:grid-cols-3 xl:col-start-2 xl:row-start-1 xl:h-full xl:grid-cols-1"
+        class="grid gap-3 md:grid-cols-3 xl:col-start-2 xl:row-start-2 xl:h-full xl:grid-cols-1"
       >
         <Card v-for="index in 3" :key="`summary-skeleton-${index}`" data-size="sm">
           <CardHeader>
@@ -188,16 +254,15 @@ const summaryCards = computed<
         </Card>
       </div>
 
-      <div v-else class="grid gap-3 md:grid-cols-3 xl:col-start-2 xl:row-start-1 xl:h-full xl:grid-cols-1">
+      <div
+        v-else
+        class="grid gap-3 md:grid-cols-3 xl:col-start-2 xl:row-start-2 xl:h-full xl:grid-cols-1"
+      >
         <Card
           v-for="card in summaryCards"
           :key="card.key"
           data-size="sm"
-          :class="
-            card.to
-              ? 'transition-colors hover:bg-muted/30 hover:ring-foreground/20'
-              : ''
-          "
+          :class="card.to ? 'transition-colors hover:bg-muted/30 hover:ring-foreground/20' : ''"
         >
           <NuxtLink
             v-if="card.to"
@@ -225,10 +290,12 @@ const summaryCards = computed<
         </Card>
       </div>
 
-      <Card class="xl:col-start-1 xl:row-start-2">
+      <Card class="xl:col-start-1 xl:row-start-3">
         <CardHeader>
           <CardTitle>Quick entries</CardTitle>
-          <CardDescription>先保留最常用入口；工單列表、建單頁與批量狀態都可直接進入。</CardDescription>
+          <CardDescription
+            >先保留最常用入口；工單列表、建單頁與批量狀態都可直接進入。</CardDescription
+          >
         </CardHeader>
         <CardContent>
           <div class="grid gap-3 sm:grid-cols-2">

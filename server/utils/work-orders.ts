@@ -81,6 +81,10 @@ type WorkOrderResolveRow = Pick<
   | 'paper_order_no'
   | 'updated_at'
 >;
+type DashboardMetricRow = Pick<
+  AdminWorkOrderListRow,
+  'board_type' | 'current_status' | 'id' | 'intake_date'
+>;
 type PublicLookupWorkOrderRow = Pick<
   WorkOrderRow,
   | 'board_type'
@@ -102,6 +106,34 @@ const DASHBOARD_OVERDUE_STATUSES = [
   'REPAIRING',
   'READY_FOR_PICKUP',
 ] as const satisfies ReadonlyArray<Database['public']['Enums']['work_order_status']>;
+const DASHBOARD_STATUS_ORDER = [
+  'RECEIVED',
+  'DRYING',
+  'REPAIRING',
+  'READY_FOR_PICKUP',
+  'DELIVERED',
+  'CANCELLED',
+] as const satisfies ReadonlyArray<Database['public']['Enums']['work_order_status']>;
+const DASHBOARD_BOARD_TYPE_ORDER = [
+  'SURFBOARD',
+  'SUP',
+  'SNOWBOARD',
+] as const satisfies ReadonlyArray<Database['public']['Enums']['board_type']>;
+const DASHBOARD_STATUS_LABELS = {
+  CANCELLED: '已取消',
+  DELIVERED: '已交件',
+  DRYING: '除濕中',
+  READY_FOR_PICKUP: '待取件',
+  RECEIVED: '已收件',
+  REPAIRING: '維修中',
+} as const satisfies Record<Database['public']['Enums']['work_order_status'], string>;
+const DASHBOARD_BOARD_TYPE_LABELS = {
+  SNOWBOARD: '雪板',
+  SUP: 'SUP',
+  SURFBOARD: '衝浪板',
+} as const satisfies Record<Database['public']['Enums']['board_type'], string>;
+const DASHBOARD_MONTH_COUNT = 12;
+const DASHBOARD_METRIC_PAGE_SIZE = 1000;
 
 const PUBLIC_WORK_ORDER_LOOKUP_NOT_FOUND_MESSAGE = '查無符合的工單，請確認工單號與手機號碼。';
 const PUBLIC_PROGRESS_STEP_ORDER_BY_BOARD_TYPE = {
@@ -252,6 +284,41 @@ export const getTaipeiDayRange = (date = new Date()) => {
   };
 };
 
+const formatMonthKey = (year: number, month: number) => `${year}-${String(month).padStart(2, '0')}`;
+
+const formatDateOnly = (year: number, month: number, day: number) =>
+  `${formatMonthKey(year, month)}-${String(day).padStart(2, '0')}`;
+
+const addMonths = (year: number, month: number, amount: number) => {
+  const date = new Date(Date.UTC(year, month - 1 + amount, 1, 0, 0, 0, 0));
+
+  return {
+    month: date.getUTCMonth() + 1,
+    year: date.getUTCFullYear(),
+  };
+};
+
+const getTaipeiMonthBuckets = (date = new Date()) => {
+  const parts = getTaipeiDateParts(date);
+  const firstMonth = addMonths(parts.year, parts.month, -(DASHBOARD_MONTH_COUNT - 1));
+  const endMonth = addMonths(parts.year, parts.month, 1);
+  const months = Array.from({ length: DASHBOARD_MONTH_COUNT }, (_, index) => {
+    const monthParts = addMonths(firstMonth.year, firstMonth.month, index);
+
+    return {
+      count: 0,
+      label: `${monthParts.year}/${String(monthParts.month).padStart(2, '0')}`,
+      month: formatMonthKey(monthParts.year, monthParts.month),
+    };
+  });
+
+  return {
+    endExclusive: formatDateOnly(endMonth.year, endMonth.month, 1),
+    months,
+    startInclusive: formatDateOnly(firstMonth.year, firstMonth.month, 1),
+  };
+};
+
 const getExactCount = async (
   query: PromiseLike<{
     count: number | null;
@@ -266,6 +333,39 @@ const getExactCount = async (
 
   return count ?? 0;
 };
+
+const getDashboardMetricRows = async (
+  supabase: UserScopedSupabaseClient,
+  startInclusive: string,
+  endExclusive: string,
+): Promise<DashboardMetricRow[]> => {
+  const rows: DashboardMetricRow[] = [];
+
+  for (let from = 0; ; from += DASHBOARD_METRIC_PAGE_SIZE) {
+    const to = from + DASHBOARD_METRIC_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from('admin_work_order_list')
+      .select('id, intake_date, board_type, current_status')
+      .gte('intake_date', startInclusive)
+      .lt('intake_date', endExclusive)
+      .order('intake_date', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throwMappedSupabaseError(error);
+    }
+
+    const pageRows = (data ?? []) as DashboardMetricRow[];
+    rows.push(...pageRows);
+
+    if (pageRows.length < DASHBOARD_METRIC_PAGE_SIZE) {
+      return rows;
+    }
+  }
+};
+
+const calculateShare = (count: number, total: number) =>
+  total > 0 ? Math.round((count / total) * 100) : 0;
 
 const calculatePageInfo = (page: number, pageSize: number, total: number): PageInfo => {
   const totalPages = Math.ceil(total / pageSize);
@@ -283,7 +383,11 @@ const calculatePageInfo = (page: number, pageSize: number, total: number): PageI
 const calculateQuoteTotal = (quoteItems: QuoteItemRow[]): number =>
   quoteItems.reduce((total, quoteItem) => total + quoteItem.amount, 0);
 
-const normalizeRepairCount = (count: number | null, source: RepairCountSource, markCount: number) => {
+const normalizeRepairCount = (
+  count: number | null,
+  source: RepairCountSource,
+  markCount: number,
+) => {
   if (source === 'manual') {
     return count;
   }
@@ -861,32 +965,19 @@ export const getAdminDashboardSummary = async (
   now = new Date(),
 ) => {
   const taipeiDayRange = getTaipeiDayRange(now);
+  const taipeiMonthBuckets = getTaipeiMonthBuckets(now);
   const generatedAt = now.toISOString();
 
-  const [received, drying, repairing, readyForPickup, overdue, createdToday] = await Promise.all([
-    getExactCount(
-      supabase
-        .from('admin_work_order_list')
-        .select('id', { count: 'exact', head: true })
-        .eq('current_status', 'RECEIVED'),
-    ),
-    getExactCount(
-      supabase
-        .from('admin_work_order_list')
-        .select('id', { count: 'exact', head: true })
-        .eq('current_status', 'DRYING'),
-    ),
-    getExactCount(
-      supabase
-        .from('admin_work_order_list')
-        .select('id', { count: 'exact', head: true })
-        .eq('current_status', 'REPAIRING'),
-    ),
-    getExactCount(
-      supabase
-        .from('admin_work_order_list')
-        .select('id', { count: 'exact', head: true })
-        .eq('current_status', 'READY_FOR_PICKUP'),
+  const [statusCounts, overdue, createdToday, dashboardMetricRows] = await Promise.all([
+    Promise.all(
+      DASHBOARD_STATUS_ORDER.map((status) =>
+        getExactCount(
+          supabase
+            .from('admin_work_order_list')
+            .select('id', { count: 'exact', head: true })
+            .eq('current_status', status),
+        ),
+      ),
     ),
     getExactCount(
       supabase
@@ -902,13 +993,92 @@ export const getAdminDashboardSummary = async (
         .gte('created_at', taipeiDayRange.startInclusive)
         .lt('created_at', taipeiDayRange.endExclusive),
     ),
+    getDashboardMetricRows(
+      supabase,
+      taipeiMonthBuckets.startInclusive,
+      taipeiMonthBuckets.endExclusive,
+    ),
   ]);
+  const received = statusCounts[0] ?? 0;
+  const drying = statusCounts[1] ?? 0;
+  const repairing = statusCounts[2] ?? 0;
+  const readyForPickup = statusCounts[3] ?? 0;
+  const delivered = statusCounts[4] ?? 0;
+  const cancelled = statusCounts[5] ?? 0;
 
   const activeWorkOrders = received + drying + repairing;
+  const monthlyCountsByKey = new Map(
+    taipeiMonthBuckets.months.map((month) => [month.month, month.count]),
+  );
+  const boardTypeCounts = new Map<BoardType, number>(
+    DASHBOARD_BOARD_TYPE_ORDER.map((boardType) => [boardType, 0]),
+  );
+
+  for (const row of dashboardMetricRows) {
+    if (row.intake_date) {
+      const monthKey = row.intake_date.slice(0, 7);
+
+      if (monthlyCountsByKey.has(monthKey)) {
+        monthlyCountsByKey.set(monthKey, (monthlyCountsByKey.get(monthKey) ?? 0) + 1);
+      }
+    }
+
+    if (row.board_type && boardTypeCounts.has(row.board_type)) {
+      boardTypeCounts.set(row.board_type, (boardTypeCounts.get(row.board_type) ?? 0) + 1);
+    }
+  }
+
+  const monthlyIntake = taipeiMonthBuckets.months.map((month) => ({
+    ...month,
+    count: monthlyCountsByKey.get(month.month) ?? 0,
+  }));
+  const last12MonthsIntake = monthlyIntake.reduce((total, month) => total + month.count, 0);
+  const receivedThisMonth = monthlyIntake.at(-1)?.count ?? 0;
+  const receivedPreviousMonth = monthlyIntake.at(-2)?.count ?? 0;
+  const busiestMonth =
+    last12MonthsIntake > 0
+      ? monthlyIntake.reduce((currentMax, month) =>
+          month.count > currentMax.count ? month : currentMax,
+        )
+      : null;
+  const currentStatusTotal = received + drying + repairing + readyForPickup + delivered + cancelled;
 
   return {
     data: {
       generatedAt,
+      stats: {
+        averageMonthlyIntake: Math.round((last12MonthsIntake / DASHBOARD_MONTH_COUNT) * 10) / 10,
+        boardTypeBreakdown: DASHBOARD_BOARD_TYPE_ORDER.map((boardType) => {
+          const count = boardTypeCounts.get(boardType) ?? 0;
+
+          return {
+            count,
+            key: boardType,
+            label: DASHBOARD_BOARD_TYPE_LABELS[boardType],
+            share: calculateShare(count, last12MonthsIntake),
+          };
+        }),
+        busiestMonth,
+        last12MonthsIntake,
+        monthlyIntake,
+        receivedPreviousMonth,
+        receivedThisMonth,
+        statusBreakdown: [
+          { count: received, key: 'RECEIVED', label: DASHBOARD_STATUS_LABELS.RECEIVED },
+          { count: drying, key: 'DRYING', label: DASHBOARD_STATUS_LABELS.DRYING },
+          { count: repairing, key: 'REPAIRING', label: DASHBOARD_STATUS_LABELS.REPAIRING },
+          {
+            count: readyForPickup,
+            key: 'READY_FOR_PICKUP',
+            label: DASHBOARD_STATUS_LABELS.READY_FOR_PICKUP,
+          },
+          { count: delivered, key: 'DELIVERED', label: DASHBOARD_STATUS_LABELS.DELIVERED },
+          { count: cancelled, key: 'CANCELLED', label: DASHBOARD_STATUS_LABELS.CANCELLED },
+        ].map((item) => ({
+          ...item,
+          share: calculateShare(item.count, currentStatusTotal),
+        })),
+      },
       summary: {
         activeWorkOrders,
         activeWorkOrdersByStatus: {
@@ -1565,8 +1735,12 @@ export const buildWorkOrderPatchUpdates = (
     updates.repair_count = patch.repairCount;
   }
 
-  if (nextRepairCountSource === 'auto' && Object.prototype.hasOwnProperty.call(patch, 'repairMarks')) {
-    updates.repair_count = patch.repairMarks && patch.repairMarks.length > 0 ? patch.repairMarks.length : null;
+  if (
+    nextRepairCountSource === 'auto' &&
+    Object.prototype.hasOwnProperty.call(patch, 'repairMarks')
+  ) {
+    updates.repair_count =
+      patch.repairMarks && patch.repairMarks.length > 0 ? patch.repairMarks.length : null;
     updates.repair_count_source = 'auto';
   }
 
@@ -1580,7 +1754,9 @@ export const patchAdminWorkOrder = async (
 ) => {
   const { data: existingWorkOrder, error: existingWorkOrderError } = await supabase
     .from('work_orders')
-    .select('id, board_type, payment_received, payment_received_at, repair_count, repair_count_source')
+    .select(
+      'id, board_type, payment_received, payment_received_at, repair_count, repair_count_source',
+    )
     .eq('id', id)
     .maybeSingle();
 

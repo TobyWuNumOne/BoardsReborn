@@ -3,7 +3,9 @@ import {
   ADMIN_DASHBOARD_PROCESSING_CARD_DEFINITIONS,
   ADMIN_DASHBOARD_SUMMARY_CARD_DEFINITIONS,
   createEmptyAdminDashboardResponse,
+  formatAdminDashboardDelta,
   formatAdminDashboardGeneratedAt,
+  formatAdminDashboardMonthlyAverage,
 } from '../../app/utils/admin-dashboard';
 
 describe('admin dashboard UI helpers', () => {
@@ -54,6 +56,27 @@ describe('admin dashboard UI helpers', () => {
     expect(createEmptyAdminDashboardResponse()).toEqual({
       data: {
         generatedAt: '',
+        stats: {
+          averageMonthlyIntake: 0,
+          boardTypeBreakdown: [
+            { count: 0, key: 'SURFBOARD', label: '衝浪板', share: 0 },
+            { count: 0, key: 'SUP', label: 'SUP', share: 0 },
+            { count: 0, key: 'SNOWBOARD', label: '雪板', share: 0 },
+          ],
+          busiestMonth: null,
+          last12MonthsIntake: 0,
+          monthlyIntake: [],
+          receivedPreviousMonth: 0,
+          receivedThisMonth: 0,
+          statusBreakdown: [
+            { count: 0, key: 'RECEIVED', label: '已收件', share: 0 },
+            { count: 0, key: 'DRYING', label: '除濕中', share: 0 },
+            { count: 0, key: 'REPAIRING', label: '維修中', share: 0 },
+            { count: 0, key: 'READY_FOR_PICKUP', label: '待取件', share: 0 },
+            { count: 0, key: 'DELIVERED', label: '已交件', share: 0 },
+            { count: 0, key: 'CANCELLED', label: '已取消', share: 0 },
+          ],
+        },
         summary: {
           activeWorkOrders: 0,
           activeWorkOrdersByStatus: {
@@ -70,5 +93,14 @@ describe('admin dashboard UI helpers', () => {
     expect(formatAdminDashboardGeneratedAt('2026-04-29T02:45:00.000Z')).toBe('2026/04/29 10:45');
     expect(formatAdminDashboardGeneratedAt('')).toBe('—');
     expect(formatAdminDashboardGeneratedAt('broken')).toBe('—');
+  });
+
+  it('formats dashboard stat helper values predictably', () => {
+    expect(formatAdminDashboardMonthlyAverage(0)).toBe('0');
+    expect(formatAdminDashboardMonthlyAverage(3)).toBe('3');
+    expect(formatAdminDashboardMonthlyAverage(2.25)).toBe('2.3');
+    expect(formatAdminDashboardDelta(8, 5)).toBe('+3');
+    expect(formatAdminDashboardDelta(5, 8)).toBe('-3');
+    expect(formatAdminDashboardDelta(5, 5)).toBe('0');
   });
 });

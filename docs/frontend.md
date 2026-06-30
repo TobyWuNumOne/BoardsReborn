@@ -8,7 +8,8 @@
 - Tailwind CSS 透過 `@tailwindcss/vite` 接入 Nuxt。
 - shadcn-vue 透過 `shadcn-nuxt` 與 CLI-generated primitives 接入。
 - 目前 `/`、`/login`、`/admin`、`/forbidden` 已重整到 Tailwind/shadcn 基礎。
-- `/admin` 已接上 dashboard live data，第一版顯示處理中工單 breakdown、管理 summary 與 quick entries。
+- `/admin` 已接上 dashboard live data，顯示主要統計、月收件趨勢、處理中工單 breakdown、管理 summary 與 quick entries。
+- `/admin/statistics` 已實作詳細統計頁，顯示收件趨勢、目前狀態分布與近 12 個月板型分布。
 - `/admin/work-orders` 已實作 read-only 列表頁，支援 URL query state、篩選、排序、分頁、桌機 table 與手機 card list。
 - `/admin/work-orders/[id]` 已實作單一路由 detail page，採 `mode=view|edit|work`；目前 `view` 可用、`edit` 已接上 PATCH、`work` 已接上單筆 status mutation，列印摘要卡可建立工單標籤或顧客留存聯補印任務，LINE 卡片可查綁定/通知/token/job狀態並執行發卡或店家端解除。
 - `/admin/work-orders/new` 已實作單頁建單流程，重用 customer lookup 與 create API，並已補 tablet-first F8A/F8B 快捷輸入、sticky 必填摘要，以及 Konva repair marks modal。
@@ -35,6 +36,7 @@
 - `/login`
 - `/forbidden`
 - `/admin`
+- `/admin/statistics`
 - `/admin/work-orders`
 - `/admin/work-orders/new`
 - `/admin/work-orders/bulk-status`
@@ -62,9 +64,14 @@ Production domain routing：
 - `/admin/printing`：列印中心，從任務視角看列印紀錄、狀態與 retry
 - `/admin/printing/workers`：Print Worker 管理，從設備視角看狀態、最後心跳、最近錯誤與啟停 / 輕量編輯
 
-`/admin` 是真正 dashboard，不是工單列表。第一版 dashboard 放 summary cards 與快速入口，不放完整 table。
+`/admin` 是真正 dashboard，不是工單列表。Dashboard 放主要統計、summary cards、月收件趨勢與快速入口，不放完整 table。
 
-第一版 dashboard 由兩塊 summary 組成：
+Dashboard 由三塊 summary 組成：
+
+- `月收件趨勢` 區塊
+  - 以收件日顯示近 12 個月收件曲線
+  - 顯示本月收件、較上月差值、近 12 個月收件、月均與最高月份
+  - 提供詳細統計入口 `/admin/statistics`
 
 - `處理中工單` 區塊
   - 已收件
@@ -77,7 +84,8 @@ Production domain routing：
 
 規則：
 
-- 只顯示 summary，不做圖表、不做 polling。
+- 只顯示 summary 與聚合統計，不放完整工單 table，不做 polling。
+- 月收件趨勢以 `GET /api/admin/dashboard` 的 `stats.monthlyIntake` 顯示；統計圖可用既有 UI tokens / SVG，不必為第一版強制新增 chart runtime dependency。
 - `處理中工單` header 顯示總數 `activeWorkOrders`，且固定等於 `RECEIVED + DRYING + REPAIRING`。
 - `已收件` 可導到 `/admin/work-orders?status=RECEIVED`
 - `除濕中` 可導到 `/admin/work-orders?status=DRYING`
@@ -86,6 +94,14 @@ Production domain routing：
 - `逾期` 可導到 `/admin/work-orders?overdueEstimatedCompletion=true`
 - `今日新建` 第一版不導頁，因現有 list query 尚無對應 filter
 - `generatedAt` 只作為最後更新時間顯示，不作為 cache key 或邏輯依據
+
+`/admin/statistics` 是 dashboard 的詳細統計頁，不是會計報表。第一版只使用 `GET /api/admin/dashboard` 的聚合資料，顯示：
+
+- 收件趨勢與本月 / 上月 / 近 12 個月摘要
+- 目前狀態分布
+- 近 12 個月板型分布
+
+詳細統計頁不顯示完整工單 table；需要看明細時導回工單列表或建單流程。
 
 ## Public Lookup
 

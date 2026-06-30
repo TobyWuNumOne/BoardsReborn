@@ -22,7 +22,7 @@
 - 前端工具鏈已接上 Nuxt 4、TypeScript、Tailwind CSS v4、shadcn-nuxt、Vitest、ESLint、Prettier。
 - Supabase migration 已從初始 schema 走到工單、列印、repair marks、自動工單號、測試工單號與 LINE MVP foundation。
 - Admin auth/session 最小流程已存在：`/login`、`/admin`、`/forbidden`、session endpoint 與 admin gate helper 已落地。
-- Admin dashboard 已存在，並有 server 端 summary API：`GET /api/admin/dashboard`。
+- Admin dashboard 已存在，並有 server 端 summary / statistics API：`GET /api/admin/dashboard`。
 - 工單管理主流程已存在：建立、列表、詳情、編輯、單筆狀態更新、bulk status、掃碼 lookup、quick note、刪除測試/錯單流程。
 - 顧客詳情頁 `/admin/customers/[id]` 已存在，支援 profile 編輯、LINE 管理、工單列表與工單轉移。
 - 工單建立改走系統自動產生純數字 `paper_order_no`；測試工單號 `99` namespace migration 也已存在。
@@ -38,11 +38,11 @@
 
 - Public: `/`, `/repair-status`, `/line/order-gate`, `/line/order-gate/t/[...parts]`
 - Auth: `/login`, `/forbidden`
-- Admin: `/admin`, `/admin/work-orders`, `/admin/work-orders/new`, `/admin/work-orders/[id]`, `/admin/work-orders/bulk-status`, `/admin/customers`, `/admin/customers/[id]`, `/admin/scan`, `/admin/printing`, `/admin/printing/workers`, `/admin/settings`
+- Admin: `/admin`, `/admin/statistics`, `/admin/work-orders`, `/admin/work-orders/new`, `/admin/work-orders/[id]`, `/admin/work-orders/bulk-status`, `/admin/customers`, `/admin/customers/[id]`, `/admin/scan`, `/admin/printing`, `/admin/printing/workers`, `/admin/settings`
 
 ### 目前 repo 內可見的 API
 
-- Admin session / dashboard / customer lookup
+- Admin session / dashboard statistics / customer lookup
 - Admin customers: list, detail, patch, LINE bind token, work-order transfer
 - Admin work-orders: create, list, detail, patch, status, bulk-status, lookup, resolve, next-paper-order-no, quick-note, delete
 - Admin printing: print-jobs list/create/retry, print-devices list/create/patch/delete, print-summaries
@@ -61,7 +61,7 @@
 - Admin work-order API：done
   - create/list/detail/patch/status/bulk-status/lookup/resolve/delete/quick-note 已落地。
 - Admin 前端第一版：done
-  - dashboard、工單列表、詳情、顧客列表/詳情、建單、bulk status、scan、settings、printing、workers 頁面已落地。
+  - dashboard、詳細統計、工單列表、詳情、顧客列表/詳情、建單、bulk status、scan、settings、printing、workers 頁面已落地。
 - Public customer lookup：done
   - `/repair-status` 與 public lookup API 已存在，含 repair marks read-only 顯示。
 - Printing MVP code path：done
@@ -74,6 +74,7 @@
 ### Work Orders
 
 已完成：
+
 - `GET /api/admin/work-orders` 列表、filter、sort、pagination
 - `POST /api/admin/work-orders` 建立工單
 - `GET /api/admin/work-orders/{id}` 詳情
@@ -87,6 +88,7 @@
 - 工單 detail / create / bulk status / scan 第一版 UI
 
 仍待確認或補強：
+
 - 刪除工單的實際使用規則與 production guardrail 是否已完全收斂
 - 掃碼頁與 bulk status 的實機條碼槍驗證流程
 - 更多端到端驗證，而不只單元測試與文件描述
@@ -94,28 +96,33 @@
 ### Repair Marks
 
 已完成：
+
 - `work_order_repair_marks` schema 與 `repair_count` 欄位
 - create/detail/patch/public lookup contract 映射
 - Konva editor、只讀 gallery、responsive 單雙面切換
 
 仍待確認或補強：
+
 - 舊資料 backfill 與 legacy null 狀態的營運規則
 - 實機平板長時間操作體驗與更多手勢/效能驗證
 
 ### Public Lookup
 
 已完成：
+
 - `/repair-status` 同頁查詢與結果顯示
 - 工單號 + 完整手機驗證
 - 公開狀態、預估完成日、初始報價、公開備註、repair marks、官方 LINE CTA
 
 仍待確認或補強：
+
 - 目前 rate limit 仍屬 MVP 等級實作，尚非分散式 production limiter
 - 顧客頁 copy、費用說明與現場話術仍可能繼續微調
 
 ### Printing
 
 已完成：
+
 - `print_jobs` / `print_devices` queue model 與相關 migrations
 - Admin 列印中心與 worker 管理頁
 - `GET/POST /api/admin/print-jobs`、retry、print-devices CRUD、print-summaries
@@ -124,12 +131,14 @@
 - 建單後 best-effort 建立列印任務的程式碼路徑
 
 仍待確認或補強：
+
 - repo 雖有完整 worker/runtime 程式，但長時間常駐、stale job recovery、device provisioning、異常 runbook 仍應持續收斂
 - 本文件不再把某次 staging/production/Pi 手動驗證寫成固定現況；若要保留，應整理到獨立 runbook 或 release 驗證文件
 
 ### LINE Integration
 
 已完成：
+
 - LINE schema foundation：`customer_line_accounts`、`line_bind_tokens`、`line_jobs` 與相關 migrations
 - bind token issue / resolve / confirm server flow
 - LIFF order-gate page 與 token path/query 解析頁
@@ -139,6 +148,7 @@
 - 對應單元測試：token、order-gate、processor、webhook、admin/public line API
 
 仍待確認或補強：
+
 - repo 內可證明功能已實作，不等於 production release verification 永久有效
 - 綁定/好友狀態/通知的真人流程驗證應留在 `docs/line-release-verification.md` 或未來 runbook，不應全部堆回 progress
 - 若後續增加手動補發、更多通知類型、顧客中心等，仍屬 scope 擴張，需要先更新產品文件

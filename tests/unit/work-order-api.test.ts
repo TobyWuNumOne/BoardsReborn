@@ -172,8 +172,16 @@ const createQuickNoteClient = ({
 };
 
 const createDashboardSummaryClient = (counts: {
+  cancelled?: number;
   createdToday: number;
+  delivered?: number;
   drying: number;
+  metricRows?: Array<{
+    board_type: 'SNOWBOARD' | 'SUP' | 'SURFBOARD' | null;
+    current_status: string | null;
+    id: string | null;
+    intake_date: string | null;
+  }>;
   overdue: number;
   readyForPickup: number;
   received: number;
@@ -208,6 +216,18 @@ const createDashboardSummaryClient = (counts: {
       )
     ) {
       return counts.readyForPickup;
+    }
+
+    if (
+      eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'DELIVERED')
+    ) {
+      return counts.delivered ?? 0;
+    }
+
+    if (
+      eqFilters.some((filter) => filter.column === 'current_status' && filter.value === 'CANCELLED')
+    ) {
+      return counts.cancelled ?? 0;
     }
 
     if (
@@ -248,12 +268,22 @@ const createDashboardSummaryClient = (counts: {
       });
     },
     lt(column: string, value: unknown) {
+      return createQuery(table, {
+        ...builder,
+        lt: { column, value },
+      });
+    },
+    order(column: string, options?: Record<string, unknown>) {
+      return createQuery(table, {
+        ...builder,
+        order: { column, options },
+      });
+    },
+    range(from: number, to: number) {
+      const rows = counts.metricRows ?? [];
+
       return Promise.resolve({
-        count: resolveCount({
-          ...builder,
-          lt: { column, value },
-          table,
-        }),
+        data: rows.slice(from, to + 1),
         error: null,
       });
     },
@@ -731,8 +761,30 @@ describe('work order API validation', () => {
   it('aggregates dashboard summary counts from admin_work_order_list', async () => {
     const now = new Date('2026-04-29T02:45:00.000Z');
     const { client } = createDashboardSummaryClient({
+      cancelled: 1,
       createdToday: 4,
+      delivered: 2,
       drying: 4,
+      metricRows: [
+        {
+          board_type: 'SURFBOARD',
+          current_status: 'DELIVERED',
+          id: 'work-order-1',
+          intake_date: '2026-03-10',
+        },
+        {
+          board_type: 'SURFBOARD',
+          current_status: 'REPAIRING',
+          id: 'work-order-2',
+          intake_date: '2026-04-11',
+        },
+        {
+          board_type: 'SNOWBOARD',
+          current_status: 'RECEIVED',
+          id: 'work-order-3',
+          intake_date: '2026-04-20',
+        },
+      ],
       overdue: 3,
       readyForPickup: 6,
       received: 5,
@@ -742,6 +794,44 @@ describe('work order API validation', () => {
     expect(await getAdminDashboardSummary(client as never, now)).toEqual({
       data: {
         generatedAt: '2026-04-29T02:45:00.000Z',
+        stats: {
+          averageMonthlyIntake: 0.3,
+          boardTypeBreakdown: [
+            { count: 2, key: 'SURFBOARD', label: '衝浪板', share: 67 },
+            { count: 0, key: 'SUP', label: 'SUP', share: 0 },
+            { count: 1, key: 'SNOWBOARD', label: '雪板', share: 33 },
+          ],
+          busiestMonth: {
+            count: 2,
+            label: '2026/04',
+            month: '2026-04',
+          },
+          last12MonthsIntake: 3,
+          monthlyIntake: [
+            { count: 0, label: '2025/05', month: '2025-05' },
+            { count: 0, label: '2025/06', month: '2025-06' },
+            { count: 0, label: '2025/07', month: '2025-07' },
+            { count: 0, label: '2025/08', month: '2025-08' },
+            { count: 0, label: '2025/09', month: '2025-09' },
+            { count: 0, label: '2025/10', month: '2025-10' },
+            { count: 0, label: '2025/11', month: '2025-11' },
+            { count: 0, label: '2025/12', month: '2025-12' },
+            { count: 0, label: '2026/01', month: '2026-01' },
+            { count: 0, label: '2026/02', month: '2026-02' },
+            { count: 1, label: '2026/03', month: '2026-03' },
+            { count: 2, label: '2026/04', month: '2026-04' },
+          ],
+          receivedPreviousMonth: 1,
+          receivedThisMonth: 2,
+          statusBreakdown: [
+            { count: 5, key: 'RECEIVED', label: '已收件', share: 19 },
+            { count: 4, key: 'DRYING', label: '除濕中', share: 15 },
+            { count: 9, key: 'REPAIRING', label: '維修中', share: 33 },
+            { count: 6, key: 'READY_FOR_PICKUP', label: '待取件', share: 22 },
+            { count: 2, key: 'DELIVERED', label: '已交件', share: 7 },
+            { count: 1, key: 'CANCELLED', label: '已取消', share: 4 },
+          ],
+        },
         summary: {
           activeWorkOrders: 18,
           activeWorkOrdersByStatus: {

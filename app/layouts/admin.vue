@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  BarChart3Icon,
   ClipboardListIcon,
   HomeIcon,
   Layers3Icon,
@@ -67,6 +68,12 @@ const navItems = [
     enabled: true,
   },
   {
+    label: '統計',
+    to: '/admin/statistics',
+    icon: BarChart3Icon,
+    enabled: true,
+  },
+  {
     label: '列印',
     to: '/admin/printing',
     icon: PrinterIcon,
@@ -90,6 +97,7 @@ const topNavItems = [
     exclude: ['/admin/work-orders/bulk-status', '/admin/work-orders/new'],
   },
   { label: '顧客', to: '/admin/customers', icon: UsersIcon, exact: false, exclude: [] },
+  { label: '統計', to: '/admin/statistics', icon: BarChart3Icon, exact: false, exclude: [] },
   {
     label: '批量',
     to: '/admin/work-orders/bulk-status',
