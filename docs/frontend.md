@@ -242,6 +242,7 @@ Dashboard 由三塊 summary 組成：
 - API error envelope 的 `fieldErrors` 應映射到對應欄位。
 - 非欄位錯誤顯示在 form-level alert 或 toast。
 - Loading / disabled state 必須跟 action 綁定，避免重複送出。
+- 現場主流程若可能等待超過短暫瞬間，不能只改按鈕文字；需提供目前捲動位置也看得到的 persistent loading feedback。
 
 ## Work Order List
 
@@ -299,6 +300,7 @@ Table 欄位順序：
   - `internalNote` 空白代表不變更既有內部備註；若要清空，改走 `mode=edit`
   - 成功後 refresh detail、清空 form，並保留在 `mode=work`
 - detail 頁列印狀態卡使用 `GET /api/admin/print-summaries?workOrderId=...`，只刷新 summary，不因列印事件整頁重抓 work order detail。
+- detail 頁初始進入時，工單 detail 與列印摘要資料抓取不可阻塞路由切換；先顯示頁面 skeleton，再由 lazy fetch 補上 server 資料。
 - detail 頁列印狀態卡只顯示 summary + deep link，不嵌入完整 print timeline。
 - detail 頁列印 action 使用 dialog 選擇 job type；第一版支援 `work_order_label`（工單標籤）與 `customer_receipt`（顧客留存聯），每次送出都建立新的 print job。
 - detail 頁若最新列印任務處於 `pending / locked / printing`，需短週期補抓 print summary，直到進入 terminal state，避免 Realtime 漏事件時卡在 `已鎖定`。
@@ -340,6 +342,7 @@ Table 欄位順序：
   - 顯示 success toast
   - 導向 `/admin/work-orders/[id]?mode=view&created=1`
   - detail 頁頂部顯示 success alert，讓導頁後仍可確認操作成功
+- 送出期間需顯示全頁可見的 persistent loading feedback，文案需讓店員知道系統正在建立工單、確認正式工單號並建立列印任務；送出中必須維持按鈕 disabled 與防重送。
 
 ## Bulk Status
 

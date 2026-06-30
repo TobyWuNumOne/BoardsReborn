@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   getAdminWorkOrderDetailAsyncKey,
   getAdminWorkOrderDetailModeLabel,
   getAdminWorkOrderDetailPath,
   normalizeAdminWorkOrderDetailRouteQuery,
 } from '../../app/utils/admin-work-orders';
+
+const detailPageSource = readFileSync(
+  fileURLToPath(new URL('../../app/pages/admin/work-orders/[id].vue', import.meta.url)),
+  'utf8',
+);
 
 describe('admin work-order detail UI helpers', () => {
   it('canonicalizes missing or invalid detail mode to view', () => {
@@ -58,5 +65,16 @@ describe('admin work-order detail UI helpers', () => {
     expect(getAdminWorkOrderDetailAsyncKey('work-order-1')).toBe(
       getAdminWorkOrderDetailAsyncKey('work-order-1'),
     );
+  });
+
+  it('loads detail and print summary lazily so navigation can show skeletons first', () => {
+    expect(detailPageSource).toContain('lazy: true');
+    expect(detailPageSource).toMatch(
+      /useAsyncData\(detailAsyncKey,\s*fetchWorkOrderDetail,\s*\{\s*lazy: true,/s,
+    );
+    expect(detailPageSource).toMatch(
+      /useAsyncData\(\s*computed\(\(\) => `admin-print-summary:\$\{routeWorkOrderId\.value\}`\),\s*fetchPrintSummary,\s*\{\s*lazy: true,/s,
+    );
+    expect(detailPageSource).toContain('v-if="isInitialLoading"');
   });
 });

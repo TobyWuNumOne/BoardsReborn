@@ -62,6 +62,7 @@
   - create/list/detail/patch/status/bulk-status/lookup/resolve/delete/quick-note 已落地。
 - Admin 前端第一版：done
   - dashboard、詳細統計、工單列表、詳情、顧客列表/詳情、建單、bulk status、scan、settings、printing、workers 頁面已落地。
+  - 建單送出期間已有全頁可見 loading feedback；工單詳情頁初始資料與列印摘要採 lazy fetch，避免導頁被 detail payload 阻塞。
 - Public customer lookup：done
   - `/repair-status` 與 public lookup API 已存在，含 repair marks read-only 顯示。
 - Printing MVP code path：done

@@ -164,6 +164,10 @@ export interface AdminWorkOrderCreatePayload {
   };
 }
 
+export const ADMIN_WORK_ORDER_CREATE_SUBMITTING_TITLE = '正在建立工單';
+export const ADMIN_WORK_ORDER_CREATE_SUBMITTING_DESCRIPTION =
+  '正在建立工單、確認正式工單號並建立列印任務，請不要關閉頁面或重複送出。';
+
 export const ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS = [
   { description: '', label: '衝浪板', value: 'SURFBOARD' },
   { description: '', label: 'SUP', value: 'SUP' },

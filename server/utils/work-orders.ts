@@ -38,6 +38,16 @@ type StatusHistoryRow = Pick<
 type WorkOrderWithCustomer = WorkOrderRow & {
   customers: Pick<CustomerRow, 'id' | 'name' | 'phone'> | null;
 };
+interface CreateAdminWorkOrderOptions {
+  requestId?: string;
+}
+type CreateAdminWorkOrderPhase =
+  | 'coreRpc'
+  | 'repairCountUpdate'
+  | 'repairMarksReplace'
+  | 'initialPrintJobEnqueue'
+  | 'lineReceivedEnqueue';
+type CreateAdminWorkOrderTimings = Partial<Record<CreateAdminWorkOrderPhase, number>>;
 type ScanLookupWorkOrderRow = Pick<
   WorkOrderRow,
   | 'board_brand'
@@ -282,6 +292,40 @@ export const getTaipeiDayRange = (date = new Date()) => {
     endExclusive: nextDay.toISOString(),
     startInclusive: startOfDay.toISOString(),
   };
+};
+
+const getElapsedMilliseconds = (startedAt: number) => Math.round(performance.now() - startedAt);
+
+const timeCreateAdminWorkOrderPhase = async <T>(
+  timings: CreateAdminWorkOrderTimings,
+  phase: CreateAdminWorkOrderPhase,
+  operation: () => PromiseLike<T>,
+) => {
+  const startedAt = performance.now();
+
+  try {
+    return await operation();
+  } finally {
+    timings[phase] = getElapsedMilliseconds(startedAt);
+  }
+};
+
+const logCreateAdminWorkOrderTimings = (input: {
+  requestId?: string;
+  timings: CreateAdminWorkOrderTimings;
+  totalMs: number;
+  workOrderId: string;
+}) => {
+  if (!input.requestId) {
+    return;
+  }
+
+  console.info('admin work order create timings', {
+    requestId: input.requestId,
+    timingsMs: input.timings,
+    totalMs: input.totalMs,
+    workOrderId: input.workOrderId,
+  });
 };
 
 const formatMonthKey = (year: number, month: number) => `${year}-${String(month).padStart(2, '0')}`;
@@ -1210,7 +1254,10 @@ export const createAdminWorkOrder = async (
   supabase: UserScopedSupabaseClient,
   input: CreateWorkOrderInput,
   userId: string,
+  options: CreateAdminWorkOrderOptions = {},
 ) => {
+  const startedAt = performance.now();
+  const timings: CreateAdminWorkOrderTimings = {};
   const repairMarks = input.repairMarks ?? [];
   const normalizedRepairCount = normalizeRepairCount(
     input.workOrder.repairCount ?? null,
@@ -1224,42 +1271,66 @@ export const createAdminWorkOrder = async (
     });
   }
 
-  const { data, error } = await supabase.rpc('create_admin_work_order', {
-    p_board: toJsonObject(input.board),
-    p_created_by_user_id: userId,
-    p_customer: toJsonObject(input.customer ?? null),
-    p_customer_id: input.customerId,
-    p_customer_mode: input.customerMode,
-    p_quote_items: toJsonObject(input.quoteItems),
-    p_work_order: toJsonObject({
-      ...input.workOrder,
-      paperOrderMode: input.paperOrderMode ?? 'standard',
+  const { data, error } = await timeCreateAdminWorkOrderPhase(timings, 'coreRpc', () =>
+    supabase.rpc('create_admin_work_order', {
+      p_board: toJsonObject(input.board),
+      p_created_by_user_id: userId,
+      p_customer: toJsonObject(input.customer ?? null),
+      p_customer_id: input.customerId,
+      p_customer_mode: input.customerMode,
+      p_quote_items: toJsonObject(input.quoteItems),
+      p_work_order: toJsonObject({
+        ...input.workOrder,
+        paperOrderMode: input.paperOrderMode ?? 'standard',
+      }),
     }),
-  });
+  );
 
   if (error) {
     throwMappedSupabaseError(error);
   }
 
   const result = assertCreateResult(data);
-  const { error: updateError } = await supabase
-    .from('work_orders')
-    .update({
-      repair_count: normalizedRepairCount,
-      repair_count_source: input.workOrder.repairCountSource ?? 'auto',
-    })
-    .eq('id', result.id);
+  const { error: updateError } = await timeCreateAdminWorkOrderPhase(
+    timings,
+    'repairCountUpdate',
+    () =>
+      supabase
+        .from('work_orders')
+        .update({
+          repair_count: normalizedRepairCount,
+          repair_count_source: input.workOrder.repairCountSource ?? 'auto',
+        })
+        .eq('id', result.id),
+  );
 
   if (updateError) {
     throwMappedSupabaseError(updateError);
   }
 
   if (repairMarks.length > 0) {
-    await replaceRepairMarks(supabase, result.id, repairMarks);
+    await timeCreateAdminWorkOrderPhase(timings, 'repairMarksReplace', () =>
+      replaceRepairMarks(supabase, result.id, repairMarks),
+    );
+  } else {
+    timings.repairMarksReplace = 0;
   }
 
-  await enqueueInitialPrintJobForWorkOrder(supabase, result.id, userId);
-  const lineNotification = await enqueueWorkOrderReceivedLineNotification(supabase, result.id);
+  await timeCreateAdminWorkOrderPhase(timings, 'initialPrintJobEnqueue', () =>
+    enqueueInitialPrintJobForWorkOrder(supabase, result.id, userId),
+  );
+  const lineNotification = await timeCreateAdminWorkOrderPhase(
+    timings,
+    'lineReceivedEnqueue',
+    () => enqueueWorkOrderReceivedLineNotification(supabase, result.id),
+  );
+
+  logCreateAdminWorkOrderTimings({
+    requestId: options.requestId,
+    timings,
+    totalMs: getElapsedMilliseconds(startedAt),
+    workOrderId: result.id,
+  });
 
   return {
     data: result,

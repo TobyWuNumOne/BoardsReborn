@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ADMIN_WORK_ORDER_CREATE_SUBMITTING_DESCRIPTION,
+  ADMIN_WORK_ORDER_CREATE_SUBMITTING_TITLE,
   buildAdminWorkOrderCreatePayload,
   createAdminWorkOrderCreateInitialFormState,
   getFixedNextSundayDateString,
@@ -13,6 +15,13 @@ import {
 } from '../../app/utils/admin-work-order-create';
 
 describe('admin work-order create helpers', () => {
+  it('keeps the submit loading feedback explicit for slow create requests', () => {
+    expect(ADMIN_WORK_ORDER_CREATE_SUBMITTING_TITLE).toBe('正在建立工單');
+    expect(ADMIN_WORK_ORDER_CREATE_SUBMITTING_DESCRIPTION).toContain('確認正式工單號');
+    expect(ADMIN_WORK_ORDER_CREATE_SUBMITTING_DESCRIPTION).toContain('建立列印任務');
+    expect(ADMIN_WORK_ORDER_CREATE_SUBMITTING_DESCRIPTION).toContain('不要關閉頁面或重複送出');
+  });
+
   it('enables test mode only for the explicit test query value', () => {
     expect(normalizeAdminWorkOrderCreateMode({})).toBe('standard');
     expect(normalizeAdminWorkOrderCreateMode({ mode: 'test' })).toBe('test');

@@ -304,6 +304,7 @@ const {
   refresh,
   status: fetchStatus,
 } = await useAsyncData(detailAsyncKey, fetchWorkOrderDetail, {
+  lazy: true,
   watch: [routeWorkOrderId],
 });
 const {
@@ -314,6 +315,7 @@ const {
   computed(() => `admin-print-summary:${routeWorkOrderId.value}`),
   fetchPrintSummary,
   {
+    lazy: true,
     watch: [routeWorkOrderId],
   },
 );

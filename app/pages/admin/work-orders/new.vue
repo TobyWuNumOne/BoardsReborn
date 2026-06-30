@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { parseDate } from '@internationalized/date';
 import { useEventListener } from '@vueuse/core';
-import { ArrowLeftIcon, CalendarIcon, MapPinnedIcon, SearchIcon, TriangleAlertIcon } from 'lucide-vue-next';
+import {
+  ArrowLeftIcon,
+  CalendarIcon,
+  LoaderCircleIcon,
+  MapPinnedIcon,
+  SearchIcon,
+  TriangleAlertIcon,
+} from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { getAdminLineNotificationFeedback } from '~/utils/admin-line';
 import type { RepairCountSource, RepairMark } from '~/utils/repair-marks';
@@ -19,6 +26,8 @@ import {
   getApiErrorStatusCode,
 } from '~/utils/admin-work-orders';
 import {
+  ADMIN_WORK_ORDER_CREATE_SUBMITTING_DESCRIPTION,
+  ADMIN_WORK_ORDER_CREATE_SUBMITTING_TITLE,
   ADMIN_WORK_ORDER_CREATE_BOARD_COLOR_OPTIONS,
   ADMIN_WORK_ORDER_CREATE_BOARD_LENGTH_CLASS_OPTIONS,
   ADMIN_WORK_ORDER_CREATE_BOARD_TYPE_OPTIONS,
@@ -103,7 +112,7 @@ const {
       '/api/admin/work-orders/next-paper-order-no',
       { query: { mode: paperOrderMode.value } },
     ),
-  { watch: [paperOrderMode] },
+  { lazy: true, watch: [paperOrderMode] },
 );
 
 if (isTestMode.value && nextPaperOrderNoResponse.value) {
@@ -784,6 +793,23 @@ if (import.meta.client) {
 
 <template>
   <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 pb-40">
+    <div
+      v-if="isSubmitting"
+      aria-live="polite"
+      class="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl rounded-xl border bg-background/95 p-4 shadow-lg backdrop-blur md:bottom-6"
+      role="status"
+    >
+      <div class="flex gap-3">
+        <LoaderCircleIcon class="mt-0.5 size-5 shrink-0 animate-spin text-primary" />
+        <div class="space-y-1">
+          <p class="font-medium text-foreground">{{ ADMIN_WORK_ORDER_CREATE_SUBMITTING_TITLE }}</p>
+          <p class="text-sm leading-6 text-muted-foreground">
+            {{ ADMIN_WORK_ORDER_CREATE_SUBMITTING_DESCRIPTION }}
+          </p>
+        </div>
+      </div>
+    </div>
+
     <div class="flex flex-col gap-2">
       <Badge :variant="isTestMode ? 'destructive' : 'secondary'" class="w-fit">
         {{ isTestMode ? 'Test work order' : 'New work order' }}
