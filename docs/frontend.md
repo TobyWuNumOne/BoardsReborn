@@ -38,6 +38,8 @@
 - `/admin/work-orders`
 - `/admin/work-orders/new`
 - `/admin/work-orders/bulk-status`
+- `/admin/customers`
+- `/admin/customers/[id]`
 - `/admin/scan`
 - `/admin/work-orders/[id]`
 - `/admin/printing`
@@ -55,7 +57,7 @@ Production domain routing：
 - 跨網域導向保留 path 與 query；client-side navigation 在可取得時也保留 hash。SSR 首次請求不保證 hash，因為瀏覽器不會把 fragment 傳給 server。
 - localhost、staging、preview 與其他未知 host 不套用 production domain routing。
 
-第一版仍暫不建立獨立的 `/admin/customers`、`/admin/quotes`、`/admin/photos`。列印則例外拆成：
+第一版仍暫不建立獨立的 `/admin/quotes`、`/admin/photos`。列印則例外拆成：
 
 - `/admin/printing`：列印中心，從任務視角看列印紀錄、狀態與 retry
 - `/admin/printing/workers`：Print Worker 管理，從設備視角看狀態、最後心跳、最近錯誤與啟停 / 輕量編輯
@@ -173,7 +175,17 @@ Production domain routing：
 - `POST /api/admin/work-orders/{id}/line-bind-token`
 - `DELETE /api/admin/customers/{customerId}/line-binding`
 
-卡片只顯示 server回傳的安全摘要，不顯示 LINE user ID、token hash、recipient或 prepared payload。發卡成功的 LIFF URL只保留在目前頁面記憶體並提供複製；不自動建立 print job。解除綁定必須先確認，成功後顯示撤銷 token與 skipped pending job數量並 refetch狀態。
+顧客管理頁面使用：
+
+- `GET /api/admin/customers`
+- `GET /api/admin/customers/{id}`
+- `PATCH /api/admin/customers/{id}`
+- `POST /api/admin/customers/{id}/line-bind-token`
+- `POST /api/admin/work-orders/{id}/transfer-customer`
+
+卡片只顯示 server回傳的安全摘要，不顯示 LINE user ID、token hash、recipient或 prepared payload。發卡成功的 LIFF URL只保留在目前頁面記憶體並提供複製；不自動建立 print job。解除綁定必須先確認，成功後先更新目前頁面顯示的 LINE 狀態，必要時再手動重載最新資料。
+
+顧客詳情頁以 profile / LINE / work-order 三區塊為主，工單轉移採單筆對單筆流程，不提供刪除或合併。
 
 建單與單筆狀態更新 response的 `lineNotification` 以 toast補充顯示：enqueue成功是 success；無綁定、已存在或已通知是 info；enqueue失敗是 warning但不得蓋掉主流程成功；`NOT_READY_FOR_PICKUP`不顯示。
 

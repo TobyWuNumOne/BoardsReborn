@@ -48,6 +48,16 @@ interface CustomerProfileFormState {
   phone: string;
 }
 
+interface CustomerDetailFetchPayload {
+  requestKey: string;
+  response: AdminCustomerDetailResponse;
+}
+
+interface TransferCandidateFetchPayload {
+  requestKey: string;
+  response: AdminCustomerListResponse;
+}
+
 const CUSTOMER_SEARCH_PAGE_SIZE = 8;
 
 definePageMeta({
@@ -120,13 +130,20 @@ const lastSuccessfulResponse = shallowRef<AdminCustomerDetailResponse | null>(nu
 const lastSuccessfulDetailRequestKey = ref<string | null>(null);
 
 const fetchCustomerDetail = async () => {
+  const requestKey = detailRequestKey.value;
+
   try {
-    return await getRequestFetch()<AdminCustomerDetailResponse>(
+    const response = await getRequestFetch()<AdminCustomerDetailResponse>(
       `/api/admin/customers/${encodeURIComponent(routeCustomerId.value)}`,
       {
         query: buildAdminCustomerDetailApiQuery(detailQuery.value),
       },
     );
+
+    return {
+      requestKey,
+      response,
+    } satisfies CustomerDetailFetchPayload;
   } catch (error) {
     const statusCode = getAdminCustomerApiErrorStatusCode(error);
 
@@ -138,7 +155,10 @@ const fetchCustomerDetail = async () => {
         await navigateTo(redirectTarget);
       }
 
-      return lastSuccessfulResponse.value ?? detailResponseFallback.value;
+      return {
+        requestKey,
+        response: lastSuccessfulResponse.value ?? detailResponseFallback.value,
+      } satisfies CustomerDetailFetchPayload;
     }
 
     throw error;
@@ -156,10 +176,10 @@ const {
 
 watch(
   customerDetailResponse,
-  (response) => {
-    if (response) {
-      lastSuccessfulResponse.value = response;
-      lastSuccessfulDetailRequestKey.value = detailRequestKey.value;
+  (payload) => {
+    if (payload && payload.requestKey === detailRequestKey.value) {
+      lastSuccessfulResponse.value = payload.response;
+      lastSuccessfulDetailRequestKey.value = payload.requestKey;
     }
   },
   { immediate: true },
@@ -239,8 +259,10 @@ const transferSearchRequestKey = computed(() =>
 );
 
 const fetchTransferCandidates = async () => {
+  const requestKey = transferSearchRequestKey.value;
+
   try {
-    return await getRequestFetch()<AdminCustomerListResponse>('/api/admin/customers', {
+    const response = await getRequestFetch()<AdminCustomerListResponse>('/api/admin/customers', {
       query: buildAdminCustomerListApiQuery({
         lineStatus: 'all',
         page: 1,
@@ -249,9 +271,17 @@ const fetchTransferCandidates = async () => {
         sort: 'updatedAt:desc',
       }),
     });
+
+    return {
+      requestKey,
+      response,
+    } satisfies TransferCandidateFetchPayload;
   } catch (error) {
     if (await handleAuthRedirect(error)) {
-      return createEmptyAdminCustomerListResponse(1, CUSTOMER_SEARCH_PAGE_SIZE);
+      return {
+        requestKey,
+        response: createEmptyAdminCustomerListResponse(1, CUSTOMER_SEARCH_PAGE_SIZE),
+      } satisfies TransferCandidateFetchPayload;
     }
 
     throw error;
@@ -280,7 +310,9 @@ const transferCandidateItems = computed(
       return [];
     }
 
-    return transferCandidateResponse.value.data.filter((item) => item.id !== routeCustomerId.value);
+    return transferCandidateResponse.value.response.data.filter(
+      (item) => item.id !== routeCustomerId.value,
+    );
   },
 );
 const transferCandidateLoading = computed(
@@ -291,16 +323,16 @@ const transferCandidateLoading = computed(
 
 watch(
   transferCandidateResponse,
-  (response) => {
-    if (response) {
-      lastSuccessfulTransferRequestKey.value = transferSearchRequestKey.value;
+  (payload) => {
+    if (payload && payload.requestKey === transferSearchRequestKey.value) {
+      lastSuccessfulTransferRequestKey.value = payload.requestKey;
     }
   },
   { immediate: true },
 );
 
 const updateCustomerDetailResponse = (nextPatch: Partial<AdminCustomerDetailResponse['data']>) => {
-  const currentResponse = customerDetailResponse.value ?? lastSuccessfulResponse.value;
+  const currentResponse = customerDetailResponse.value?.response ?? lastSuccessfulResponse.value;
 
   if (!currentResponse) {
     return;
@@ -313,7 +345,10 @@ const updateCustomerDetailResponse = (nextPatch: Partial<AdminCustomerDetailResp
     },
   };
 
-  customerDetailResponse.value = nextResponse;
+  customerDetailResponse.value = {
+    requestKey: detailRequestKey.value,
+    response: nextResponse,
+  };
   lastSuccessfulResponse.value = nextResponse;
   lastSuccessfulDetailRequestKey.value = detailRequestKey.value;
 };
@@ -339,6 +374,10 @@ watch(
 watch(
   customerWorkOrderPageInfo,
   async (pageInfo) => {
+    if (lastSuccessfulDetailRequestKey.value !== detailRequestKey.value) {
+      return;
+    }
+
     const adjustedPage = getAdjustedPageForCustomerPageInfo(detailQuery.value.page, pageInfo);
 
     if (!adjustedPage || adjustedPage === detailQuery.value.page) {
@@ -677,8 +716,8 @@ const profileIsDirty = computed(() => {
 
 watch(
   transferCandidateResponse,
-  (response) => {
-    const selected = response?.data.find((item) => item.id === transferTargetCustomerId.value);
+  (payload) => {
+    const selected = payload?.response.data.find((item) => item.id === transferTargetCustomerId.value);
 
     if (selected) {
       transferTargetCustomerLabel.value = `${selected.name} / ${selected.phone}`;

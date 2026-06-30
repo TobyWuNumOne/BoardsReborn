@@ -43,6 +43,7 @@
 ### 目前 repo 內可見的 API
 
 - Admin session / dashboard / customer lookup
+- Admin customers: list, detail, patch, LINE bind token, work-order transfer
 - Admin work-orders: create, list, detail, patch, status, bulk-status, lookup, resolve, next-paper-order-no, quick-note, delete
 - Admin printing: print-jobs list/create/retry, print-devices list/create/patch/delete, print-summaries
 - Public: work-order lookup, LINE bind resolve/confirm

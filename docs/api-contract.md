@@ -1655,6 +1655,11 @@ Admin、Public LIFF、最小 follow/unfollow webhook與 internal processor已實
 
 | Endpoint                                           | Auth                       | Purpose                                                         |
 | -------------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| `GET /api/admin/customers`                         | Admin                      | 搜尋 / 篩選 / 分頁顧客列表與 LINE 安全摘要                       |
+| `GET /api/admin/customers/{id}`                    | Admin                      | 顧客 profile、LINE 摘要與分頁工單列表                            |
+| `PATCH /api/admin/customers/{id}`                  | Admin                      | 更新顧客 name / phone / note                                    |
+| `POST /api/admin/customers/{id}/line-bind-token`   | Admin                      | 以顧客為單位發卡；撤銷其他 pending token                        |
+| `POST /api/admin/work-orders/{id}/transfer-customer` | Admin                    | 單筆工單轉移到另一個既有顧客                                    |
 | `GET /api/public/line-bind/token?t=...`            | Public token               | Resolve pending / used / expired / revoked token 與安全工單摘要 |
 | `POST /api/public/line-bind/confirm`               | LIFF ID token + bind token | 驗證 LINE 身分並原子建立綁定                                    |
 | `POST /api/admin/work-orders/{id}/line-bind-token` | Admin                      | 重新發卡；撤銷其他 pending token                                |
@@ -1671,6 +1676,41 @@ Admin、Public LIFF、最小 follow/unfollow webhook與 internal processor已實
 - 成功回 `201`：`{ data: { id, expiresAt, liffUrl, revokedTokenCount } }`。
 - 不回 plaintext token / `token_hash`，不建立 print job。
 - 已綁定回 `409 CUSTOMER_ALREADY_BOUND`；工單不存在回 `404 NOT_FOUND`。
+
+### `GET /api/admin/customers`
+
+- Auth：admin。
+- Query：`q`、`lineStatus`、`page`、`pageSize`、`sort`，遵循 list API 的 strict validation。
+- 回傳 `{ data, pageInfo }`。
+- 每筆列表包含 customer 基本資料、work-order 計數、最新工單與安全 LINE 摘要。
+
+### `GET /api/admin/customers/{id}`
+
+- Auth：admin。
+- Query：`page`、`pageSize`，對應顧客工單分頁。
+- 回傳 customer profile、LINE 摘要與 `{ data, pageInfo }` work-order list。
+
+### `PATCH /api/admin/customers/{id}`
+
+- Auth：admin。
+- Body 僅接受 `name`、`phone`、`note`；未知欄位回 `422 VALIDATION_ERROR`。
+- 成功回更新後的 customer profile。
+- 顧客不存在回 `404 NOT_FOUND`。
+
+### `POST /api/admin/customers/{id}/line-bind-token`
+
+- Auth：admin。
+- Body：空 JSON object；未知欄位回 `422 VALIDATION_ERROR`。
+- 以 customer 為單位建立 pending token；若已綁定則回 `409 CUSTOMER_ALREADY_BOUND`。
+- 成功回 `201`：`{ data: { id, expiresAt, liffUrl, revokedTokenCount } }`。
+- 不回 plaintext token / `token_hash`，不建立 print job。
+
+### `POST /api/admin/work-orders/{id}/transfer-customer`
+
+- Auth：admin。
+- Body：`{ targetCustomerId }`，strict validation。
+- 只更新 `work_orders.customer_id`，不改狀態歷史或列印快照。
+- 同 customer 轉移回 `422 VALIDATION_ERROR`；目標 customer 不存在回 `404 NOT_FOUND`；工單不存在回 `404 NOT_FOUND`。
 
 ### `DELETE /api/admin/customers/{id}/line-binding`
 

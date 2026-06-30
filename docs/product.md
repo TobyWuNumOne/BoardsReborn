@@ -185,7 +185,6 @@ LINE 串接作為既有工單流程的通知與顧客入口，不參與核心工
 - 顧客照片自動入庫。
 - 完整 `line_message_logs`。
 - LINE 資料 retention worker。
-- Customer 詳情頁重工。
 
 一張板如果第二次送修，視為新的獨立工單事件。
 

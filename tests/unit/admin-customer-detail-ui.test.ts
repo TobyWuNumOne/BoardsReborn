@@ -67,6 +67,16 @@ describe('admin customer detail UI helpers', () => {
     expect(customerDetailPage).toContain('/transfer-customer');
     expect(customerDetailPage).toContain('getAdminWorkOrderDetailPath');
     expect(customerDetailPage).toContain('navigator.clipboard.writeText');
+    expect(customerDetailPage).toContain(
+      'if (lastSuccessfulDetailRequestKey.value !== detailRequestKey.value) {',
+    );
+    expect(customerDetailPage).toContain(
+      'payload && payload.requestKey === detailRequestKey.value',
+    );
+    expect(customerDetailPage).toContain(
+      'payload && payload.requestKey === transferSearchRequestKey.value',
+    );
+    expect(customerDetailPage).toContain('transferCandidateResponse.value.response.data');
   });
 
   it('normalizes the customer detail route query in middleware', () => {
