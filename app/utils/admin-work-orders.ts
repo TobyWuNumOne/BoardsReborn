@@ -536,7 +536,8 @@ const BOARD_COLOR_SWATCH_META: Record<string, BoardColorSwatchMeta> = {
   },
   WOODGRAIN: {
     label: '木紋',
-    swatchClass: 'border-amber-700 bg-[linear-gradient(135deg,#d6a96d_0%,#b9783f_45%,#8d5524_100%)]',
+    swatchClass:
+      'border-amber-700 bg-[linear-gradient(135deg,#d6a96d_0%,#b9783f_45%,#8d5524_100%)]',
   },
 };
 
@@ -561,6 +562,7 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-TW', {
   timeZone: 'Asia/Taipei',
   year: 'numeric',
 });
+const normalizeFormattedDateTime = (value: string) => value.replace(/\p{Zs}/gu, ' ');
 
 type QueryValue =
   | LocationQuery[string]
@@ -725,7 +727,7 @@ export const formatAdminDate = (value: string | null) => {
     return '—';
   }
 
-  return DATE_TIME_FORMATTER.format(parsedValue).split(' ')[0] ?? '—';
+  return normalizeFormattedDateTime(DATE_TIME_FORMATTER.format(parsedValue)).split(' ')[0] ?? '—';
 };
 
 export const formatAdminDateTime = (value: string | null) => {
@@ -739,7 +741,7 @@ export const formatAdminDateTime = (value: string | null) => {
     return '—';
   }
 
-  return DATE_TIME_FORMATTER.format(parsedValue);
+  return normalizeFormattedDateTime(DATE_TIME_FORMATTER.format(parsedValue));
 };
 
 export const getAdminWorkOrderDetailPath = (
@@ -849,7 +851,8 @@ export const buildAdminWorkOrderEditPatchPayload = (
         continue;
       }
 
-      payload.repairCount = current.repairCount === '' ? null : Number.parseInt(current.repairCount, 10);
+      payload.repairCount =
+        current.repairCount === '' ? null : Number.parseInt(current.repairCount, 10);
       continue;
     }
 
@@ -900,7 +903,11 @@ export const buildAdminWorkOrderEditPatchPayload = (
 
   const parsedPayload = editPayloadSchema.safeParse(payload);
 
-  if (current.repairCountSource === 'manual' && !payload.repairCount && current.repairCount === '') {
+  if (
+    current.repairCountSource === 'manual' &&
+    !payload.repairCount &&
+    current.repairCount === ''
+  ) {
     fieldErrors.repairCount ??= [];
     fieldErrors.repairCount.push('手動模式需要填寫維修處數。');
   }

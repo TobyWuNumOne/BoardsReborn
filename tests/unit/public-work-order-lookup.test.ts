@@ -1,7 +1,13 @@
 import type { H3Event } from 'h3';
 import { describe, expect, it } from 'vitest';
 import { TooManyRequestsError, ValidationError } from '../../server/utils/api-errors';
-import { applyInMemoryRateLimit, getRateLimitClientIp } from '../../server/utils/public-rate-limit';
+import {
+  buildPublicLookupIpRateLimitKey,
+  buildPublicLookupRateLimitKey,
+  enforcePublicLookupRateLimit,
+  enforcePublicRateLimit,
+  getRateLimitClientIp,
+} from '../../server/utils/public-rate-limit';
 import {
   buildPublicWorkOrderLookupPayload,
   formatPublicCurrency,
@@ -235,7 +241,6 @@ describe('public work-order lookup', () => {
           {
             boardSide: 'front',
             heightRatio: 0.12,
-            id: 'mark-1',
             sortOrder: 0,
             templateKey: 'SURFBOARD:front:v1',
             widthRatio: 0.16,
@@ -246,6 +251,12 @@ describe('public work-order lookup', () => {
         statusLabel: '維修中',
       },
     });
+    const response = await lookupPublicWorkOrder(client as never, {
+      normalizedPhone: '0912345678',
+      paperOrderNo: 'BR-2026-0001',
+    });
+    expect(JSON.stringify(response)).not.toContain('mark-1');
+    expect(JSON.stringify(response)).not.toContain('work-order-1');
   });
 
   it('returns the same not found response when the phone does not match', async () => {
@@ -296,33 +307,98 @@ describe('public work-order lookup', () => {
     expect(getRateLimitClientIp(createMockEvent({}, '127.0.0.1'))).toBe('127.0.0.1');
   });
 
-  it('uses an in-memory limiter for MVP and throws after the limit is exceeded', () => {
-    const store = new Map();
-
-    applyInMemoryRateLimit({
-      key: 'public-lookup:127.0.0.1',
-      limit: 2,
-      nowMs: 1000,
-      store,
-      windowMs: 60_000,
+  it('uses hashed lookup keys without storing paper order or phone in rate-limit rows', () => {
+    const ipKey = buildPublicLookupIpRateLimitKey({
+      ip: '203.0.113.10',
     });
-    applyInMemoryRateLimit({
-      key: 'public-lookup:127.0.0.1',
-      limit: 2,
-      nowMs: 1001,
-      store,
-      windowMs: 60_000,
+    const key = buildPublicLookupRateLimitKey({
+      ip: '203.0.113.10',
+      normalizedPhone: '0912345678',
+      paperOrderNo: 'BR-2026-0001',
     });
 
-    expect(() =>
-      applyInMemoryRateLimit({
-        key: 'public-lookup:127.0.0.1',
-        limit: 2,
-        nowMs: 1002,
-        store,
-        windowMs: 60_000,
+    expect(ipKey).toMatch(/^public-lookup-ip:[a-f0-9]{64}$/);
+    expect(ipKey).not.toContain('203.0.113.10');
+    expect(key).toMatch(/^public-lookup:[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}$/);
+    expect(key).not.toContain('203.0.113.10');
+    expect(key).not.toContain('0912345678');
+    expect(key).not.toContain('BR-2026-0001');
+  });
+
+  it('enforces the database-backed public rate limiter response', async () => {
+    const calls: unknown[] = [];
+    const client = {
+      rpc(name: string, args: unknown) {
+        calls.push({ args, name });
+        return Promise.resolve({
+          data: { allowed: false, remaining: 0, resetAt: '2026-06-30T10:00:00.000Z' },
+          error: null,
+        });
+      },
+    };
+
+    await expect(
+      enforcePublicRateLimit(client as never, {
+        key: 'public-lookup:key',
+        limit: 10,
+        windowSeconds: 60,
       }),
-    ).toThrow(TooManyRequestsError);
+    ).rejects.toBeInstanceOf(TooManyRequestsError);
+    expect(calls).toEqual([
+      {
+        args: {
+          p_key: 'public-lookup:key',
+          p_limit: 10,
+          p_window_seconds: 60,
+        },
+        name: 'check_public_rate_limit',
+      },
+    ]);
+  });
+
+  it('applies both per-IP and per-lookup database rate limits for public lookup', async () => {
+    const calls: unknown[] = [];
+    const client = {
+      rpc(name: string, args: unknown) {
+        calls.push({ args, name });
+        return Promise.resolve({
+          data: { allowed: true, remaining: 1, resetAt: '2026-06-30T10:00:00.000Z' },
+          error: null,
+        });
+      },
+    };
+
+    await enforcePublicLookupRateLimit(
+      createMockEvent({ 'x-forwarded-for': '203.0.113.10' }),
+      client as never,
+      {
+        normalizedPhone: '0912345678',
+        paperOrderNo: 'BR-2026-0001',
+      },
+    );
+
+    expect(calls).toEqual([
+      {
+        args: {
+          p_key: buildPublicLookupIpRateLimitKey({ ip: '203.0.113.10' }),
+          p_limit: 60,
+          p_window_seconds: 60,
+        },
+        name: 'check_public_rate_limit',
+      },
+      {
+        args: {
+          p_key: buildPublicLookupRateLimitKey({
+            ip: '203.0.113.10',
+            normalizedPhone: '0912345678',
+            paperOrderNo: 'BR-2026-0001',
+          }),
+          p_limit: 10,
+          p_window_seconds: 60,
+        },
+        name: 'check_public_rate_limit',
+      },
+    ]);
   });
 
   it('formats nullable public quote amounts safely', () => {

@@ -25,6 +25,8 @@ command -v vercel
 command -v supabase
 ```
 
+`node --version` 必須符合 `package.json` 的 `engines.node`，目前 Nuxt 4.4 security baseline 要求 Node 22.12+（或相容的更新 major）。Vercel project runtime 也需同步使用符合此範圍的 Node 版本。
+
 若缺少 CLI，先安裝：
 
 ```bash
@@ -229,7 +231,7 @@ vercel deploy --prod -y
 
 ## 已知 MVP 風險
 
-- Public customer lookup rate limit 目前是 in-memory，只適合 staging / single-instance MVP 驗證，不是 production-grade distributed limiter。
+- Public customer lookup rate limit 已是 DB-backed；staging / production 部署後仍需以多次錯誤查詢驗證 `public_rate_limits` 寫入與 `429` 行為。
 - Print queue model 與 API 已完成，但 Python Print Worker 的 raw USB / Ethernet transport 與 production worker 整合仍 pending。
 - `printed` 目前只代表 Worker 已回報成功；是否已與實體熱感出單機穩定整合仍需下一階段實測。
 - Staging project 不應承載真實 production 資料；production 應另開 project 並重新設定 env / Auth URLs。

@@ -738,7 +738,6 @@ Response：
     "repairMarkCount": 2,
     "repairMarks": [
       {
-        "id": "2e9c6ad4-1e84-43ee-bdb7-87b9afc2cc8e",
         "boardSide": "front",
         "templateKey": "SURFBOARD:front:v1",
         "xRatio": 0.45,
@@ -1765,7 +1764,7 @@ Request rules：
 - `phone` 必須是可正規化為台灣手機的完整號碼。
 - 只接受 `paperOrderNo` 與 `phone` 兩個欄位；未知欄位回 `422 VALIDATION_ERROR`。
 - `lastUpdatedAt` 固定等於 `work_orders.updated_at`。
-- `repairMarks` 為只讀資料，供 `/repair-status` 顯示正面 / 背面示意圖；顧客端不可編輯。
+- `repairMarks` 為只讀資料，供 `/repair-status` 顯示正面 / 背面示意圖；顧客端不可編輯，也不回傳 DB UUID / `work_order_id` / created-at / updated-at。
 
 `progress` 是 discriminated union：
 
@@ -1785,11 +1784,15 @@ Request rules：
 
 `CANCELLED` 不回 timeline steps。
 
-第一版 public lookup 另加簡單 rate limit：
+Public lookup response 必須設定 `Cache-Control: no-store, private`，避免顧客查詢資料被瀏覽器或中介快取保存。
 
-- `10 requests / minute / IP`
-- MVP 可使用 server-side in-memory store
-- rate limit key 取 `x-forwarded-for` 第一個 IP；若無則 fallback 到 `remoteAddress`
+Public lookup 使用 server-side DB-backed rate limit：
+
+- IP-only bucket：`60 requests / minute / IP`
+- lookup tuple bucket：`10 requests / minute / IP + paper_order_no + normalized phone`
+- rate limit 狀態存在 `public.public_rate_limits`，透過 service-role 呼叫 `check_public_rate_limit`
+- rate limit key 使用 server-side hash，不保存工單號、電話或 LINE token 明文
+- IP 取 `x-forwarded-for` 第一個 IP；若無則 fallback 到 `remoteAddress`
 - 超限回 `429 TOO_MANY_REQUESTS`
 
 顧客查詢不可回傳：

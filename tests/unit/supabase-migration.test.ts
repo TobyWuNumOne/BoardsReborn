@@ -144,8 +144,9 @@ const adminCustomerManagementMigration = existsSync(
     )
   : '';
 const databaseTypes = readFileSync(resolve(process.cwd(), 'types/database.types.ts'), 'utf8');
-const normalizedAdminCustomerManagementMigration =
-  adminCustomerManagementMigration.replace(/\s+/g, ' ').trim();
+const normalizedAdminCustomerManagementMigration = adminCustomerManagementMigration
+  .replace(/\s+/g, ' ')
+  .trim();
 const adminLineBindingManagementMigration = readFileSync(
   resolve(process.cwd(), 'supabase/migrations/20260621065543_admin_line_binding_management.sql'),
   'utf8',
@@ -166,6 +167,10 @@ const lineReadyNotificationServiceRoleWorkOrdersGrantMigration = readFileSync(
     process.cwd(),
     'supabase/migrations/20260626214144_line_ready_notification_service_role_work_orders_grant.sql',
   ),
+  'utf8',
+);
+const securityMvpHardeningMigration = readFileSync(
+  resolve(process.cwd(), 'supabase/migrations/20260630190000_security_mvp_hardening.sql'),
   'utf8',
 );
 const testPaperOrderNoMigrationPath = resolve(
@@ -198,6 +203,56 @@ describe('initial Supabase migration', () => {
     expect(migration).toContain("values (\n  'repair-photos'");
     expect(migration).toContain('public = excluded.public');
     expect(migration).toContain("bucket_id = 'repair-photos'");
+  });
+
+  it('hardens authenticated RLS policies to require admin_profiles membership', () => {
+    expect(securityMvpHardeningMigration).toContain(
+      'drop policy if exists "Authenticated users can manage admin profiles"',
+    );
+    expect(securityMvpHardeningMigration).toContain(
+      'revoke insert, update, delete on table public.admin_profiles from authenticated',
+    );
+    expect(securityMvpHardeningMigration).toContain(
+      'create policy "Admins can read own admin profile"',
+    );
+    for (const table of [
+      'customers',
+      'work_orders',
+      'status_history',
+      'photos',
+      'quote_items',
+      'print_jobs',
+      'work_order_repair_marks',
+      'print_devices',
+    ]) {
+      expect(securityMvpHardeningMigration).toContain(`on public.${table}`);
+    }
+    expect(securityMvpHardeningMigration).toContain(
+      'where admin_profiles.id = (select auth.uid())',
+    );
+    expect(securityMvpHardeningMigration).not.toContain('using (true)');
+    expect(securityMvpHardeningMigration).not.toContain('with check (true)');
+  });
+
+  it('adds a service-role-only database-backed public rate limiter', () => {
+    expect(securityMvpHardeningMigration).toContain(
+      'create table if not exists public.public_rate_limits',
+    );
+    expect(securityMvpHardeningMigration).toContain(
+      'alter table public.public_rate_limits enable row level security',
+    );
+    expect(securityMvpHardeningMigration).toContain(
+      'create or replace function public.check_public_rate_limit',
+    );
+    expect(securityMvpHardeningMigration).toContain(
+      'revoke all on function public.check_public_rate_limit(text, integer, integer) from public',
+    );
+    expect(securityMvpHardeningMigration).toContain(
+      'grant execute on function public.check_public_rate_limit(text, integer, integer) to service_role',
+    );
+    expect(securityMvpHardeningMigration).not.toContain(
+      'grant execute on function public.check_public_rate_limit(text, integer, integer) to authenticated',
+    );
   });
 
   it('adds admin work-order API database support without coupling print jobs to create', () => {
@@ -824,18 +879,20 @@ describe('initial Supabase migration', () => {
       'order by latest_work_order.updated_at desc, latest_work_order.id desc',
     );
     expect(adminCustomerManagementMigration).toContain('line_notify_status');
-    expect(adminCustomerManagementMigration).toContain("when customer_line_accounts.id is null then 'unlinked'");
+    expect(adminCustomerManagementMigration).toContain(
+      "when customer_line_accounts.id is null then 'unlinked'",
+    );
     expect(adminCustomerManagementMigration).toContain(
       "when customer_line_accounts.blocked_at is not null then 'not_notifyable'",
     );
     expect(adminCustomerManagementMigration).toContain(
-      "when customer_line_accounts.friendship_checked_at is not null",
+      'when customer_line_accounts.friendship_checked_at is not null',
     );
-    expect(adminCustomerManagementMigration).toContain(
-      "customer_line_accounts.is_friend is false",
-    );
+    expect(adminCustomerManagementMigration).toContain('customer_line_accounts.is_friend is false');
     expect(adminCustomerManagementMigration).toContain("then 'not_notifyable'");
-    expect(adminCustomerManagementMigration).toContain("when customer_line_accounts.is_friend is true");
+    expect(adminCustomerManagementMigration).toContain(
+      'when customer_line_accounts.is_friend is true',
+    );
     expect(adminCustomerManagementMigration).toContain("then 'notifyable'");
     expect(adminCustomerManagementMigration).toContain(
       'grant select on table public.admin_customer_list to authenticated',
@@ -874,10 +931,10 @@ describe('initial Supabase migration', () => {
     expect(normalizedAdminCustomerManagementMigration).toMatch(
       /if exists \( select 1 from public\.line_jobs where line_jobs\.work_order_id = p_work_order_id/,
     );
-    expect(adminCustomerManagementMigration).toContain("raise exception 'Work order has LINE jobs'");
     expect(adminCustomerManagementMigration).toContain(
-      "using errcode = '23503'",
+      "raise exception 'Work order has LINE jobs'",
     );
+    expect(adminCustomerManagementMigration).toContain("using errcode = '23503'");
     expect(adminCustomerManagementMigration).toContain('Work order not found');
     expect(adminCustomerManagementMigration).toContain('Target customer not found');
     expect(adminCustomerManagementMigration).toContain('Target customer must be different');

@@ -30,6 +30,16 @@ type QuoteItemRow = Pick<
   'amount' | 'created_at' | 'description' | 'id' | 'item_type'
 >;
 type RepairMarkRow = Database['public']['Tables']['work_order_repair_marks']['Row'];
+type PublicRepairMarkRow = Pick<
+  RepairMarkRow,
+  | 'board_side'
+  | 'height_ratio'
+  | 'sort_order'
+  | 'template_key'
+  | 'width_ratio'
+  | 'x_ratio'
+  | 'y_ratio'
+>;
 type InitialQuoteItemRow = Pick<Database['public']['Tables']['quote_items']['Row'], 'amount'>;
 type StatusHistoryRow = Pick<
   Database['public']['Tables']['status_history']['Row'],
@@ -510,6 +520,16 @@ const mapRepairMark = (mark: RepairMarkRow) => ({
   boardSide: mark.board_side,
   heightRatio: mark.height_ratio,
   id: mark.id,
+  sortOrder: mark.sort_order,
+  templateKey: mark.template_key,
+  widthRatio: mark.width_ratio,
+  xRatio: mark.x_ratio,
+  yRatio: mark.y_ratio,
+});
+
+const mapPublicRepairMark = (mark: PublicRepairMarkRow) => ({
+  boardSide: mark.board_side,
+  heightRatio: mark.height_ratio,
   sortOrder: mark.sort_order,
   templateKey: mark.template_key,
   widthRatio: mark.width_ratio,
@@ -1340,9 +1360,7 @@ export const lookupPublicWorkOrder = async (
 
   const { data: repairMarks, error: repairMarksError } = await supabase
     .from('work_order_repair_marks')
-    .select(
-      'id, board_side, x_ratio, y_ratio, width_ratio, height_ratio, template_key, sort_order, created_at, updated_at',
-    )
+    .select('board_side, x_ratio, y_ratio, width_ratio, height_ratio, template_key, sort_order')
     .eq('work_order_id', publicLookupWorkOrder.id)
     .order('sort_order', { ascending: true });
 
@@ -1350,7 +1368,7 @@ export const lookupPublicWorkOrder = async (
     throwMappedSupabaseError(repairMarksError);
   }
 
-  const typedRepairMarks = (repairMarks ?? []) as RepairMarkRow[];
+  const typedRepairMarks = (repairMarks ?? []) as PublicRepairMarkRow[];
   const repairMarkCount = typedRepairMarks.length;
   const repairCount = normalizeRepairCount(
     publicLookupWorkOrder.repair_count,
@@ -1374,7 +1392,7 @@ export const lookupPublicWorkOrder = async (
       repairCount,
       repairCountSource: publicLookupWorkOrder.repair_count_source,
       repairMarkCount,
-      repairMarks: typedRepairMarks.map(mapRepairMark),
+      repairMarks: typedRepairMarks.map(mapPublicRepairMark),
       statusLabel: getPublicWorkOrderStatusLabel(publicLookupWorkOrder.current_status),
     },
   };

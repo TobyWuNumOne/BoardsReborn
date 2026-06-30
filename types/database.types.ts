@@ -466,6 +466,30 @@ export type Database = {
           },
         ];
       };
+      public_rate_limits: {
+        Row: {
+          count: number;
+          created_at: string;
+          rate_limit_key: string;
+          reset_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          count?: number;
+          created_at?: string;
+          rate_limit_key: string;
+          reset_at: string;
+          updated_at?: string;
+        };
+        Update: {
+          count?: number;
+          created_at?: string;
+          rate_limit_key?: string;
+          reset_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       quote_items: {
         Row: {
           amount: number;
@@ -887,6 +911,10 @@ export type Database = {
       };
       claim_next_print_job: {
         Args: { p_device_key: string; p_stale_lock_seconds?: number };
+        Returns: Json;
+      };
+      check_public_rate_limit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number };
         Returns: Json;
       };
       confirm_public_line_binding: {

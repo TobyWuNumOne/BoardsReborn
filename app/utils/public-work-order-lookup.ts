@@ -33,6 +33,8 @@ export type PublicWorkOrderLookupProgress =
   | PublicWorkOrderLookupProgressTimeline
   | PublicWorkOrderLookupProgressCancelled;
 
+export type PublicWorkOrderRepairMark = Omit<RepairMark, 'id'>;
+
 export interface PublicWorkOrderLookupResponse {
   data: {
     boardType: BoardType;
@@ -46,7 +48,7 @@ export interface PublicWorkOrderLookupResponse {
     repairCount: number | null;
     repairCountSource: RepairCountSource;
     repairMarkCount: number;
-    repairMarks: RepairMark[];
+    repairMarks: PublicWorkOrderRepairMark[];
     statusLabel: string;
   };
 }
@@ -79,6 +81,7 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-TW', {
   timeZone: 'Asia/Taipei',
   year: 'numeric',
 });
+const normalizeFormattedPublicDateTime = (value: string) => value.replace(/\p{Zs}/gu, ' ');
 
 const lookupFormSchema = z.object({
   paperOrderNo: z.string(),
@@ -164,7 +167,10 @@ export const formatPublicDate = (value: string | null) => {
     return '未提供';
   }
 
-  return DATE_TIME_FORMATTER.format(parsedValue).split(' ')[0] ?? '未提供';
+  return (
+    normalizeFormattedPublicDateTime(DATE_TIME_FORMATTER.format(parsedValue)).split(' ')[0] ??
+    '未提供'
+  );
 };
 
 export const formatPublicDateTime = (value: string | null) => {
@@ -178,7 +184,7 @@ export const formatPublicDateTime = (value: string | null) => {
     return '未提供';
   }
 
-  return DATE_TIME_FORMATTER.format(parsedValue);
+  return normalizeFormattedPublicDateTime(DATE_TIME_FORMATTER.format(parsedValue));
 };
 
 export const formatPublicCurrency = (value: number | null) => {

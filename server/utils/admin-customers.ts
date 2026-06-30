@@ -1,8 +1,9 @@
 import type { Database } from '../../types/database.types';
 import { ConflictError, InternalServerError, NotFoundError, ValidationError } from './api-errors';
 import { deriveLineNotificationStatus } from './admin-line-bindings';
-import { type UserScopedSupabaseClient } from './supabase-clients';
-import { throwMappedSupabaseError, type SupabaseLikeError } from './supabase-errors';
+import type { UserScopedSupabaseClient } from './supabase-clients';
+import type { SupabaseLikeError } from './supabase-errors';
+import { throwMappedSupabaseError } from './supabase-errors';
 import type {
   AdminCustomerDetailQuery,
   AdminCustomerListQuery,
@@ -112,7 +113,9 @@ const calculatePageInfo = (page: number, pageSize: number, total: number): PageI
   };
 };
 
-const mapCustomerProfile = (row: Pick<CustomerRow, 'created_at' | 'id' | 'name' | 'note' | 'phone' | 'updated_at'>) => ({
+const mapCustomerProfile = (
+  row: Pick<CustomerRow, 'created_at' | 'id' | 'name' | 'note' | 'phone' | 'updated_at'>,
+) => ({
   createdAt: row.created_at,
   id: row.id,
   name: row.name,

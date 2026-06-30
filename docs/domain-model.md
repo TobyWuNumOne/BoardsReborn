@@ -205,9 +205,23 @@ DB 必須用 partial unique index 強制同一 `work_order_id` 最多一筆 `ite
 ### 權限補充
 
 - 管理端 user-scoped API 走 `authenticated` role，依 migration 補 `public` schema usage 與核心資料表 / `admin_work_order_list` view 權限。
+- `authenticated` role 的核心表權限必須再由 RLS 限縮到 `admin_profiles.id = auth.uid()` 的管理者；不得使用 `using (true)` / `with check (true)` 讓任意 authenticated user 直接讀寫核心表。
+- `admin_profiles` 不允許一般 authenticated user 自行 insert / update / delete；第一位與後續管理者 profile 需由受控的 service-role / dashboard / migration 流程建立。
 - 若 migration 以 `drop view` / `create view` 方式重建 `admin_work_order_list`，必須在同一批 schema 變更後重新 `grant select on table public.admin_work_order_list to authenticated`，否則 staging / production 的管理端工單列表會因 view grant 遺失而回 `403`。
 - Public customer lookup 走 server-side service-role client，不依賴 end-user session；資料庫需額外授予 `service_role` 對 `public.work_orders`、`public.customers`、`public.quote_items` 的 `select` 權限。
 - `service_role` 在本 repo 只用於 server-side lookup / backend job 類場景，不可暴露到 client runtime。
+
+### `public_rate_limits`
+
+公開 API 的分散式 rate limit 狀態表，只由 Nitro server-side service-role client 透過 `check_public_rate_limit` RPC 使用。`rate_limit_key` 必須是 server 端組出的 hash key，不保存工單號、電話或 LINE token 明文。Public lookup 需同時使用 IP-only bucket 與 IP + 工單號 + 電話 bucket，降低 enumeration 風險。
+
+| 欄位             | 型別          | 規則                         |
+| ---------------- | ------------- | ---------------------------- |
+| `rate_limit_key` | `text`        | Primary key，server hash key |
+| `count`          | `integer`     | required，非負               |
+| `reset_at`       | `timestamptz` | required，window reset time  |
+| `created_at`     | `timestamptz` | required，default `now()`    |
+| `updated_at`     | `timestamptz` | required，default `now()`    |
 
 ### `print_devices`
 
@@ -406,7 +420,8 @@ TypeScript 名稱：`PrintJobType`
 - 管理端操作由 Supabase Auth authenticated admin 執行。
 - 顧客查詢不得直接開放 Supabase table read，必須經由 Nuxt server API 驗證工單號，並以 `customers.phone` 的完整正規化手機號碼比對使用者輸入後，才回傳有限欄位。
 - Server-only elevated key 只能在 Nitro server API 使用。
-- 管理端 user-scoped Supabase client 需要 `authenticated` role 具備對應 table / view privileges，並由 RLS policies 與 Nuxt admin gate 共同限制實際操作。
+- 管理端 user-scoped Supabase client 需要 `authenticated` role 具備對應 table / view privileges，並由 RLS policies 與 Nuxt admin gate 共同限制實際操作；RLS 需檢查 `admin_profiles.id = auth.uid()`，不可讓非 admin authenticated user 直接操作核心資料。
+- Public lookup / LINE bind rate limit 使用 `public.public_rate_limits` + `check_public_rate_limit`，由 service-role server boundary 執行，避免 Vercel / Nitro 多 instance 時各自計數；public lookup 必須同時限制 IP-only 與 lookup tuple。
 - private Realtime broadcast topic 的 join 授權也由 `realtime.messages` RLS policy 控制；本 repo 的 printing topics 限制為 `printing:*` 且僅允許 `admin_profiles` 使用者加入。
 - RLS policy 的新增或修改必須寫在 migration，並在任務摘要中說明。
 

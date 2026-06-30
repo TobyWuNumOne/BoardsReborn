@@ -60,6 +60,13 @@ const timelineProgress = computed(() =>
 const publicBoardRepairInfo = computed(() =>
   result.value ? getPublicBoardRepairInfo(result.value.boardType) : null,
 );
+const publicRepairMarksForDisplay = computed(
+  () =>
+    result.value?.repairMarks.map((mark, index) => ({
+      ...mark,
+      id: `public-repair-mark-${mark.boardSide}-${mark.sortOrder}-${index}`,
+    })) ?? [],
+);
 const isSubmitting = computed(() => lookupStatus.value === 'loading');
 
 const clearFieldError = (field: string) => {
@@ -395,11 +402,15 @@ const lookupPublicWorkOrder = async () => {
             <div class="flex flex-wrap gap-2">
               <Badge variant="outline">
                 {{ getRepairMarkSurfaceLabel(result.boardType, 'front') }}
-                {{ result.repairMarks.filter((mark) => mark.boardSide === 'front').length }} 處
+                {{
+                  publicRepairMarksForDisplay.filter((mark) => mark.boardSide === 'front').length
+                }}
+                處
               </Badge>
               <Badge variant="outline">
                 {{ getRepairMarkSurfaceLabel(result.boardType, 'back') }}
-                {{ result.repairMarks.filter((mark) => mark.boardSide === 'back').length }} 處
+                {{ publicRepairMarksForDisplay.filter((mark) => mark.boardSide === 'back').length }}
+                處
               </Badge>
               <Badge variant="outline">維修處數 {{ result.repairCount ?? '—' }}</Badge>
             </div>
@@ -409,7 +420,7 @@ const lookupPublicWorkOrder = async () => {
               :canvas-height="760"
               :canvas-width="500"
               dual-surface-min-height-class="min-h-[16rem] sm:min-h-[20rem] xl:min-h-[28rem]"
-              :marks="result.repairMarks"
+              :marks="publicRepairMarksForDisplay"
               single-surface-canvas-wrapper-class="mx-auto h-auto w-full max-w-[18rem] sm:max-w-[22rem] xl:max-w-[24rem] aspect-[500/760]"
               single-surface-min-height-class="min-h-0"
               surface-gap-class="gap-4"

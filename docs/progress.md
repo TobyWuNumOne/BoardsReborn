@@ -13,13 +13,13 @@
 ## 目前快照
 
 - 最後更新：2026-06-30
-- 目前階段：MVP 主流程已落地；目前重點是文件收斂、測試/驗證補強與現場穩定化
+- 目前階段：MVP 主流程與上線前最低資安防護已落地；目前重點是文件收斂、測試/驗證補強與現場穩定化
 - 整體狀態：進行中
 
 ### 以目前程式碼可確認的能力
 
 - Nuxt 4 主站與 Nitro server API 已建立，`app/`、`server/`、`tests/`、`supabase/`、`printer-worker/` 結構完整。
-- 前端工具鏈已接上 Nuxt 4、TypeScript、Tailwind CSS v4、shadcn-nuxt、Unovis、Vitest、ESLint、Prettier。
+- 前端工具鏈已接上 Node 22、Nuxt 4.4、TypeScript、Tailwind CSS v4、shadcn-nuxt、Unovis、Vitest、ESLint、Prettier。
 - Supabase migration 已從初始 schema 走到工單、列印、repair marks、自動工單號、測試工單號與 LINE MVP foundation。
 - Admin auth/session 最小流程已存在：`/login`、`/admin`、`/forbidden`、session endpoint 與 admin gate helper 已落地。
 - Admin dashboard 已存在，並有 server 端 summary / statistics API：`GET /api/admin/dashboard`，支援近 12 週 / 近 12 個月收件統計。
@@ -28,7 +28,8 @@
 - 工單建立改走系統自動產生純數字 `paper_order_no`；測試工單號 `99` namespace migration 也已存在。
 - `repair_marks` 與 `repair_count` 已是正式資料模型，包含 migration、API 映射、前端 Konva editor 與 public read-only 預覽。
 - `board_length_class`、`board_color` 等板子快照欄位已進入 schema、API 與 admin UI。
-- Public `/repair-status` 顧客查詢頁與 `POST /api/public/work-orders/lookup` 已存在，並使用工單號 + 完整手機驗證。
+- Public `/repair-status` 顧客查詢頁與 `POST /api/public/work-orders/lookup` 已存在，並使用工單號 + 完整手機驗證；public lookup response 已設定 no-store、不回 repair mark DB UUID，rate limit 已改為 DB-backed，且同時套用 IP-only 與 lookup tuple buckets。
+- 上線前最低資安防護已加入：核心資料表 authenticated RLS hardening、admin unsafe method 同源檢查、全站安全 headers / Referrer-Policy、Supabase cookie SameSite、Nuxt dependency high/critical audit 修補基準。
 - 非同步列印主流程已存在：`print_jobs` / `print_devices` schema、admin 列印中心 API/UI、worker claim/succeed/fail API，以及 Python `printer-worker` 子專案。
 - `printer-worker` 已有 renderer、transport、realtime wake-up、`run-once` / `poll` / `serve` 相關程式與測試檔。
 - LINE MVP server/client 流程已在 repo 內存在：LIFF order-gate page、bind token service、public confirm/resolve API、webhook、job processor、Flex message helpers、admin line status / 發卡 / 解除綁定 API。
@@ -115,10 +116,12 @@
 - `/repair-status` 同頁查詢與結果顯示
 - 工單號 + 完整手機驗證
 - 公開狀態、預估完成日、初始報價、公開備註、repair marks、官方 LINE CTA
+- `Cache-Control: no-store, private`
+- Public repair marks 不回傳 DB UUID
+- DB-backed rate limit，跨 server instance 共用計數，public lookup 同時限制 IP-only 與 lookup tuple，rate-limit key 不保存工單號或電話明文
 
 仍待確認或補強：
 
-- 目前 rate limit 仍屬 MVP 等級實作，尚非分散式 production limiter
 - 顧客頁 copy、費用說明與現場話術仍可能繼續微調
 
 ### Printing
@@ -167,6 +170,7 @@
 - 收斂 MVP 主流程文件，減少過期的 deployment / 真人驗證敘述混入 repo 狀態說明。
 - 補強列印與 LINE 的 runbook / release verification 邊界，讓 `progress.md` 專注在實作狀態。
 - 持續補 end-to-end 與現場操作驗證，尤其是掃碼、列印恢復、LINE 通知實機流程。
+- 完成資安 hardening 後，需要在 staging / production 套用 migration、更新 Node runtime、重跑 deployment audit。
 
 ## 下一步
 
@@ -179,7 +183,8 @@
 ## 風險與阻塞
 
 - `progress.md` 過去混入大量 deployment / production 真人驗證敘述，容易隨時間失真；已知這是文件維護風險。
-- Public lookup rate limit 目前仍是 MVP 級別，不是分散式 production-grade limiter。
+- Node baseline 已升到 22.12+；deployment runtime 若仍停在 Node 20，Nuxt 4.4 runtime 將無法符合 engine 要求。
+- 資安 hardening migration 尚需在 staging / production 套用並確認非 admin authenticated user 無法直接讀寫 Supabase tables。
 - LINE 與 printing 都已有完整程式碼路徑，但長時間穩定性、異常處理與現場 runbook 仍是風險區。
 - Admin 前端已可用，但仍屬第一版，欄位編排、資訊密度、回饋節奏與操作細節仍可能再調整。
 - Legacy 資料如 `board_length_class` / `repair_count` / repair marks 缺值情況，仍需依實際資料狀態決定是否 backfill。

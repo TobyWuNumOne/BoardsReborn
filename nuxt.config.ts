@@ -56,6 +56,25 @@ const supabaseCookieSecure = (() => {
     return process.env.NODE_ENV === 'production';
   }
 })();
+const securityHeaders = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' ws: wss: https://*.supabase.co wss://*.supabase.co https://api.line.me https://api-data.line.me https://liff.line.me https://vitals.vercel-insights.com",
+    "frame-src 'self' https://liff.line.me https://access.line.me",
+  ].join('; '),
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Referrer-Policy': 'no-referrer',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+};
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-21',
@@ -76,6 +95,12 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [tailwindcss()],
+  },
+
+  routeRules: {
+    '/**': {
+      headers: securityHeaders,
+    },
   },
 
   shadcn: {
@@ -114,6 +139,7 @@ export default defineNuxtConfig({
     secretKey: supabaseSecretKey,
     redirect: false,
     cookieOptions: {
+      sameSite: 'lax',
       secure: supabaseCookieSecure,
     },
     types: '~~/types/database.types.ts',

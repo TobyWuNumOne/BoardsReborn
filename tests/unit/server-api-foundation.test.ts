@@ -14,6 +14,7 @@ import {
 import { defineApiHandler } from '../../server/utils/api-handler';
 import {
   ADMIN_PROFILE_SELECT,
+  assertSameOriginAdminRequest,
   getAdminSessionState,
   requireAdminContext,
   type AdminProfile,
@@ -30,7 +31,10 @@ interface MockEvent {
   };
 }
 
-const createMockEvent = (requestHeaders: Record<string, string | undefined> = {}): MockEvent => {
+const createMockEvent = (
+  requestHeaders: Record<string, string | undefined> = {},
+  method = 'GET',
+): MockEvent => {
   const responseHeaders = new Map<string, string>();
   const responseStatus = { code: 200 };
   const normalizedRequestHeaders = Object.fromEntries(
@@ -42,6 +46,7 @@ const createMockEvent = (requestHeaders: Record<string, string | undefined> = {}
     node: {
       req: {
         headers: normalizedRequestHeaders,
+        method,
       },
       res: {
         getHeader: (name: string) => responseHeaders.get(name.toLowerCase()),
@@ -127,7 +132,9 @@ describe('server API foundation', () => {
       'INVALID_STATUS_TRANSITION',
       'INTERNAL_SERVER_ERROR',
     ]);
-    expect(errors.map((error) => error.statusCode)).toEqual([401, 403, 404, 429, 422, 409, 422, 500]);
+    expect(errors.map((error) => error.statusCode)).toEqual([
+      401, 403, 404, 429, 422, 409, 422, 500,
+    ]);
   });
 
   it('uses x-request-id when present and writes it back to the response', () => {
@@ -206,6 +213,45 @@ describe('server API foundation', () => {
         getSupabaseUser: () => Promise.resolve(null),
       }),
     ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('rejects cross-site unsafe admin requests before admin profile lookup', () => {
+    const { event } = createMockEvent(
+      {
+        host: 'admin.surfboards-reborn.com',
+        origin: 'https://attacker.example',
+        'x-forwarded-proto': 'https',
+      },
+      'POST',
+    );
+
+    expect(() => assertSameOriginAdminRequest(event)).toThrow(ForbiddenError);
+  });
+
+  it('allows same-origin unsafe admin requests', () => {
+    const { event } = createMockEvent(
+      {
+        host: 'admin.surfboards-reborn.com',
+        origin: 'https://admin.surfboards-reborn.com',
+        'x-forwarded-proto': 'https',
+      },
+      'PATCH',
+    );
+
+    expect(() => assertSameOriginAdminRequest(event)).not.toThrow();
+  });
+
+  it('rejects browser-marked cross-site admin writes without needing an Origin header', () => {
+    const { event } = createMockEvent(
+      {
+        host: 'admin.surfboards-reborn.com',
+        'sec-fetch-site': 'cross-site',
+        'x-forwarded-proto': 'https',
+      },
+      'DELETE',
+    );
+
+    expect(() => assertSameOriginAdminRequest(event)).toThrow(ForbiddenError);
   });
 
   it('rejects authenticated users without an admin profile', async () => {

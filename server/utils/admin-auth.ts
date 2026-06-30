@@ -1,4 +1,4 @@
-import type { H3Event } from 'h3';
+import { getHeader, type H3Event } from 'h3';
 import { ForbiddenError, InternalServerError, UnauthorizedError } from './api-errors';
 import {
   getSupabaseUserClaims,
@@ -52,6 +52,68 @@ const getUserId = (claims: SupabaseUserClaims | null | undefined): string | null
   }
 
   return claims.sub;
+};
+
+const UNSAFE_ADMIN_METHODS = new Set(['DELETE', 'PATCH', 'POST', 'PUT']);
+
+const readFirstHeaderValue = (value: string | readonly string[] | undefined) => {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  return rawValue?.split(',')[0]?.trim() || null;
+};
+
+const isLocalHost = (host: string) =>
+  host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('[::1]');
+
+const getRequestOrigin = (event: H3Event) => {
+  const host =
+    readFirstHeaderValue(getHeader(event, 'x-forwarded-host')) ??
+    readFirstHeaderValue(getHeader(event, 'host'));
+
+  if (!host) {
+    return null;
+  }
+
+  const protocol =
+    readFirstHeaderValue(getHeader(event, 'x-forwarded-proto')) ??
+    (isLocalHost(host) ? 'http' : 'https');
+
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return null;
+  }
+};
+
+export const assertSameOriginAdminRequest = (event: H3Event) => {
+  const method = event.node.req.method?.toUpperCase() ?? 'GET';
+  if (!UNSAFE_ADMIN_METHODS.has(method)) {
+    return;
+  }
+
+  if (readFirstHeaderValue(getHeader(event, 'sec-fetch-site')) === 'cross-site') {
+    throw new ForbiddenError('Cross-origin admin requests are not allowed.');
+  }
+
+  const origin = readFirstHeaderValue(getHeader(event, 'origin'));
+  if (!origin) {
+    return;
+  }
+
+  const requestOrigin = getRequestOrigin(event);
+  if (!requestOrigin) {
+    throw new ForbiddenError('Unable to verify admin request origin.');
+  }
+
+  let normalizedOrigin: string;
+  try {
+    normalizedOrigin = new URL(origin).origin;
+  } catch {
+    throw new ForbiddenError('Cross-origin admin requests are not allowed.');
+  }
+
+  if (normalizedOrigin !== requestOrigin) {
+    throw new ForbiddenError('Cross-origin admin requests are not allowed.');
+  }
 };
 
 export const getAdminSessionState = async <
@@ -113,6 +175,7 @@ export const requireAdminContext = async <
   event: H3Event,
   dependencies: AdminAuthDependencies<Client> = {},
 ): Promise<AdminContext<Client>> => {
+  assertSameOriginAdminRequest(event);
   const session = await getAdminSessionState(event, dependencies);
 
   if (session.status === 'anonymous') {

@@ -26,8 +26,11 @@
 ## Supabase / Security
 
 - 所有核心資料表都必須 enable row level security。
+- 核心資料表的 authenticated RLS policy 必須檢查 `admin_profiles.id = auth.uid()`；不可使用 `using (true)` / `with check (true)` 作為管理端權限邊界。
+- `admin_profiles` 不可允許一般 authenticated user 自行 insert / update / delete 自己的 admin profile。
 - 顧客查詢不得直接開放 Supabase table read。
 - 顧客查詢必須走 Nuxt server API，並驗證工單號與完整手機號碼。
+- 公開查詢與 LINE bind rate limit 必須使用跨 instance 的 server-side store / RPC；不得在 production 只靠單機記憶體 Map。
 - 條碼 payload 一律使用 `paper_order_no`，不可再引入第二套主要識別碼。
 - `PRINT_WORKER_TOKEN` 只能存在 server-side 與 Print Worker 環境，不可傳到 client。
 - Print Worker API 必須驗證 `Authorization: Bearer <PRINT_WORKER_TOKEN>`，且 request body 需帶合法 `deviceKey`。
@@ -42,7 +45,7 @@
 
 - 前端工具鏈版本基準記錄在 [README](../README.md)。
 - 修改 Node、pnpm、Nuxt、Nitro、Vue、TypeScript、ESLint、Prettier、Vitest 或 Nuxt module 版本時，必須同步更新 README 的版本基準。
-- 目前 Nuxt 與 Nitro 版本是為 Node 20.19 相容性固定；升級到要求 Node 22 的依賴鏈前，必須先明確更新 `engines.node` 與 README。
+- 目前 Nuxt 與 Nitro 安全修補基準要求 Node 22.12+；若再升級到更高 Node major，必須先明確更新 `engines.node` 與 setup 文件。
 - `package.json` 與 `pnpm-lock.yaml` 是實際安裝來源；文件不得宣稱未在 lockfile 中固定或驗證的版本。
 
 ## Status Rules

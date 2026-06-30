@@ -83,6 +83,7 @@ const DASHBOARD_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-TW', {
   timeZone: 'Asia/Taipei',
   year: 'numeric',
 });
+const normalizeFormattedDashboardDateTime = (value: string) => value.replace(/\p{Zs}/gu, ' ');
 
 export const ADMIN_DASHBOARD_STATUS_LABELS = {
   DRYING: '除濕中',
@@ -240,7 +241,7 @@ export const formatAdminDashboardGeneratedAt = (value: string | null | undefined
     return '—';
   }
 
-  return DASHBOARD_DATE_TIME_FORMATTER.format(date);
+  return normalizeFormattedDashboardDateTime(DASHBOARD_DATE_TIME_FORMATTER.format(date));
 };
 
 export const formatAdminDashboardMonthlyAverage = (value: number) => {

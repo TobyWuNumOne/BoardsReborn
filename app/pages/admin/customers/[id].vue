@@ -185,12 +185,10 @@ watch(
   { immediate: true },
 );
 
-const customerData = computed(
-  () =>
-    lastSuccessfulResponse.value &&
-    lastSuccessfulDetailRequestKey.value === detailRequestKey.value
-      ? lastSuccessfulResponse.value
-      : detailResponseFallback.value,
+const customerData = computed(() =>
+  lastSuccessfulResponse.value && lastSuccessfulDetailRequestKey.value === detailRequestKey.value
+    ? lastSuccessfulResponse.value
+    : detailResponseFallback.value,
 );
 
 const customerProfile = computed(() => customerData.value.data.customer);
@@ -204,17 +202,22 @@ const customerLineMeta = computed(() =>
   }),
 );
 const isInitialLoading = computed(
-  () => customerDetailFetchStatus.value === 'pending' && lastSuccessfulDetailRequestKey.value !== detailRequestKey.value,
+  () =>
+    customerDetailFetchStatus.value === 'pending' &&
+    lastSuccessfulDetailRequestKey.value !== detailRequestKey.value,
 );
 const isRefreshing = computed(
   () =>
-    customerDetailFetchStatus.value === 'pending' && lastSuccessfulDetailRequestKey.value === detailRequestKey.value,
+    customerDetailFetchStatus.value === 'pending' &&
+    lastSuccessfulDetailRequestKey.value === detailRequestKey.value,
 );
 const apiErrorEnvelope = computed<AdminCustomerApiErrorEnvelope | null>(() =>
   extractAdminCustomerApiErrorEnvelope(customerDetailFetchError.value),
 );
 const hasInitialBlockingError = computed(
-  () => customerDetailFetchStatus.value === 'error' && lastSuccessfulDetailRequestKey.value !== detailRequestKey.value,
+  () =>
+    customerDetailFetchStatus.value === 'error' &&
+    lastSuccessfulDetailRequestKey.value !== detailRequestKey.value,
 );
 const hasRefreshError = computed(
   () =>
@@ -236,15 +239,13 @@ const workOrderPageSummary = computed(() => {
 
   return `第 ${page} / ${totalPages} 頁`;
 });
-const workOrderResultSummary = computed(
-  () => `共 ${customerWorkOrderPageInfo.value.total} 筆工單`,
-);
+const workOrderResultSummary = computed(() => `共 ${customerWorkOrderPageInfo.value.total} 筆工單`);
 const hasWorkOrders = computed(() => customerWorkOrders.value.length > 0);
 const isWorkOrdersEmpty = computed(() => !hasWorkOrders.value && !hasInitialBlockingError.value);
 const selectedTransferTargetCustomer = computed(() =>
   transferTargetCustomerId.value
-    ? transferCandidateItems.value.find((item) => item.id === transferTargetCustomerId.value) ??
-      null
+    ? (transferCandidateItems.value.find((item) => item.id === transferTargetCustomerId.value) ??
+      null)
     : null,
 );
 
@@ -301,20 +302,18 @@ const lastSuccessfulTransferRequestKey = ref<string | null>(null);
 const transferCandidateApiError = computed<AdminCustomerApiErrorEnvelope | null>(() =>
   extractAdminCustomerApiErrorEnvelope(transferCandidateFetchError.value),
 );
-const transferCandidateItems = computed(
-  () => {
-    if (
-      lastSuccessfulTransferRequestKey.value !== transferSearchRequestKey.value ||
-      !transferCandidateResponse.value
-    ) {
-      return [];
-    }
+const transferCandidateItems = computed(() => {
+  if (
+    lastSuccessfulTransferRequestKey.value !== transferSearchRequestKey.value ||
+    !transferCandidateResponse.value
+  ) {
+    return [];
+  }
 
-    return transferCandidateResponse.value.response.data.filter(
-      (item) => item.id !== routeCustomerId.value,
-    );
-  },
-);
+  return transferCandidateResponse.value.response.data.filter(
+    (item) => item.id !== routeCustomerId.value,
+  );
+});
 const transferCandidateLoading = computed(
   () =>
     transferCandidateFetchStatus.value === 'pending' &&
@@ -555,7 +554,9 @@ const unlinkLineBinding = async () => {
   }
 };
 
-const openTransferDialog = (workOrder: AdminCustomerDetailResponse['data']['workOrders']['data'][number]) => {
+const openTransferDialog = (
+  workOrder: AdminCustomerDetailResponse['data']['workOrders']['data'][number],
+) => {
   transferWorkOrderId.value = workOrder.id;
   transferWorkOrderPaperOrderNo.value = workOrder.paperOrderNo;
   transferTargetSearch.value = '';
@@ -593,7 +594,11 @@ const selectTransferTargetCustomer = (item: AdminCustomerListItem) => {
 };
 
 const transferWorkOrder = async () => {
-  if (!transferWorkOrderId.value || !transferTargetCustomerId.value || isTransferringWorkOrder.value) {
+  if (
+    !transferWorkOrderId.value ||
+    !transferTargetCustomerId.value ||
+    isTransferringWorkOrder.value
+  ) {
     return;
   }
 
@@ -602,13 +607,21 @@ const transferWorkOrder = async () => {
 
   try {
     await getRequestFetch()<{
-      data: { previousCustomerId: string; targetCustomerId: string; transferredAt: string; workOrderId: string };
-    }>(`/api/admin/work-orders/${encodeURIComponent(transferWorkOrderId.value)}/transfer-customer`, {
-      body: {
-        targetCustomerId: transferTargetCustomerId.value,
+      data: {
+        previousCustomerId: string;
+        targetCustomerId: string;
+        transferredAt: string;
+        workOrderId: string;
+      };
+    }>(
+      `/api/admin/work-orders/${encodeURIComponent(transferWorkOrderId.value)}/transfer-customer`,
+      {
+        body: {
+          targetCustomerId: transferTargetCustomerId.value,
+        },
+        method: 'POST',
       },
-      method: 'POST',
-    });
+    );
 
     toast.success('工單已轉移。');
     closeTransferDialog();
@@ -698,8 +711,12 @@ const formatNotifyability = () => {
   return '未知';
 };
 
-const formatSelectedCustomerLabel = computed(() =>
-  transferTargetCustomerLabel.value || (selectedTransferTargetCustomer.value ? `${selectedTransferTargetCustomer.value.name} / ${selectedTransferTargetCustomer.value.phone}` : '尚未選擇'),
+const formatSelectedCustomerLabel = computed(
+  () =>
+    transferTargetCustomerLabel.value ||
+    (selectedTransferTargetCustomer.value
+      ? `${selectedTransferTargetCustomer.value.name} / ${selectedTransferTargetCustomer.value.phone}`
+      : '尚未選擇'),
 );
 
 const profileIsDirty = computed(() => {
@@ -717,7 +734,9 @@ const profileIsDirty = computed(() => {
 watch(
   transferCandidateResponse,
   (payload) => {
-    const selected = payload?.response.data.find((item) => item.id === transferTargetCustomerId.value);
+    const selected = payload?.response.data.find(
+      (item) => item.id === transferTargetCustomerId.value,
+    );
 
     if (selected) {
       transferTargetCustomerLabel.value = `${selected.name} / ${selected.phone}`;
@@ -906,11 +925,15 @@ watch(
               <div class="grid gap-4 border-t pt-4 sm:grid-cols-2">
                 <div class="space-y-1">
                   <p class="text-sm text-muted-foreground">建立時間</p>
-                  <p class="text-sm font-medium">{{ formatAdminDateTime(customerProfile.createdAt) }}</p>
+                  <p class="text-sm font-medium">
+                    {{ formatAdminDateTime(customerProfile.createdAt) }}
+                  </p>
                 </div>
                 <div class="space-y-1">
                   <p class="text-sm text-muted-foreground">更新時間</p>
-                  <p class="text-sm font-medium">{{ formatAdminDateTime(customerProfile.updatedAt) }}</p>
+                  <p class="text-sm font-medium">
+                    {{ formatAdminDateTime(customerProfile.updatedAt) }}
+                  </p>
                 </div>
               </div>
             </template>
@@ -944,12 +967,20 @@ watch(
               </div>
               <div class="space-y-1">
                 <p class="text-xs font-medium tracking-wide text-muted-foreground">好友狀態</p>
-                <p class="text-sm font-semibold">{{ formatNullableBoolean(customerLine.isFriend) }}</p>
+                <p class="text-sm font-semibold">
+                  {{ formatNullableBoolean(customerLine.isFriend) }}
+                </p>
               </div>
               <div class="space-y-1">
                 <p class="text-xs font-medium tracking-wide text-muted-foreground">封鎖狀態</p>
                 <p class="text-sm font-semibold">
-                  {{ customerLine.blockedAt ? '已封鎖' : customerLine.status === 'bound' ? '未封鎖' : '—' }}
+                  {{
+                    customerLine.blockedAt
+                      ? '已封鎖'
+                      : customerLine.status === 'bound'
+                        ? '未封鎖'
+                        : '—'
+                  }}
                 </p>
               </div>
               <div class="space-y-1">
@@ -964,7 +995,10 @@ watch(
               </div>
             </div>
 
-            <div v-if="customerLine.status === 'unbound'" class="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <div
+              v-if="customerLine.status === 'unbound'"
+              class="space-y-3 rounded-xl border bg-muted/20 p-4"
+            >
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="space-y-1">
                   <p class="text-sm font-medium">顧客尚未綁定 LINE</p>
@@ -972,7 +1006,11 @@ watch(
                     發卡只會產生 LIFF 連結，不會自動建立列印任務。
                   </p>
                 </div>
-                <Button type="button" :disabled="isIssuingLineBindToken" @click="issueLineBindToken">
+                <Button
+                  type="button"
+                  :disabled="isIssuingLineBindToken"
+                  @click="issueLineBindToken"
+                >
                   <Spinner v-if="isIssuingLineBindToken" data-icon="inline-start" />
                   <LinkIcon v-else data-icon="inline-start" />
                   產生 LINE 綁定連結
@@ -997,7 +1035,10 @@ watch(
               </div>
             </div>
 
-            <div v-else class="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 p-4">
+            <div
+              v-else
+              class="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 p-4"
+            >
               <p class="max-w-xl text-sm text-muted-foreground">
                 解除後可阻止尚未送出的通知，但無法撤回已送到 LINE Platform 的 request。
               </p>
@@ -1033,7 +1074,10 @@ watch(
         </CardHeader>
 
         <CardContent class="space-y-4">
-          <div v-if="isWorkOrdersEmpty" class="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+          <div
+            v-if="isWorkOrdersEmpty"
+            class="rounded-xl border border-dashed p-6 text-sm text-muted-foreground"
+          >
             這位顧客目前沒有工單。
           </div>
 
@@ -1047,9 +1091,13 @@ watch(
                 <div class="space-y-2">
                   <div class="flex flex-wrap items-center gap-2">
                     <p class="text-base font-semibold">{{ workOrder.paperOrderNo }}</p>
-                    <Badge variant="outline">{{ getWorkOrderStatusLabel(workOrder.currentStatus) }}</Badge>
+                    <Badge variant="outline">{{
+                      getWorkOrderStatusLabel(workOrder.currentStatus)
+                    }}</Badge>
                   </div>
-                  <div class="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
+                  <div
+                    class="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-3"
+                  >
                     <div class="space-y-1">
                       <p class="text-xs font-medium tracking-wide">最近更新</p>
                       <p class="text-sm font-medium text-foreground">
@@ -1081,7 +1129,12 @@ watch(
                       查看工單詳情
                     </NuxtLink>
                   </Button>
-                  <Button type="button" size="sm" variant="ghost" @click="openTransferDialog(workOrder)">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    @click="openTransferDialog(workOrder)"
+                  >
                     轉移工單
                   </Button>
                 </div>
@@ -1090,7 +1143,9 @@ watch(
           </div>
 
           <div v-if="customerWorkOrderPageInfo.totalPages > 0" class="space-y-3 border-t pt-4">
-            <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+            <div
+              class="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"
+            >
               <span>{{ workOrderResultSummary }}</span>
               <span>{{ workOrderPageSummary }}</span>
             </div>
@@ -1132,13 +1187,19 @@ watch(
                 <span>每頁筆數</span>
                 <Select
                   :model-value="String(detailQuery.pageSize)"
-                  @update:model-value="(value) => typeof value === 'string' && changePageSize(Number(value))"
+                  @update:model-value="
+                    (value) => typeof value === 'string' && changePageSize(Number(value))
+                  "
                 >
                   <SelectTrigger class="w-28">
                     <SelectValue placeholder="選擇" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem v-for="option in ADMIN_CUSTOMER_LIST_PAGE_SIZE_OPTIONS" :key="option" :value="String(option)">
+                    <SelectItem
+                      v-for="option in ADMIN_CUSTOMER_LIST_PAGE_SIZE_OPTIONS"
+                      :key="option"
+                      :value="String(option)"
+                    >
                       {{ option }}
                     </SelectItem>
                   </SelectContent>
@@ -1149,140 +1210,161 @@ watch(
         </CardContent>
       </Card>
     </template>
-  </div>
+    <Dialog :open="unlinkDialogOpen" @update:open="(open) => (unlinkDialogOpen = open)">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>解除 LINE 綁定？</DialogTitle>
+          <DialogDescription class="space-y-2">
+            <span class="block">解除後顧客將不再收到 LINE 通知。</span>
+            <span class="block">舊 QR 不會重新變成可綁定；若要重新綁定，需要重新發卡。</span>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="isUnlinkingLineBinding"
+            @click="unlinkDialogOpen = false"
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            :disabled="isUnlinkingLineBinding"
+            @click="unlinkLineBinding"
+          >
+            <Spinner v-if="isUnlinkingLineBinding" data-icon="inline-start" />
+            確認解除
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
-  <Dialog :open="unlinkDialogOpen" @update:open="(open) => (unlinkDialogOpen = open)">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>解除 LINE 綁定？</DialogTitle>
-        <DialogDescription class="space-y-2">
-          <span class="block">解除後顧客將不再收到 LINE 通知。</span>
-          <span class="block">舊 QR 不會重新變成可綁定；若要重新綁定，需要重新發卡。</span>
-        </DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button type="button" variant="outline" :disabled="isUnlinkingLineBinding" @click="unlinkDialogOpen = false">
-          取消
-        </Button>
-        <Button type="button" variant="destructive" :disabled="isUnlinkingLineBinding" @click="unlinkLineBinding">
-          <Spinner v-if="isUnlinkingLineBinding" data-icon="inline-start" />
-          確認解除
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+    <Dialog :open="transferDialogOpen" @update:open="handleTransferDialogOpenChange">
+      <DialogContent class="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>轉移工單</DialogTitle>
+          <DialogDescription>
+            將工單 {{ transferWorkOrderPaperOrderNo || '—' }} 轉移到其他既有顧客。
+          </DialogDescription>
+        </DialogHeader>
 
-  <Dialog :open="transferDialogOpen" @update:open="handleTransferDialogOpenChange">
-    <DialogContent class="max-w-3xl">
-      <DialogHeader>
-        <DialogTitle>轉移工單</DialogTitle>
-        <DialogDescription>
-          將工單 {{ transferWorkOrderPaperOrderNo || '—' }} 轉移到其他既有顧客。
-        </DialogDescription>
-      </DialogHeader>
-
-      <div class="space-y-4">
-        <div class="space-y-2">
-          <FieldLabel for="transfer-target-search">搜尋目標顧客</FieldLabel>
-          <div class="relative">
-            <SearchIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="transfer-target-search"
-              v-model="transferTargetSearch"
-              class="pl-9"
-              autocomplete="off"
-              placeholder="輸入姓名、電話或備註"
-            />
-          </div>
-        </div>
-
-        <Alert v-if="transferApiError" variant="destructive">
-          <AlertTitle>轉移工單失敗</AlertTitle>
-          <AlertDescription class="space-y-1">
-            <p>{{ transferApiError.error.message }}</p>
-            <p v-if="transferApiError.error.requestId" class="text-xs text-destructive/80">
-              requestId: {{ transferApiError.error.requestId }}
-            </p>
-          </AlertDescription>
-        </Alert>
-
-        <Alert v-else-if="transferCandidateApiError" variant="destructive">
-          <AlertTitle>顧客搜尋失敗</AlertTitle>
-          <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
-            <span>{{ transferCandidateApiError.error.message }}</span>
-            <Button type="button" variant="outline" @click="refreshTransferCandidates">重新載入</Button>
-          </AlertDescription>
-        </Alert>
-
-        <div class="space-y-2">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-sm font-medium">搜尋結果</p>
-            <span class="text-xs text-muted-foreground">只顯示前 8 筆最近顧客</span>
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <FieldLabel for="transfer-target-search">搜尋目標顧客</FieldLabel>
+            <div class="relative">
+              <SearchIcon
+                class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="transfer-target-search"
+                v-model="transferTargetSearch"
+                class="pl-9"
+                autocomplete="off"
+                placeholder="輸入姓名、電話或備註"
+              />
+            </div>
           </div>
 
-          <div v-if="transferCandidateLoading" class="space-y-2">
-            <Skeleton class="h-16 w-full" />
-            <Skeleton class="h-16 w-full" />
-          </div>
+          <Alert v-if="transferApiError" variant="destructive">
+            <AlertTitle>轉移工單失敗</AlertTitle>
+            <AlertDescription class="space-y-1">
+              <p>{{ transferApiError.error.message }}</p>
+              <p v-if="transferApiError.error.requestId" class="text-xs text-destructive/80">
+                requestId: {{ transferApiError.error.requestId }}
+              </p>
+            </AlertDescription>
+          </Alert>
 
-          <div v-else-if="transferCandidateItems.length === 0" class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            找不到符合條件的顧客。
-          </div>
+          <Alert v-else-if="transferCandidateApiError" variant="destructive">
+            <AlertTitle>顧客搜尋失敗</AlertTitle>
+            <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
+              <span>{{ transferCandidateApiError.error.message }}</span>
+              <Button type="button" variant="outline" @click="refreshTransferCandidates"
+                >重新載入</Button
+              >
+            </AlertDescription>
+          </Alert>
 
-          <div v-else class="grid gap-2">
-            <button
-              v-for="item in transferCandidateItems"
-              :key="item.id"
-              type="button"
-              class="flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left transition-colors hover:bg-muted/40"
-              :class="
-                item.id === transferTargetCustomerId
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border bg-background'
-              "
-              @click="selectTransferTargetCustomer(item)"
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm font-medium">搜尋結果</p>
+              <span class="text-xs text-muted-foreground">只顯示前 8 筆最近顧客</span>
+            </div>
+
+            <div v-if="transferCandidateLoading" class="space-y-2">
+              <Skeleton class="h-16 w-full" />
+              <Skeleton class="h-16 w-full" />
+            </div>
+
+            <div
+              v-else-if="transferCandidateItems.length === 0"
+              class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
             >
-              <div class="min-w-0 space-y-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="font-medium">{{ item.name }}</p>
-                  <Badge variant="outline">
-                    {{
-                      getCustomerLineStatusMeta({
-                        linked: item.line.status === 'bound',
-                        notifyStatus: item.line.notificationStatus,
-                      }).label
-                    }}
-                  </Badge>
+              找不到符合條件的顧客。
+            </div>
+
+            <div v-else class="grid gap-2">
+              <button
+                v-for="item in transferCandidateItems"
+                :key="item.id"
+                type="button"
+                class="flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left transition-colors hover:bg-muted/40"
+                :class="
+                  item.id === transferTargetCustomerId
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border bg-background'
+                "
+                @click="selectTransferTargetCustomer(item)"
+              >
+                <div class="min-w-0 space-y-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="font-medium">{{ item.name }}</p>
+                    <Badge variant="outline">
+                      {{
+                        getCustomerLineStatusMeta({
+                          linked: item.line.status === 'bound',
+                          notifyStatus: item.line.notificationStatus,
+                        }).label
+                      }}
+                    </Badge>
+                  </div>
+                  <p class="text-sm text-muted-foreground">{{ item.phone }}</p>
+                  <p class="truncate text-xs text-muted-foreground">
+                    {{ item.note || '—' }}
+                  </p>
                 </div>
-                <p class="text-sm text-muted-foreground">{{ item.phone }}</p>
-                <p class="truncate text-xs text-muted-foreground">
-                  {{ item.note || '—' }}
-                </p>
-              </div>
-              <span class="text-xs text-muted-foreground">選取</span>
-            </button>
+                <span class="text-xs text-muted-foreground">選取</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2 rounded-lg border bg-muted/20 p-4">
+            <p class="text-sm font-medium">已選擇目標顧客</p>
+            <p class="text-sm text-muted-foreground">{{ formatSelectedCustomerLabel }}</p>
           </div>
         </div>
 
-        <div class="space-y-2 rounded-lg border bg-muted/20 p-4">
-          <p class="text-sm font-medium">已選擇目標顧客</p>
-          <p class="text-sm text-muted-foreground">{{ formatSelectedCustomerLabel }}</p>
-        </div>
-      </div>
-
-      <DialogFooter>
-        <Button type="button" variant="outline" :disabled="isTransferringWorkOrder" @click="closeTransferDialog">
-          取消
-        </Button>
-        <Button
-          type="button"
-          :disabled="!transferTargetCustomerId || isTransferringWorkOrder"
-          @click="transferWorkOrder"
-        >
-          <Spinner v-if="isTransferringWorkOrder" data-icon="inline-start" />
-          轉移工單
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="isTransferringWorkOrder"
+            @click="closeTransferDialog"
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            :disabled="!transferTargetCustomerId || isTransferringWorkOrder"
+            @click="transferWorkOrder"
+          >
+            <Spinner v-if="isTransferringWorkOrder" data-icon="inline-start" />
+            轉移工單
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
 </template>

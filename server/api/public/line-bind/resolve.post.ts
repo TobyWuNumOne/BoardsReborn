@@ -9,8 +9,8 @@ import { getServiceRoleSupabaseClient } from '../../../utils/supabase-clients';
 
 export default defineApiHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store');
-  enforcePublicLineBindRateLimit(event);
   const input = parsePublicLineBindResolveBody(await readBody(event));
   const supabase = await getServiceRoleSupabaseClient(event);
+  await enforcePublicLineBindRateLimit(event, supabase);
   return resolvePublicLineBinding(supabase, input.token);
 });
