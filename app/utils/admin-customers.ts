@@ -56,6 +56,36 @@ export interface AdminCustomerListResponse {
   pageInfo: AdminCustomerPageInfo;
 }
 
+export interface AdminCustomerDetailQueryState {
+  page: number;
+  pageSize: number;
+}
+
+export interface AdminCustomerDetailWorkOrderItem {
+  currentStatus: WorkOrderStatus;
+  id: string;
+  paperOrderNo: string;
+  updatedAt: string;
+}
+
+export interface AdminCustomerDetailResponse {
+  data: {
+    customer: {
+      createdAt: string;
+      id: string;
+      name: string;
+      note: string | null;
+      phone: string;
+      updatedAt: string;
+    };
+    line: AdminCustomerLineSummary;
+    workOrders: {
+      data: AdminCustomerDetailWorkOrderItem[];
+      pageInfo: AdminCustomerPageInfo;
+    };
+  };
+}
+
 export interface AdminCustomerListQueryState {
   lineStatus: AdminCustomerLineStatusFilter;
   page: number;
@@ -215,6 +245,94 @@ export const createEmptyAdminCustomerListResponse = (
 
 export const getAdminCustomerDetailPath = (id: string) =>
   `/admin/customers/${encodeURIComponent(id)}`;
+
+export const getAdminCustomerDetailAsyncKey = (
+  id: string,
+  query: AdminCustomerDetailQueryState,
+) => `admin-customer-detail:${id}:${query.page}:${query.pageSize}`;
+
+export const buildAdminCustomerDetailApiQuery = (query: AdminCustomerDetailQueryState) => ({
+  page: String(query.page),
+  pageSize: String(query.pageSize),
+});
+
+export const serializeAdminCustomerDetailQuery = (
+  query: AdminCustomerDetailQueryState,
+): LocationQueryRaw => {
+  const serializedQuery: LocationQueryRaw = {};
+
+  if (query.page > DEFAULT_ADMIN_CUSTOMER_LIST_PAGE) {
+    serializedQuery.page = String(query.page);
+  }
+
+  if (query.pageSize !== DEFAULT_ADMIN_CUSTOMER_LIST_PAGE_SIZE) {
+    serializedQuery.pageSize = String(query.pageSize);
+  }
+
+  return serializedQuery;
+};
+
+export const normalizeAdminCustomerDetailRouteQuery = (
+  routeQuery: LocationQuery | LocationQueryRaw,
+) => {
+  const rawPage = getSingleQueryValue(routeQuery.page);
+  const rawPageSize = getSingleQueryValue(routeQuery.pageSize);
+  const parsedPage = parsePositiveInteger(rawPage);
+  const parsedPageSize = rawPageSize ? pageSizeSchema.safeParse(rawPageSize) : null;
+
+  const query: AdminCustomerDetailQueryState = {
+    page: parsedPage ?? DEFAULT_ADMIN_CUSTOMER_LIST_PAGE,
+    pageSize: parsedPageSize?.success
+      ? Number(parsedPageSize.data)
+      : DEFAULT_ADMIN_CUSTOMER_LIST_PAGE_SIZE,
+  };
+
+  const canonicalQuery = serializeAdminCustomerDetailQuery(query);
+
+  return {
+    canonicalQuery,
+    needsReplace:
+      JSON.stringify(toComparableQuery(routeQuery)) !==
+      JSON.stringify(toComparableQuery(canonicalQuery)),
+    query,
+  };
+};
+
+export const createEmptyAdminCustomerDetailResponse = (
+  page = DEFAULT_ADMIN_CUSTOMER_LIST_PAGE,
+  pageSize = DEFAULT_ADMIN_CUSTOMER_LIST_PAGE_SIZE,
+): AdminCustomerDetailResponse => ({
+  data: {
+    customer: {
+      createdAt: '',
+      id: '',
+      name: '',
+      note: null,
+      phone: '',
+      updatedAt: '',
+    },
+    line: {
+      blockedAt: null,
+      displayName: null,
+      friendshipCheckedAt: null,
+      isFriend: null,
+      linkedAt: null,
+      notificationStatus: 'not_notifyable',
+      status: 'unbound',
+    },
+    workOrders: {
+      data: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: page > 1,
+        page,
+        pageSize,
+        total: 0,
+        totalPages: 0,
+      },
+    },
+  },
+});
 
 export const getCustomerLineStatusMeta = (input: {
   linked: boolean;

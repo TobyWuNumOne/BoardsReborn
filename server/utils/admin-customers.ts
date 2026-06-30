@@ -261,7 +261,7 @@ const throwMappedTransferRpcError = (error: SupabaseLikeError): never => {
     throw new ConflictError('Cannot transfer a work order with LINE jobs.');
   }
 
-  throwMappedSupabaseError(error);
+  return throwMappedSupabaseError(error);
 };
 
 export const listAdminCustomers = async (
@@ -302,7 +302,7 @@ export const listAdminCustomers = async (
   }
 
   return {
-    data: ((data ?? []) as AdminCustomerListRow[]).map((row) => mapCustomerListRow(row)),
+    data: ((data ?? []) as unknown as AdminCustomerListRow[]).map((row) => mapCustomerListRow(row)),
     pageInfo: calculatePageInfo(query.page, query.pageSize, count ?? 0),
   };
 };

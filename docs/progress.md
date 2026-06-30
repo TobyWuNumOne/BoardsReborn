@@ -12,7 +12,7 @@
 
 ## 目前快照
 
-- 最後更新：2026-06-29
+- 最後更新：2026-06-30
 - 目前階段：MVP 主流程已落地；目前重點是文件收斂、測試/驗證補強與現場穩定化
 - 整體狀態：進行中
 
@@ -24,6 +24,7 @@
 - Admin auth/session 最小流程已存在：`/login`、`/admin`、`/forbidden`、session endpoint 與 admin gate helper 已落地。
 - Admin dashboard 已存在，並有 server 端 summary API：`GET /api/admin/dashboard`。
 - 工單管理主流程已存在：建立、列表、詳情、編輯、單筆狀態更新、bulk status、掃碼 lookup、quick note、刪除測試/錯單流程。
+- 顧客詳情頁 `/admin/customers/[id]` 已存在，支援 profile 編輯、LINE 管理、工單列表與工單轉移。
 - 工單建立改走系統自動產生純數字 `paper_order_no`；測試工單號 `99` namespace migration 也已存在。
 - `repair_marks` 與 `repair_count` 已是正式資料模型，包含 migration、API 映射、前端 Konva editor 與 public read-only 預覽。
 - `board_length_class`、`board_color` 等板子快照欄位已進入 schema、API 與 admin UI。
@@ -37,7 +38,7 @@
 
 - Public: `/`, `/repair-status`, `/line/order-gate`, `/line/order-gate/t/[...parts]`
 - Auth: `/login`, `/forbidden`
-- Admin: `/admin`, `/admin/work-orders`, `/admin/work-orders/new`, `/admin/work-orders/[id]`, `/admin/work-orders/bulk-status`, `/admin/scan`, `/admin/printing`, `/admin/printing/workers`, `/admin/settings`
+- Admin: `/admin`, `/admin/work-orders`, `/admin/work-orders/new`, `/admin/work-orders/[id]`, `/admin/work-orders/bulk-status`, `/admin/customers`, `/admin/customers/[id]`, `/admin/scan`, `/admin/printing`, `/admin/printing/workers`, `/admin/settings`
 
 ### 目前 repo 內可見的 API
 
@@ -59,7 +60,7 @@
 - Admin work-order API：done
   - create/list/detail/patch/status/bulk-status/lookup/resolve/delete/quick-note 已落地。
 - Admin 前端第一版：done
-  - dashboard、工單列表、詳情、建單、bulk status、scan、settings、printing、workers 頁面已落地。
+  - dashboard、工單列表、詳情、顧客列表/詳情、建單、bulk status、scan、settings、printing、workers 頁面已落地。
 - Public customer lookup：done
   - `/repair-status` 與 public lookup API 已存在，含 repair marks read-only 顯示。
 - Printing MVP code path：done
