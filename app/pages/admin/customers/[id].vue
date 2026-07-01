@@ -117,6 +117,10 @@ const isIssuingLineBindToken = ref(false);
 const isUnlinkingLineBinding = ref(false);
 const unlinkDialogOpen = ref(false);
 
+const setUnlinkDialogOpen = (open: boolean) => {
+  unlinkDialogOpen.value = open;
+};
+
 const transferDialogOpen = ref(false);
 const transferWorkOrderId = ref<string | null>(null);
 const transferWorkOrderPaperOrderNo = ref<string | null>(null);
@@ -1210,7 +1214,7 @@ watch(
         </CardContent>
       </Card>
     </template>
-    <Dialog :open="unlinkDialogOpen" @update:open="(open) => (unlinkDialogOpen = open)">
+    <Dialog :open="unlinkDialogOpen" @update:open="setUnlinkDialogOpen">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>解除 LINE 綁定？</DialogTitle>

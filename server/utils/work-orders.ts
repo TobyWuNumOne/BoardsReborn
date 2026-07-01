@@ -100,6 +100,7 @@ type WorkOrderResolveRow = Pick<
   | 'is_pickup_overdue'
   | 'latest_received_at'
   | 'paper_order_no'
+  | 'payment_received'
   | 'updated_at'
 >;
 type DashboardMetricRow = Pick<
@@ -720,6 +721,7 @@ export const mapWorkOrderResolveRow = (row: WorkOrderResolveRow, now = new Date(
     id: row.id,
     lastUpdatedAt: row.updated_at,
     paperOrderNo: row.paper_order_no,
+    paymentReceived: row.payment_received,
   };
 };
 

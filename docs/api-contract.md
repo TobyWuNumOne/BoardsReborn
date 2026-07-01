@@ -558,6 +558,7 @@ Response：
       "color": "BLUE"
     },
     "estimatedCompletionDate": "2026-04-26",
+    "paymentReceived": false,
     "flags": {
       "overdueEstimatedCompletion": false,
       "pickupOverdue": false,

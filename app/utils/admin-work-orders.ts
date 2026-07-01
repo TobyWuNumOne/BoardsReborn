@@ -207,6 +207,7 @@ export interface AdminWorkOrderResolveItem {
   id: string;
   lastUpdatedAt: string | null;
   paperOrderNo: string;
+  paymentReceived: boolean;
 }
 
 export interface AdminWorkOrderResolveResponse {

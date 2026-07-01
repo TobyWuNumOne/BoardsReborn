@@ -21,6 +21,7 @@ import {
   ADMIN_BULK_STATUS_GROUP_ORDER,
   buildAdminBulkStatusSubmitPayload,
   getAdminBulkStatusSelectedPaperOrderNos,
+  getAdminBulkStatusSelectedUnpaidItems,
   getAdminBulkStatusSkipReasonLabel,
   groupAdminBulkStatusPreviewItems,
   hasAdminBulkStatusSelectedSnowboards,
@@ -28,6 +29,7 @@ import {
   resolveAdminBulkStatusPreview,
 } from '~/utils/admin-work-order-bulk-status';
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
+import UnpaidDeliveryConfirmDialog from '~/components/work-orders/UnpaidDeliveryConfirmDialog.vue';
 import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
 import WorkOrderFlagBadges from '~/components/work-orders/WorkOrderFlagBadges.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
@@ -68,12 +70,16 @@ const submitApiError = ref<ApiErrorEnvelope | null>(null);
 const foundItems = ref<AdminWorkOrderResolveItem[]>([]);
 const notFoundPaperOrderNos = ref<string[]>([]);
 const selectedPaperOrderNos = ref<string[]>([]);
+const unpaidDeliveryDialogOpen = ref(false);
+const pendingUnpaidDeliveryAction = shallowRef<null | (() => Promise<void>)>(null);
+const pendingUnpaidDeliveryPaperOrderNos = ref<string[]>([]);
 const recentBatchResult = ref<AdminWorkOrderBulkStatusResponse['data'] | null>(null);
 const successAlert = ref<{
   description: string;
   title: string;
 } | null>(null);
 const isSubmitting = ref(false);
+const isSubmittingDeliveryPaymentAction = ref(false);
 const submittingSelectedSnapshot = ref<string[]>([]);
 const statusValues = new Set(ADMIN_WORK_ORDER_STATUS_OPTIONS.map((option) => option.value));
 const groupExpandedState = reactive<Record<WorkOrderStatus, boolean>>({
@@ -118,9 +124,11 @@ const showSnowboardDryingWarning = computed(
 );
 const notFoundCopyText = computed(() => notFoundPaperOrderNos.value.join('\n'));
 const sharedSubmitLabel = computed(() =>
-  isSubmitting.value
-    ? `批量更新中（${submittingSelectedSnapshot.value.length} 筆）`
-    : '批量更新',
+  isSubmitting.value ? `批量更新中（${submittingSelectedSnapshot.value.length} 筆）` : '批量更新',
+);
+const unpaidDeliveryDialogCount = computed(() => pendingUnpaidDeliveryPaperOrderNos.value.length);
+const isUnpaidDeliveryDialogSubmitting = computed(
+  () => isSubmitting.value || isSubmittingDeliveryPaymentAction.value,
 );
 const submitFieldErrors = computed<Record<string, string[]>>(() => {
   const mergedErrors: Record<string, string[]> = {};
@@ -189,6 +197,9 @@ const resetPreviewState = () => {
   foundItems.value = [];
   notFoundPaperOrderNos.value = [];
   selectedPaperOrderNos.value = [];
+  unpaidDeliveryDialogOpen.value = false;
+  pendingUnpaidDeliveryAction.value = null;
+  pendingUnpaidDeliveryPaperOrderNos.value = [];
   previewStatus.value = 'idle';
   previewErrorMessage.value = null;
   inputFieldErrors.value = {};
@@ -205,10 +216,7 @@ const clearBulkInput = () => {
   void focusBulkInput();
 };
 
-const applyPreviewResult = (result: {
-  found: AdminWorkOrderResolveItem[];
-  notFound: string[];
-}) => {
+const applyPreviewResult = (result: { found: AdminWorkOrderResolveItem[]; notFound: string[] }) => {
   foundItems.value = result.found;
   notFoundPaperOrderNos.value = result.notFound;
   selectedPaperOrderNos.value = result.found.map((item) => item.paperOrderNo);
@@ -302,7 +310,9 @@ const updatePaperOrderSelection = (paperOrderNo: string, checked: boolean) => {
     return;
   }
 
-  selectedPaperOrderNos.value = selectedPaperOrderNos.value.filter((value) => value !== paperOrderNo);
+  selectedPaperOrderNos.value = selectedPaperOrderNos.value.filter(
+    (value) => value !== paperOrderNo,
+  );
 };
 
 const toggleGroupExpanded = (status: WorkOrderStatus) => {
@@ -335,9 +345,82 @@ const handleSharedStatusChange = (value: unknown) => {
   sharedStatus.value = '';
 };
 
+const setUnpaidDeliveryDialogOpen = (open: boolean) => {
+  unpaidDeliveryDialogOpen.value = open;
+
+  if (!open && !isUnpaidDeliveryDialogSubmitting.value) {
+    pendingUnpaidDeliveryAction.value = null;
+    pendingUnpaidDeliveryPaperOrderNos.value = [];
+  }
+};
+
+const markBulkUnpaidSelectionPaid = async () => {
+  const unpaidItems = getAdminBulkStatusSelectedUnpaidItems(
+    foundItems.value,
+    pendingUnpaidDeliveryPaperOrderNos.value,
+  );
+
+  for (const item of unpaidItems) {
+    await getRequestFetch()<unknown>(`/api/admin/work-orders/${encodeURIComponent(item.id)}`, {
+      body: {
+        paymentReceived: true,
+      },
+      method: 'PATCH',
+    });
+  }
+};
+
+const handleBulkUnpaidDeliveryMarkPaidAndDeliver = async () => {
+  const action = pendingUnpaidDeliveryAction.value;
+
+  if (!action || isUnpaidDeliveryDialogSubmitting.value) {
+    return;
+  }
+
+  isSubmittingDeliveryPaymentAction.value = true;
+
+  try {
+    await markBulkUnpaidSelectionPaid();
+    toast.success(`已標記 ${pendingUnpaidDeliveryPaperOrderNos.value.length} 筆為已付款。`);
+    unpaidDeliveryDialogOpen.value = false;
+    pendingUnpaidDeliveryAction.value = null;
+    pendingUnpaidDeliveryPaperOrderNos.value = [];
+    isSubmittingDeliveryPaymentAction.value = false;
+    await action();
+  } catch (error) {
+    if (await handleAuthRedirect(error)) {
+      return;
+    }
+
+    const envelope = extractApiErrorEnvelope(error);
+    toast.error('標記收款失敗，尚未批量交件。', {
+      description: envelope?.error.message ?? '請稍後再試。',
+    });
+  } finally {
+    isSubmittingDeliveryPaymentAction.value = false;
+  }
+};
+
+const handleBulkUnpaidDeliveryProceedWithoutPayment = async () => {
+  const action = pendingUnpaidDeliveryAction.value;
+
+  if (!action || isUnpaidDeliveryDialogSubmitting.value) {
+    return;
+  }
+
+  unpaidDeliveryDialogOpen.value = false;
+  pendingUnpaidDeliveryAction.value = null;
+  pendingUnpaidDeliveryPaperOrderNos.value = [];
+  await action();
+};
+
 const submitBulkStatusUpdate = async (
   selectedForSubmit: string[],
   targetStatus: WorkOrderStatus | '',
+  options: {
+    bypassDeliveryPaymentConfirmation?: boolean;
+    paymentUpdatedBeforeSubmit?: boolean;
+  } = {},
 ) => {
   clearSubmitFeedback();
 
@@ -354,6 +437,24 @@ const submitBulkStatusUpdate = async (
   if (!payload) {
     submitClientFieldErrors.value = fieldErrors;
     return;
+  }
+
+  if (payload.status === 'DELIVERED' && !options.bypassDeliveryPaymentConfirmation) {
+    const unpaidItems = getAdminBulkStatusSelectedUnpaidItems(
+      foundItems.value,
+      payload.paperOrderNos,
+    );
+
+    if (unpaidItems.length > 0) {
+      pendingUnpaidDeliveryPaperOrderNos.value = unpaidItems.map((item) => item.paperOrderNo);
+      pendingUnpaidDeliveryAction.value = () =>
+        submitBulkStatusUpdate(selectedForSubmit, targetStatus, {
+          bypassDeliveryPaymentConfirmation: true,
+          paymentUpdatedBeforeSubmit: true,
+        });
+      unpaidDeliveryDialogOpen.value = true;
+      return;
+    }
   }
 
   isSubmitting.value = true;
@@ -394,7 +495,9 @@ const submitBulkStatusUpdate = async (
     }
 
     submitApiError.value = extractApiErrorEnvelope(error);
-    toast.error('批量更新失敗');
+    toast.error(
+      options.paymentUpdatedBeforeSubmit ? '已標記收款，但批量交件失敗。' : '批量更新失敗',
+    );
   } finally {
     isSubmitting.value = false;
     submittingSelectedSnapshot.value = [];
@@ -615,11 +718,7 @@ onMounted(async () => {
       </template>
 
       <template v-else>
-        <Card
-          v-for="group in previewGroups"
-          :key="group.key"
-          class="overflow-hidden"
-        >
+        <Card v-for="group in previewGroups" :key="group.key" class="overflow-hidden">
           <CardHeader class="gap-3">
             <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div class="space-y-1">
@@ -657,11 +756,7 @@ onMounted(async () => {
           </CardHeader>
 
           <CardContent v-if="groupExpandedState[group.key]" class="space-y-3">
-            <div
-              v-for="item in group.items"
-              :key="item.id"
-              class="rounded-lg border p-4"
-            >
+            <div v-for="item in group.items" :key="item.id" class="rounded-lg border p-4">
               <div class="flex items-start gap-3">
                 <Checkbox
                   :disabled="isSubmitting"
@@ -680,7 +775,12 @@ onMounted(async () => {
                         {{ item.customer.name ?? '—' }}
                       </p>
                     </div>
-                    <WorkOrderStatusBadge :status="item.currentStatus" />
+                    <div class="flex flex-wrap items-center gap-2">
+                      <WorkOrderStatusBadge :status="item.currentStatus" />
+                      <Badge :variant="item.paymentReceived ? 'outline' : 'destructive'">
+                        {{ item.paymentReceived ? '已付款' : '未付款' }}
+                      </Badge>
+                    </div>
                   </div>
 
                   <div class="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
@@ -690,7 +790,9 @@ onMounted(async () => {
                     </div>
                     <div class="flex flex-col gap-1">
                       <span class="text-muted-foreground">板型</span>
-                      <span class="text-foreground">{{ getBoardTypeLabel(item.board.boardType) }}</span>
+                      <span class="text-foreground">{{
+                        getBoardTypeLabel(item.board.boardType)
+                      }}</span>
                     </div>
                     <div class="flex flex-col gap-1">
                       <span class="text-muted-foreground">長度分類</span>
@@ -718,7 +820,9 @@ onMounted(async () => {
                     </div>
                     <div class="flex flex-col gap-1">
                       <span class="text-muted-foreground">最近更新</span>
-                      <span class="text-foreground">{{ formatAdminDateTime(item.lastUpdatedAt) }}</span>
+                      <span class="text-foreground">{{
+                        formatAdminDateTime(item.lastUpdatedAt)
+                      }}</span>
                     </div>
                   </div>
                 </div>
@@ -732,7 +836,9 @@ onMounted(async () => {
             <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle>查無工單</CardTitle>
-                <CardDescription>這些單號不會進入可更新集合，請回頭檢查輸入是否正確。</CardDescription>
+                <CardDescription
+                  >這些單號不會進入可更新集合，請回頭檢查輸入是否正確。</CardDescription
+                >
               </div>
               <Button size="sm" type="button" variant="outline" @click="copyNotFoundPaperOrderNos">
                 複製錯誤單號
@@ -756,76 +862,96 @@ onMounted(async () => {
 
     <div v-if="recentBatchResult">
       <Card>
-      <CardHeader>
-        <CardTitle>最近一次批量結果</CardTitle>
-        <CardDescription>
-          requested {{ recentBatchResult.requestedCount }} / deduped {{ recentBatchResult.dedupedCount }}
-        </CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <div class="grid gap-3 md:grid-cols-4">
-          <div class="rounded-lg border p-3">
-            <p class="text-sm text-muted-foreground">成功更新</p>
-            <p class="mt-2 text-2xl font-semibold">{{ recentBatchResult.updatedCount }}</p>
-          </div>
-          <div class="rounded-lg border p-3">
-            <p class="text-sm text-muted-foreground">略過</p>
-            <p class="mt-2 text-2xl font-semibold">{{ recentBatchResult.skippedCount }}</p>
-          </div>
-          <div class="rounded-lg border p-3">
-            <p class="text-sm text-muted-foreground">原始輸入</p>
-            <p class="mt-2 text-2xl font-semibold">{{ recentBatchResult.requestedCount }}</p>
-          </div>
-          <div class="rounded-lg border p-3">
-            <p class="text-sm text-muted-foreground">去重後</p>
-            <p class="mt-2 text-2xl font-semibold">{{ recentBatchResult.dedupedCount }}</p>
-          </div>
-        </div>
-
-        <div class="grid gap-4 xl:grid-cols-2">
-          <div class="space-y-3">
-            <h3 class="text-sm font-medium">已更新</h3>
-            <div v-if="recentBatchResult.updated.length === 0" class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              本次沒有成功更新的工單。
+        <CardHeader>
+          <CardTitle>最近一次批量結果</CardTitle>
+          <CardDescription>
+            requested {{ recentBatchResult.requestedCount }} / deduped
+            {{ recentBatchResult.dedupedCount }}
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div class="grid gap-3 md:grid-cols-4">
+            <div class="rounded-lg border p-3">
+              <p class="text-sm text-muted-foreground">成功更新</p>
+              <p class="mt-2 text-2xl font-semibold">{{ recentBatchResult.updatedCount }}</p>
             </div>
-            <div v-else class="space-y-2">
+            <div class="rounded-lg border p-3">
+              <p class="text-sm text-muted-foreground">略過</p>
+              <p class="mt-2 text-2xl font-semibold">{{ recentBatchResult.skippedCount }}</p>
+            </div>
+            <div class="rounded-lg border p-3">
+              <p class="text-sm text-muted-foreground">原始輸入</p>
+              <p class="mt-2 text-2xl font-semibold">{{ recentBatchResult.requestedCount }}</p>
+            </div>
+            <div class="rounded-lg border p-3">
+              <p class="text-sm text-muted-foreground">去重後</p>
+              <p class="mt-2 text-2xl font-semibold">{{ recentBatchResult.dedupedCount }}</p>
+            </div>
+          </div>
+
+          <div class="grid gap-4 xl:grid-cols-2">
+            <div class="space-y-3">
+              <h3 class="text-sm font-medium">已更新</h3>
               <div
-                v-for="item in recentBatchResult.updated"
-                :key="item.statusHistoryId"
-                class="rounded-lg border p-3 text-sm"
+                v-if="recentBatchResult.updated.length === 0"
+                class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
               >
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div class="space-y-1">
-                    <span class="font-medium">{{ item.paperOrderNo }}</span>
-                    <p class="break-all text-muted-foreground">workOrderId: {{ item.workOrderId }}</p>
+                本次沒有成功更新的工單。
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="item in recentBatchResult.updated"
+                  :key="item.statusHistoryId"
+                  class="rounded-lg border p-3 text-sm"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="space-y-1">
+                      <span class="font-medium">{{ item.paperOrderNo }}</span>
+                      <p class="break-all text-muted-foreground">
+                        workOrderId: {{ item.workOrderId }}
+                      </p>
+                    </div>
+                    <WorkOrderStatusBadge :status="item.currentStatus" />
                   </div>
-                  <WorkOrderStatusBadge :status="item.currentStatus" />
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="space-y-3">
-            <h3 class="text-sm font-medium">已略過</h3>
-            <div v-if="recentBatchResult.skipped.length === 0" class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              本次沒有被略過的工單。
-            </div>
-            <div v-else class="space-y-2">
+            <div class="space-y-3">
+              <h3 class="text-sm font-medium">已略過</h3>
               <div
-                v-for="item in recentBatchResult.skipped"
-                :key="`${item.paperOrderNo}-${item.reason}`"
-                class="rounded-lg border p-3 text-sm"
+                v-if="recentBatchResult.skipped.length === 0"
+                class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
               >
-                <div class="flex items-center justify-between gap-3">
-                  <span class="font-medium">{{ item.paperOrderNo }}</span>
-                  <Badge variant="outline">{{ getAdminBulkStatusSkipReasonLabel(item.reason) }}</Badge>
+                本次沒有被略過的工單。
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="item in recentBatchResult.skipped"
+                  :key="`${item.paperOrderNo}-${item.reason}`"
+                  class="rounded-lg border p-3 text-sm"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="font-medium">{{ item.paperOrderNo }}</span>
+                    <Badge variant="outline">{{
+                      getAdminBulkStatusSkipReasonLabel(item.reason)
+                    }}</Badge>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </CardContent>
+        </CardContent>
       </Card>
     </div>
+
+    <UnpaidDeliveryConfirmDialog
+      :is-submitting="isUnpaidDeliveryDialogSubmitting"
+      :open="unpaidDeliveryDialogOpen"
+      :unpaid-count="unpaidDeliveryDialogCount"
+      @mark-paid-and-deliver="handleBulkUnpaidDeliveryMarkPaidAndDeliver"
+      @proceed-without-payment="handleBulkUnpaidDeliveryProceedWithoutPayment"
+      @update:open="setUnpaidDeliveryDialogOpen"
+    />
   </div>
 </template>

@@ -975,6 +975,7 @@ describe('work order API validation', () => {
         is_pickup_overdue: false,
         latest_received_at: '2026-04-20T08:00:00.000Z',
         paper_order_no: 'BR-2026-0001',
+        payment_received: false,
         updated_at: '2026-04-20T08:30:00.000Z',
       }),
     ).toEqual({
@@ -999,6 +1000,7 @@ describe('work order API validation', () => {
       id: 'work-order-id',
       lastUpdatedAt: '2026-04-20T08:30:00.000Z',
       paperOrderNo: 'BR-2026-0001',
+      paymentReceived: false,
     });
   });
 

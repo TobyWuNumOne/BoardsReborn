@@ -5,6 +5,7 @@ import {
   buildAdminBulkStatusSubmitPayload,
   getAdminBulkStatusQuickTarget,
   getAdminBulkStatusSelectedPaperOrderNos,
+  getAdminBulkStatusSelectedUnpaidItems,
   groupAdminBulkStatusPreviewItems,
   hasAdminBulkStatusSelectedSnowboards,
   parseAdminBulkStatusPaperOrderNos,
@@ -15,6 +16,7 @@ const createResolvedWorkOrder = (
   paperOrderNo: string,
   currentStatus: AdminWorkOrderResolveItem['currentStatus'] = 'RECEIVED',
   boardType: AdminWorkOrderResolveItem['board']['boardType'] = 'SURFBOARD',
+  paymentReceived = true,
 ): AdminWorkOrderResolveItem => ({
   board: {
     color: 'BLUE',
@@ -37,6 +39,7 @@ const createResolvedWorkOrder = (
   id: `work-order-${paperOrderNo}`,
   lastUpdatedAt: '2026-04-30T08:00:00.000Z',
   paperOrderNo,
+  paymentReceived,
 });
 
 describe('admin bulk status helpers', () => {
@@ -174,14 +177,36 @@ describe('admin bulk status helpers', () => {
       createResolvedWorkOrder('BR-2026-0003', 'REPAIRING', 'SURFBOARD'),
     ];
 
-    expect(getAdminBulkStatusSelectedPaperOrderNos(items, ['BR-2026-0003', 'BR-2026-0001'])).toEqual([
-      'BR-2026-0001',
-      'BR-2026-0003',
-    ]);
+    expect(
+      getAdminBulkStatusSelectedPaperOrderNos(items, ['BR-2026-0003', 'BR-2026-0001']),
+    ).toEqual(['BR-2026-0001', 'BR-2026-0003']);
     expect(hasAdminBulkStatusSelectedSnowboards(items, ['BR-2026-0002'])).toBe(true);
     expect(hasAdminBulkStatusSelectedSnowboards(items, ['BR-2026-0001', 'BR-2026-0003'])).toBe(
       false,
     );
+  });
+
+  it('returns only selected unpaid work orders for delivery confirmation', () => {
+    const items = [
+      createResolvedWorkOrder('BR-2026-0001', 'READY_FOR_PICKUP', 'SURFBOARD', false),
+      createResolvedWorkOrder('BR-2026-0002', 'READY_FOR_PICKUP', 'SURFBOARD', true),
+      createResolvedWorkOrder('BR-2026-0003', 'READY_FOR_PICKUP', 'SURFBOARD', false),
+    ];
+
+    expect(getAdminBulkStatusSelectedUnpaidItems(items, ['BR-2026-0002', 'BR-2026-0003'])).toEqual([
+      createResolvedWorkOrder('BR-2026-0003', 'READY_FOR_PICKUP', 'SURFBOARD', false),
+    ]);
+  });
+
+  it('treats missing payment flags as unpaid for delivery confirmation safety', () => {
+    const itemWithoutPaymentFlag = {
+      ...createResolvedWorkOrder('BR-2026-0001', 'READY_FOR_PICKUP', 'SURFBOARD', true),
+      paymentReceived: undefined,
+    } as unknown as AdminWorkOrderResolveItem;
+
+    expect(
+      getAdminBulkStatusSelectedUnpaidItems([itemWithoutPaymentFlag], ['BR-2026-0001']),
+    ).toEqual([itemWithoutPaymentFlag]);
   });
 
   it('exposes fixed next-stage shortcuts for each grouped status', () => {

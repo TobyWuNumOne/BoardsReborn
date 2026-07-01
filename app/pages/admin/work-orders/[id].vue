@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { parseDate } from '@internationalized/date';
-import { CalendarIcon, MapPinnedIcon, Trash2Icon } from 'lucide-vue-next';
+import {
+  CalendarIcon,
+  ChevronDownIcon,
+  MapPinnedIcon,
+  SlidersHorizontalIcon,
+  Trash2Icon,
+} from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import type { AdminLineNotificationSummary } from '~/utils/admin-line';
 import { getAdminLineNotificationFeedback } from '~/utils/admin-line';
@@ -10,6 +16,7 @@ import type {
   PrintJobType,
 } from '~/utils/admin-printing';
 import type { RepairCountSource, RepairMark } from '~/utils/repair-marks';
+import UnpaidDeliveryConfirmDialog from '~/components/work-orders/UnpaidDeliveryConfirmDialog.vue';
 import {
   createEmptyAdminPrintSummary,
   getAdminPrintActionLabel,
@@ -140,6 +147,12 @@ const deleteWorkOrderApiError = ref<ApiErrorEnvelope | null>(null);
 const workForm = reactive<AdminWorkOrderWorkFormState>(createEmptyAdminWorkOrderWorkFormState());
 const lastWorkFormWorkOrderId = ref<string | null>(null);
 const isSubmittingWorkForm = ref(false);
+const isSubmittingPickupQuickAction = ref(false);
+const isSubmittingNextStatusAction = ref(false);
+const isSubmittingDeliveryPaymentAction = ref(false);
+const showWorkAdvancedSettings = ref(false);
+const unpaidDeliveryDialogOpen = ref(false);
+const pendingUnpaidDeliveryAction = shallowRef<null | (() => Promise<void>)>(null);
 const clientWorkFieldErrors = ref<Record<string, string[]>>({});
 const submitWorkApiError = ref<ApiErrorEnvelope | null>(null);
 const isSubmittingPrintAction = ref(false);
@@ -232,6 +245,14 @@ const syncEditFormFromDetail = (workOrder: AdminWorkOrderDetailItem) => {
 const resetWorkForm = () => {
   Object.assign(workForm, createEmptyAdminWorkOrderWorkFormState());
   clearWorkFeedback();
+};
+
+const toggleWorkAdvancedSettings = () => {
+  showWorkAdvancedSettings.value = !showWorkAdvancedSettings.value;
+};
+
+const setWorkAdvancedSettingsOpen = (open: boolean) => {
+  showWorkAdvancedSettings.value = open;
 };
 
 const fetchWorkOrderDetail = async () => {
@@ -460,6 +481,49 @@ const workFormAlertMessages = computed(() => {
 const canSubmitWorkForm = computed(
   () => detailMode.value === 'work' && Boolean(workForm.status) && !isSubmittingWorkForm.value,
 );
+const canSubmitPickupQuickAction = computed(
+  () =>
+    detail.value?.currentStatus === 'READY_FOR_PICKUP' &&
+    detailMode.value !== 'work' &&
+    !isSubmittingWorkForm.value &&
+    !isSubmittingPickupQuickAction.value &&
+    !isSubmittingNextStatusAction.value &&
+    !isSubmittingDeliveryPaymentAction.value,
+);
+const nextWorkStatuses = computed<Array<Exclude<AdminWorkOrderWorkFormState['status'], ''>>>(() => {
+  if (!detail.value?.currentStatus) {
+    return [];
+  }
+
+  switch (detail.value.currentStatus) {
+    case 'RECEIVED':
+      return detail.value.board.boardType === 'SNOWBOARD' ? ['REPAIRING'] : ['DRYING', 'REPAIRING'];
+    case 'DRYING':
+      return ['REPAIRING'];
+    case 'REPAIRING':
+      return ['READY_FOR_PICKUP'];
+    case 'READY_FOR_PICKUP':
+      return ['DELIVERED'];
+    default:
+      return [];
+  }
+});
+const canSubmitNextStatusAction = computed(
+  () =>
+    detailMode.value === 'work' &&
+    nextWorkStatuses.value.length > 0 &&
+    !isSubmittingWorkForm.value &&
+    !isSubmittingPickupQuickAction.value &&
+    !isSubmittingNextStatusAction.value &&
+    !isSubmittingDeliveryPaymentAction.value,
+);
+const isUnpaidDeliveryDialogSubmitting = computed(
+  () =>
+    isSubmittingDeliveryPaymentAction.value ||
+    isSubmittingWorkForm.value ||
+    isSubmittingPickupQuickAction.value ||
+    isSubmittingNextStatusAction.value,
+);
 const canDeleteWorkOrder = computed(
   () =>
     detailMode.value === 'edit' &&
@@ -586,10 +650,25 @@ watch(
 
     if (nextDetail.id !== lastWorkFormWorkOrderId.value) {
       resetWorkForm();
+      showWorkAdvancedSettings.value = false;
       lastWorkFormWorkOrderId.value = nextDetail.id;
     }
   },
   { immediate: true },
+);
+
+watch(
+  detailMode,
+  (nextMode, previousMode) => {
+    if (nextMode === previousMode) {
+      return;
+    }
+
+    if (nextMode !== 'work') {
+      showWorkAdvancedSettings.value = false;
+    }
+  },
+  { immediate: false },
 );
 
 const summaryFields = computed<DetailField[]>(() => {
@@ -613,6 +692,10 @@ const summaryFields = computed<DetailField[]>(() => {
     {
       label: '收款時間',
       value: formatAdminDateTime(detail.value.paymentReceivedAt),
+    },
+    {
+      label: '報價總額',
+      value: formatCurrency(detail.value.quoteTotalAmount),
     },
   ];
 });
@@ -948,7 +1031,95 @@ const deleteWorkOrder = async () => {
   }
 };
 
-const submitWorkForm = async () => {
+const setUnpaidDeliveryDialogOpen = (open: boolean) => {
+  unpaidDeliveryDialogOpen.value = open;
+
+  if (!open && !isUnpaidDeliveryDialogSubmitting.value) {
+    pendingUnpaidDeliveryAction.value = null;
+  }
+};
+
+const setPrintActionDialogOpen = (open: boolean) => {
+  printActionDialogOpen.value = open;
+};
+
+const runWithUnpaidDeliveryConfirmation = (
+  action: () => Promise<void>,
+  bypassConfirmation: unknown = false,
+) => {
+  if (bypassConfirmation === true || detail.value?.paymentReceived === true) {
+    return false;
+  }
+
+  pendingUnpaidDeliveryAction.value = action;
+  unpaidDeliveryDialogOpen.value = true;
+  return true;
+};
+
+const markDetailPaymentReceived = async () => {
+  await getRequestFetch()<unknown>(
+    `/api/admin/work-orders/${encodeURIComponent(routeWorkOrderId.value)}`,
+    {
+      body: {
+        paymentReceived: true,
+      },
+      method: 'PATCH',
+    },
+  );
+};
+
+const handleDetailUnpaidDeliveryMarkPaidAndDeliver = async () => {
+  const action = pendingUnpaidDeliveryAction.value;
+
+  if (!action || isUnpaidDeliveryDialogSubmitting.value) {
+    return;
+  }
+
+  isSubmittingDeliveryPaymentAction.value = true;
+
+  try {
+    await markDetailPaymentReceived();
+    toast.success('已標記為已收款。');
+    unpaidDeliveryDialogOpen.value = false;
+    pendingUnpaidDeliveryAction.value = null;
+    isSubmittingDeliveryPaymentAction.value = false;
+    await action();
+  } catch (paymentError) {
+    const statusCode = getApiErrorStatusCode(paymentError);
+
+    if (statusCode === 401 || statusCode === 403) {
+      const sessionSnapshot = await adminSession.refreshAdminSession({ force: true });
+      const redirectTarget = getAdminRouteGuardRedirect(sessionSnapshot.status, route.fullPath);
+
+      if (redirectTarget) {
+        await navigateTo(redirectTarget);
+      }
+
+      return;
+    }
+
+    const apiEnvelope = extractApiErrorEnvelope(paymentError);
+    toast.error('標記收款失敗，尚未交件。', {
+      description: apiEnvelope?.error.message ?? '請稍後再試。',
+    });
+  } finally {
+    isSubmittingDeliveryPaymentAction.value = false;
+  }
+};
+
+const handleDetailUnpaidDeliveryProceedWithoutPayment = async () => {
+  const action = pendingUnpaidDeliveryAction.value;
+
+  if (!action || isUnpaidDeliveryDialogSubmitting.value) {
+    return;
+  }
+
+  unpaidDeliveryDialogOpen.value = false;
+  pendingUnpaidDeliveryAction.value = null;
+  await action();
+};
+
+const submitWorkForm = async (bypassDeliveryPaymentConfirmation: unknown = false) => {
   if (!detail.value || isSubmittingWorkForm.value) {
     return;
   }
@@ -959,7 +1130,15 @@ const submitWorkForm = async () => {
 
   if (Object.keys(fieldErrors).length > 0 || !payload) {
     clientWorkFieldErrors.value = fieldErrors;
+    showWorkAdvancedSettings.value = true;
     toast.error('請先修正表單欄位。');
+    return;
+  }
+
+  if (
+    payload.status === 'DELIVERED' &&
+    runWithUnpaidDeliveryConfirmation(() => submitWorkForm(true), bypassDeliveryPaymentConfirmation)
+  ) {
     return;
   }
 
@@ -1018,11 +1197,149 @@ const submitWorkForm = async () => {
     }
 
     submitWorkApiError.value = extractApiErrorEnvelope(submitError);
+    showWorkAdvancedSettings.value = true;
     toast.error('更新狀態失敗。', {
       description: submitWorkApiError.value?.error.message ?? '請稍後再試。',
     });
   } finally {
     isSubmittingWorkForm.value = false;
+  }
+};
+
+const submitPickupQuickAction = async (bypassDeliveryPaymentConfirmation: unknown = false) => {
+  if (!detail.value || !canSubmitPickupQuickAction.value) {
+    return;
+  }
+
+  if (
+    runWithUnpaidDeliveryConfirmation(
+      () => submitPickupQuickAction(true),
+      bypassDeliveryPaymentConfirmation,
+    )
+  ) {
+    return;
+  }
+
+  isSubmittingPickupQuickAction.value = true;
+
+  try {
+    const response = await getRequestFetch()<{
+      data: {
+        lineNotification: AdminLineNotificationSummary;
+      };
+    }>(`/api/admin/work-orders/${encodeURIComponent(routeWorkOrderId.value)}/status`, {
+      body: {
+        note: null,
+        status: 'DELIVERED',
+      },
+      method: 'POST',
+    });
+
+    await refresh();
+
+    if (fetchStatus.value !== 'success' || !detail.value) {
+      toast.error('取件狀態已更新，但重新載入最新資料失敗。');
+      return;
+    }
+
+    toast.success('已切換為「已交件」。');
+    const lineFeedback = getAdminLineNotificationFeedback(response.data.lineNotification);
+    if (lineFeedback?.tone === 'warning') toast.warning(lineFeedback.message);
+    else if (lineFeedback?.tone === 'info') toast.info(lineFeedback.message);
+    else if (lineFeedback?.tone === 'success') toast.success(lineFeedback.message);
+  } catch (submitError) {
+    const statusCode = getApiErrorStatusCode(submitError);
+
+    if (statusCode === 401 || statusCode === 403) {
+      const sessionSnapshot = await adminSession.refreshAdminSession({ force: true });
+      const redirectTarget = getAdminRouteGuardRedirect(sessionSnapshot.status, route.fullPath);
+
+      if (redirectTarget) {
+        await navigateTo(redirectTarget);
+      }
+
+      return;
+    }
+
+    const apiEnvelope = extractApiErrorEnvelope(submitError);
+    toast.error('切換取件狀態失敗。', {
+      description: apiEnvelope?.error.message ?? '請稍後再試。',
+    });
+  } finally {
+    isSubmittingPickupQuickAction.value = false;
+  }
+};
+
+const submitNextStatusQuickAction = async (
+  targetStatus: Exclude<AdminWorkOrderWorkFormState['status'], ''>,
+  bypassDeliveryPaymentConfirmation: unknown = false,
+) => {
+  if (
+    !detail.value ||
+    !nextWorkStatuses.value.includes(targetStatus) ||
+    !canSubmitNextStatusAction.value
+  ) {
+    return;
+  }
+
+  if (
+    targetStatus === 'DELIVERED' &&
+    runWithUnpaidDeliveryConfirmation(
+      () => submitNextStatusQuickAction(targetStatus, true),
+      bypassDeliveryPaymentConfirmation,
+    )
+  ) {
+    return;
+  }
+
+  isSubmittingNextStatusAction.value = true;
+
+  try {
+    const response = await getRequestFetch()<{
+      data: {
+        lineNotification: AdminLineNotificationSummary;
+      };
+    }>(`/api/admin/work-orders/${encodeURIComponent(routeWorkOrderId.value)}/status`, {
+      body: {
+        note: null,
+        status: targetStatus,
+      },
+      method: 'POST',
+    });
+
+    resetWorkForm();
+    await refresh();
+
+    if (fetchStatus.value !== 'success' || !detail.value) {
+      toast.error('下一進度已更新，但重新載入最新資料失敗。');
+      return;
+    }
+
+    toast.success(`已切換為「${getWorkOrderStatusLabel(targetStatus)}」。`);
+    const lineFeedback = getAdminLineNotificationFeedback(response.data.lineNotification);
+    if (lineFeedback?.tone === 'warning') toast.warning(lineFeedback.message);
+    else if (lineFeedback?.tone === 'info') toast.info(lineFeedback.message);
+    else if (lineFeedback?.tone === 'success') toast.success(lineFeedback.message);
+  } catch (submitError) {
+    const statusCode = getApiErrorStatusCode(submitError);
+
+    if (statusCode === 401 || statusCode === 403) {
+      const sessionSnapshot = await adminSession.refreshAdminSession({ force: true });
+      const redirectTarget = getAdminRouteGuardRedirect(sessionSnapshot.status, route.fullPath);
+
+      if (redirectTarget) {
+        await navigateTo(redirectTarget);
+      }
+
+      return;
+    }
+
+    const apiEnvelope = extractApiErrorEnvelope(submitError);
+    toast.error('切換下一進度失敗。', {
+      description: apiEnvelope?.error.message ?? '請稍後再試。',
+    });
+  } finally {
+    isSubmittingNextStatusAction.value = false;
   }
 };
 
@@ -1120,25 +1437,53 @@ if (import.meta.client) {
         </div>
 
         <div class="space-y-2">
-          <h1 class="text-2xl font-semibold tracking-tight">{{ headerTitle }}</h1>
-          <p class="max-w-3xl text-sm leading-6 text-muted-foreground">{{ headerSubtitle }}</p>
-        </div>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 class="text-2xl font-semibold tracking-tight">{{ headerTitle }}</h1>
 
-        <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <WorkOrderStatusBadge :status="detail?.currentStatus ?? null" />
-          <Badge variant="outline">
-            {{
-              detail ? formatBooleanLabel(detail.paymentReceived, '已收款', '未收款') : '付款狀態 —'
-            }}
-          </Badge>
-          <span>收件日 {{ detail ? formatAdminDate(detail.intakeDate) : '—' }}</span>
-          <span
-            >預估完成日 {{ detail ? formatAdminDate(detail.estimatedCompletionDate) : '—' }}</span
-          >
+            <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <WorkOrderStatusBadge
+                :status="detail?.currentStatus ?? null"
+                class="h-7 px-3 text-sm font-semibold"
+              />
+              <Badge
+                variant="outline"
+                class="h-7 px-3 text-sm font-semibold"
+                :class="
+                  detail && detail.paymentReceived !== true
+                    ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                    : undefined
+                "
+              >
+                {{
+                  detail
+                    ? formatBooleanLabel(detail.paymentReceived, '已收款', '未收款')
+                    : '付款狀態 —'
+                }}
+              </Badge>
+              <span class="whitespace-nowrap">
+                收件日 {{ detail ? formatAdminDate(detail.intakeDate) : '—' }}
+              </span>
+              <span class="whitespace-nowrap">
+                預估完成日 {{ detail ? formatAdminDate(detail.estimatedCompletionDate) : '—' }}
+              </span>
+            </div>
+          </div>
+
+          <p class="max-w-3xl text-sm leading-6 text-muted-foreground">{{ headerSubtitle }}</p>
         </div>
       </div>
 
       <div class="flex flex-col gap-3 xl:items-end">
+        <Button
+          v-if="detail?.currentStatus === 'READY_FOR_PICKUP'"
+          type="button"
+          :disabled="!canSubmitPickupQuickAction"
+          @click="() => submitPickupQuickAction()"
+        >
+          <Spinner v-if="isSubmittingPickupQuickAction" data-icon="inline-start" />
+          完成取件
+        </Button>
+
         <Button as-child type="button" variant="outline">
           <NuxtLink :to="LIST_ROUTE">返回工單列表</NuxtLink>
         </Button>
@@ -1269,124 +1614,182 @@ if (import.meta.client) {
         </CardContent>
       </Card>
 
-      <Card v-if="detailMode === 'work'">
-        <CardHeader class="gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div class="space-y-2">
-            <CardTitle>現場狀態操作</CardTitle>
-            <CardDescription>
-              直接追加一筆狀態歷史並同步更新目前狀態。可選同一狀態補記備註。
-            </CardDescription>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Badge
-              v-if="currentStatusMeta"
-              :class="currentStatusMeta.badgeClass"
-              :variant="currentStatusMeta.variant"
-            >
-              目前狀態：{{ currentStatusMeta.label }}
-            </Badge>
-            <Badge variant="outline">板型：{{ getBoardTypeLabel(detail.board.boardType) }}</Badge>
-            <Badge variant="outline">
-              長度分類：{{ getBoardLengthClassLabel(detail.board.boardLengthClass) }}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent class="space-y-6">
-          <Alert v-if="workFormAlertMessages.length > 0" variant="destructive">
-            <AlertTitle>更新狀態時發生錯誤</AlertTitle>
-            <AlertDescription class="space-y-2">
-              <ul class="ml-4 list-disc space-y-1">
-                <li v-for="message in workFormAlertMessages" :key="message">{{ message }}</li>
-              </ul>
-              <p v-if="submitWorkApiError?.error.requestId" class="text-xs text-destructive/80">
-                requestId: {{ submitWorkApiError.error.requestId }}
-              </p>
-            </AlertDescription>
-          </Alert>
-
-          <div class="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <FieldGroup>
-              <Field :data-invalid="workFieldErrors.status?.length ? 'true' : undefined">
-                <FieldLabel for="work-status">新狀態</FieldLabel>
-                <Select :model-value="workForm.status" @update:model-value="handleWorkStatusChange">
-                  <SelectTrigger id="work-status" class="w-full">
-                    <SelectValue placeholder="選擇要追加的狀態" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="statusOption in ADMIN_WORK_ORDER_STATUS_OPTIONS"
-                      :key="statusOption.value"
-                      :disabled="
-                        isWorkOrderStatusBlockedForBoardType(
-                          detail.board.boardType,
-                          statusOption.value,
-                        )
-                      "
-                      :value="statusOption.value"
-                    >
-                      {{ statusOption.label }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  可選和目前相同的狀態，用於補記另一筆事件備註。雪板不可進除濕中。
-                </FieldDescription>
-                <FieldError :errors="workFieldErrors.status" />
-              </Field>
-            </FieldGroup>
-
-            <FieldGroup>
-              <Field :data-invalid="workFieldErrors.note?.length ? 'true' : undefined">
-                <FieldLabel for="work-note">狀態備註</FieldLabel>
-                <Textarea
-                  id="work-note"
-                  v-model="workForm.note"
-                  :aria-invalid="Boolean(workFieldErrors.note?.length)"
-                  @input="handleWorkFieldInput"
-                />
-                <FieldDescription
-                  >空白會以 `null` 送出，但 `note` 欄位仍會包含在 request 中。</FieldDescription
-                >
-                <FieldError :errors="workFieldErrors.note" />
-              </Field>
-
-              <Field :data-invalid="workFieldErrors.internalNote?.length ? 'true' : undefined">
-                <FieldLabel for="work-internal-note">內部備註（可選）</FieldLabel>
-                <Textarea
-                  id="work-internal-note"
-                  v-model="workForm.internalNote"
-                  :aria-invalid="Boolean(workFieldErrors.internalNote?.length)"
-                  @input="handleWorkFieldInput"
-                />
-                <FieldDescription>
-                  留空代表不變更既有內部備註；若要清空，請改用管理修正模式。
-                </FieldDescription>
-                <FieldError :errors="workFieldErrors.internalNote" />
-              </Field>
-            </FieldGroup>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              :disabled="isSubmittingWorkForm"
-              @click="resetWorkForm"
-            >
-              清除
-            </Button>
-            <Button type="button" :disabled="!canSubmitWorkForm" @click="submitWorkForm">
-              <Spinner v-if="isSubmittingWorkForm" data-icon="inline-start" />
-              更新狀態
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div class="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <Collapsible
+        v-if="detailMode === 'work'"
+        :open="showWorkAdvancedSettings"
+        @update:open="setWorkAdvancedSettingsOpen"
+      >
         <Card>
-          <CardHeader>
+          <CardHeader class="gap-3">
+            <div
+              class="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-start min-[700px]:justify-between"
+            >
+              <div class="space-y-2">
+                <CardTitle>現場狀態操作</CardTitle>
+                <CardDescription>
+                  用快捷按鈕推進下一個進度；需要備註或指定狀態時再展開進階設定。
+                </CardDescription>
+
+                <div class="flex flex-wrap items-center gap-2 pt-1 text-sm text-muted-foreground">
+                  <Badge
+                    v-if="currentStatusMeta"
+                    :class="currentStatusMeta.badgeClass"
+                    :variant="currentStatusMeta.variant"
+                  >
+                    目前狀態：{{ currentStatusMeta.label }}
+                  </Badge>
+                  <Badge variant="outline">
+                    板型：{{ getBoardTypeLabel(detail.board.boardType) }}
+                  </Badge>
+                  <Badge variant="outline">
+                    長度分類：{{ getBoardLengthClassLabel(detail.board.boardLengthClass) }}
+                  </Badge>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-2 min-[700px]:items-end">
+                <div class="flex flex-wrap justify-start gap-2 min-[700px]:justify-end">
+                  <Button
+                    v-for="nextStatus in nextWorkStatuses"
+                    :key="nextStatus"
+                    type="button"
+                    :disabled="!canSubmitNextStatusAction"
+                    @click="() => submitNextStatusQuickAction(nextStatus)"
+                  >
+                    <Spinner v-if="isSubmittingNextStatusAction" data-icon="inline-start" />
+                    下一進度：{{ getWorkOrderStatusLabel(nextStatus) }}
+                  </Button>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  class="w-fit"
+                  @click="toggleWorkAdvancedSettings"
+                >
+                  <SlidersHorizontalIcon data-icon="inline-start" />
+                  {{ showWorkAdvancedSettings ? '收合進階設定' : '展開進階設定' }}
+                  <ChevronDownIcon
+                    data-icon="inline-end"
+                    class="transition-transform"
+                    :class="showWorkAdvancedSettings ? 'rotate-180' : undefined"
+                  />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CollapsibleContent>
+            <CardContent class="space-y-4 px-4 pb-4">
+              <Alert v-if="workFormAlertMessages.length > 0" variant="destructive">
+                <AlertTitle>更新狀態時發生錯誤</AlertTitle>
+                <AlertDescription class="space-y-2">
+                  <ul class="ml-4 list-disc space-y-1">
+                    <li v-for="message in workFormAlertMessages" :key="message">{{ message }}</li>
+                  </ul>
+                  <p v-if="submitWorkApiError?.error.requestId" class="text-xs text-destructive/80">
+                    requestId: {{ submitWorkApiError.error.requestId }}
+                  </p>
+                </AlertDescription>
+              </Alert>
+
+              <div
+                class="grid gap-4 min-[1100px]:grid-cols-[minmax(14rem,0.75fr)_minmax(0,1.25fr)]"
+              >
+                <FieldGroup class="gap-4">
+                  <Field :data-invalid="workFieldErrors.status?.length ? 'true' : undefined">
+                    <FieldLabel for="work-status">新狀態</FieldLabel>
+                    <Select
+                      :model-value="workForm.status"
+                      @update:model-value="handleWorkStatusChange"
+                    >
+                      <SelectTrigger id="work-status" class="w-full">
+                        <SelectValue placeholder="選擇要追加的狀態" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          v-for="statusOption in ADMIN_WORK_ORDER_STATUS_OPTIONS"
+                          :key="statusOption.value"
+                          :disabled="
+                            isWorkOrderStatusBlockedForBoardType(
+                              detail.board.boardType,
+                              statusOption.value,
+                            )
+                          "
+                          :value="statusOption.value"
+                        >
+                          {{ statusOption.label }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>
+                      可選和目前相同的狀態，用於補記另一筆事件備註。雪板不可進除濕中。
+                    </FieldDescription>
+                    <FieldError :errors="workFieldErrors.status" />
+                  </Field>
+                </FieldGroup>
+
+                <FieldGroup class="gap-4 min-[900px]:grid min-[900px]:grid-cols-2">
+                  <Field :data-invalid="workFieldErrors.note?.length ? 'true' : undefined">
+                    <FieldLabel for="work-note">狀態備註</FieldLabel>
+                    <Textarea
+                      id="work-note"
+                      v-model="workForm.note"
+                      :aria-invalid="Boolean(workFieldErrors.note?.length)"
+                      class="min-h-20"
+                      @input="handleWorkFieldInput"
+                    />
+                    <FieldDescription
+                      >空白會以 `null` 送出，但 `note` 欄位仍會包含在 request 中。</FieldDescription
+                    >
+                    <FieldError :errors="workFieldErrors.note" />
+                  </Field>
+
+                  <Field :data-invalid="workFieldErrors.internalNote?.length ? 'true' : undefined">
+                    <FieldLabel for="work-internal-note">內部備註（可選）</FieldLabel>
+                    <Textarea
+                      id="work-internal-note"
+                      v-model="workForm.internalNote"
+                      :aria-invalid="Boolean(workFieldErrors.internalNote?.length)"
+                      class="min-h-20"
+                      @input="handleWorkFieldInput"
+                    />
+                    <FieldDescription>
+                      留空代表不變更既有內部備註；若要清空，請改用管理修正模式。
+                    </FieldDescription>
+                    <FieldError :errors="workFieldErrors.internalNote" />
+                  </Field>
+                </FieldGroup>
+              </div>
+
+              <div class="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  :disabled="isSubmittingWorkForm"
+                  @click="resetWorkForm"
+                >
+                  清除
+                </Button>
+                <Button
+                  type="button"
+                  :disabled="!canSubmitWorkForm"
+                  @click="() => submitWorkForm()"
+                >
+                  <Spinner v-if="isSubmittingWorkForm" data-icon="inline-start" />
+                  更新狀態
+                </Button>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      <div
+        v-if="detailMode === 'edit'"
+        class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"
+      >
+        <Card>
+          <CardHeader class="pb-3">
             <CardTitle>工單摘要</CardTitle>
             <CardDescription>工單本身的進件、預估完成與付款資訊。</CardDescription>
           </CardHeader>
@@ -1479,15 +1882,15 @@ if (import.meta.client) {
             </div>
           </CardContent>
 
-          <CardContent v-else class="space-y-6">
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <CardContent v-else class="space-y-4">
+            <div class="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
               <div v-for="field in summaryFields" :key="field.label" class="space-y-1">
                 <p class="text-sm text-muted-foreground">{{ field.label }}</p>
                 <p class="text-sm font-medium">{{ field.value }}</p>
               </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-3 md:grid-cols-3">
               <div v-for="field in detailNoteFields" :key="field.label" class="space-y-2">
                 <p class="text-sm text-muted-foreground">{{ field.label }}</p>
                 <p class="rounded-lg border bg-muted/20 px-3 py-2 text-sm leading-6">
@@ -1588,10 +1991,7 @@ if (import.meta.client) {
                   </Button>
                 </div>
 
-                <Dialog
-                  :open="printActionDialogOpen"
-                  @update:open="(open) => (printActionDialogOpen = open)"
-                >
+                <Dialog :open="printActionDialogOpen" @update:open="setPrintActionDialogOpen">
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>{{ printActionLabel }}</DialogTitle>
@@ -1783,51 +2183,44 @@ if (import.meta.client) {
         </Card>
       </div>
 
-      <div v-else class="space-y-4">
-        <div class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>板子資訊</CardTitle>
-              <CardDescription>工單建立時保留的板子快照欄位。</CardDescription>
-            </CardHeader>
-            <CardContent class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div v-for="field in boardFields" :key="field.label" class="space-y-1">
+      <div v-if="detailMode === 'view'" class="grid items-start gap-4 min-[1100px]:grid-cols-2">
+        <Card class="min-[1100px]:col-span-2">
+          <CardHeader class="">
+            <CardTitle>顧客資訊</CardTitle>
+          </CardHeader>
+          <CardContent class="grid gap-4 sm:grid-cols-2">
+            <div v-for="field in customerFields" :key="field.label" class="space-y-1">
+              <p class="text-sm text-muted-foreground">{{ field.label }}</p>
+              <p class="text-sm font-medium">{{ field.value }}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card class="min-[1100px]:col-span-2">
+          <CardHeader class="">
+            <CardTitle>工單摘要</CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div v-for="field in summaryFields" :key="field.label" class="space-y-1">
                 <p class="text-sm text-muted-foreground">{{ field.label }}</p>
-                <WorkOrderBoardColorSwatch
-                  v-if="field.isBoardColor"
-                  :color="detail.board.color"
-                  empty-label="—"
-                />
-                <p v-else class="text-sm font-medium">{{ field.value }}</p>
+                <p class="text-sm font-medium">{{ field.value }}</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>取件資訊</CardTitle>
-              <CardDescription>第一版 pickup 資料來自 `work_orders` inline 欄位。</CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-6">
-              <div class="grid gap-4 sm:grid-cols-2">
-                <div v-for="field in pickupFields" :key="field.label" class="space-y-1">
-                  <p class="text-sm text-muted-foreground">{{ field.label }}</p>
-                  <p class="text-sm font-medium">{{ field.value }}</p>
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <p class="text-sm text-muted-foreground">取件備註</p>
+            <div class="grid gap-3 lg:grid-cols-3">
+              <div v-for="field in detailNoteFields" :key="field.label" class="space-y-2">
+                <p class="text-sm text-muted-foreground">{{ field.label }}</p>
                 <p class="rounded-lg border bg-muted/20 px-3 py-2 text-sm leading-6">
-                  {{ formatNullableText(detail.pickupInfo.pickupNote) }}
+                  {{ field.value }}
                 </p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <Card>
-          <CardHeader>
+        <Card class="min-[1100px]:col-span-2">
+          <CardHeader class="pb-3">
             <CardTitle>受損位置</CardTitle>
             <CardDescription>只讀顯示 repair marks 與維修處數摘要。</CardDescription>
           </CardHeader>
@@ -1850,6 +2243,404 @@ if (import.meta.client) {
             />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle>板子資訊</CardTitle>
+            <CardDescription>工單建立時保留的板子快照欄位。</CardDescription>
+          </CardHeader>
+          <CardContent class="grid gap-4 sm:grid-cols-2">
+            <div v-for="field in boardFields" :key="field.label" class="space-y-1">
+              <p class="text-sm text-muted-foreground">{{ field.label }}</p>
+              <WorkOrderBoardColorSwatch
+                v-if="field.isBoardColor"
+                :color="detail.board.color"
+                empty-label="—"
+              />
+              <p v-else class="text-sm font-medium">{{ field.value }}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle>取件資訊</CardTitle>
+            <CardDescription>第一版 pickup 資料來自 `work_orders` inline 欄位。</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div v-for="field in pickupFields" :key="field.label" class="space-y-1">
+                <p class="text-sm text-muted-foreground">{{ field.label }}</p>
+                <p class="text-sm font-medium">{{ field.value }}</p>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <p class="text-sm text-muted-foreground">取件備註</p>
+              <p class="rounded-lg border bg-muted/20 px-3 py-2 text-sm leading-6">
+                {{ formatNullableText(detail.pickupInfo.pickupNote) }}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div v-if="detailMode === 'view'" class="grid items-start gap-4 min-[1100px]:grid-cols-2">
+        <Card>
+          <CardHeader class="gap-3 pb-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <CardTitle>報價資訊</CardTitle>
+              <CardDescription>目前工單上的初始與追加報價項目。</CardDescription>
+            </div>
+
+            <div class="space-y-1 text-left md:text-right">
+              <p class="text-sm text-muted-foreground">報價總額</p>
+              <p class="text-lg font-semibold">{{ formatCurrency(detail.quoteTotalAmount) }}</p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div v-if="detail.quoteItems.length > 0" class="space-y-3">
+              <div
+                v-for="quoteItem in detail.quoteItems"
+                :key="quoteItem.id ?? `${quoteItem.itemType}-${quoteItem.createdAt}`"
+                class="rounded-lg border bg-card p-4"
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div class="space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{{
+                        getQuoteItemTypeLabel(quoteItem.itemType)
+                      }}</Badge>
+                      <span class="font-medium">{{
+                        formatNullableText(quoteItem.description)
+                      }}</span>
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                      建立時間 {{ formatAdminDateTime(quoteItem.createdAt) }}
+                    </p>
+                  </div>
+
+                  <p class="text-base font-semibold">{{ formatCurrency(quoteItem.amount) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <p v-else class="text-sm text-muted-foreground">尚無報價項目。</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle>狀態歷史</CardTitle>
+            <CardDescription
+              >狀態歷史採 append-only；目前僅顯示，不在 F5B 內提供編輯。</CardDescription
+            >
+          </CardHeader>
+          <CardContent>
+            <div v-if="detail.statusHistory.length > 0" class="space-y-3">
+              <div
+                v-for="statusEntry in detail.statusHistory"
+                :key="statusEntry.id ?? `${statusEntry.status}-${statusEntry.changedAt}`"
+                class="rounded-lg border bg-card p-4"
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div class="space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <WorkOrderStatusBadge :status="statusEntry.status" />
+                      <span class="text-sm text-muted-foreground">
+                        {{ formatAdminDateTime(statusEntry.changedAt) }}
+                      </span>
+                    </div>
+                    <p class="text-sm leading-6">{{ formatNullableText(statusEntry.note) }}</p>
+                  </div>
+
+                  <p class="text-sm text-muted-foreground">
+                    {{ getWorkOrderStatusLabel(statusEntry.status) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p v-else class="text-sm text-muted-foreground">尚無狀態歷史。</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle>列印資訊</CardTitle>
+            <CardDescription>顯示最新一筆列印任務，完整操作仍以列印中心為主。</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div v-if="isPrintSummaryLoading" class="space-y-3">
+              <Skeleton class="h-5 w-28" />
+              <Skeleton class="h-16 w-full" />
+            </div>
+
+            <template v-else>
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <p class="text-sm text-muted-foreground">最新狀態</p>
+                  <PrintJobStatusBadge
+                    v-if="printSummary?.latestJob"
+                    :status="printSummary.latestJob.status"
+                  />
+                  <p v-else class="text-sm font-medium">尚未建立列印任務</p>
+                </div>
+
+                <Button as-child type="button" variant="outline">
+                  <NuxtLink :to="printCenterPath">前往列印中心</NuxtLink>
+                </Button>
+              </div>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div class="space-y-1">
+                  <p class="text-sm text-muted-foreground">最近更新</p>
+                  <p class="text-sm font-medium">
+                    {{
+                      printSummary?.latestJob
+                        ? formatAdminDateTime(printSummary.latestJob.updatedAt)
+                        : '—'
+                    }}
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <p class="text-sm text-muted-foreground">列印完成時間</p>
+                  <p class="text-sm font-medium">
+                    {{
+                      printSummary?.latestJob
+                        ? formatAdminDateTime(printSummary.latestJob.printedAt)
+                        : '—'
+                    }}
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <p class="text-sm text-muted-foreground">失敗 / 補印狀態</p>
+                  <p class="text-sm font-medium">
+                    {{
+                      printSummary?.hasFailedJob
+                        ? '曾有失敗任務'
+                        : printSummary?.hasPendingJob
+                          ? '目前有待處理任務'
+                          : '—'
+                    }}
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <p class="text-sm text-muted-foreground">最新錯誤</p>
+                  <p class="text-sm font-medium">
+                    {{ printSummary?.latestJob?.lastError?.trim() || '—' }}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                v-if="printSummary?.reprintAllowed"
+                class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-3"
+              >
+                <p class="text-sm text-muted-foreground">
+                  {{
+                    printSummary?.latestJob
+                      ? '需要重送時，會建立新的 print job，不覆蓋舊紀錄。'
+                      : '目前還沒有列印任務；可手動建立第一筆列印任務。'
+                  }}
+                </p>
+                <Button
+                  type="button"
+                  :disabled="isSubmittingPrintAction"
+                  @click="printActionDialogOpen = true"
+                >
+                  <Spinner v-if="isSubmittingPrintAction" data-icon="inline-start" />
+                  {{ printActionLabel }}
+                </Button>
+              </div>
+            </template>
+          </CardContent>
+        </Card>
+
+        <WorkOrderLineStatusCard :work-order-id="detail.id" />
+      </div>
+
+      <Dialog
+        v-if="detailMode === 'view'"
+        :open="printActionDialogOpen"
+        @update:open="setPrintActionDialogOpen"
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{{ printActionLabel }}</DialogTitle>
+            <DialogDescription>
+              選擇要建立的列印任務。每次補印都會新增一筆 print job，不會覆蓋舊紀錄。
+            </DialogDescription>
+          </DialogHeader>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <Button
+              v-for="option in PRINT_JOB_CREATE_OPTIONS"
+              :key="option.jobType"
+              type="button"
+              variant="outline"
+              class="h-auto justify-start whitespace-normal p-4 text-left"
+              :disabled="isSubmittingPrintAction"
+              @click="createPrintJobFromDetail(option.jobType)"
+            >
+              <span class="flex flex-col gap-1">
+                <span class="flex items-center gap-2 font-medium">
+                  <Spinner
+                    v-if="submittingPrintJobType === option.jobType"
+                    data-icon="inline-start"
+                  />
+                  {{ getPrintJobTypeLabel(option.jobType) }}
+                </span>
+                <span class="text-sm font-normal text-muted-foreground">
+                  {{ option.description }}
+                </span>
+              </span>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="isSubmittingPrintAction"
+              @click="printActionDialogOpen = false"
+            >
+              取消
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div v-if="detailMode === 'work'" class="grid items-start gap-4 min-[1100px]:grid-cols-2">
+        <Card class="min-[1100px]:col-span-2">
+          <CardHeader class="pb-3">
+            <CardTitle>受損位置</CardTitle>
+            <CardDescription>只讀顯示 repair marks 與維修處數摘要。</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="flex flex-wrap gap-2">
+              <Badge variant="outline">正面 {{ detailRepairMarksSummary.frontCount }} 處</Badge>
+              <Badge variant="outline">背面 {{ detailRepairMarksSummary.backCount }} 處</Badge>
+              <Badge variant="outline">維修處數 {{ detail.repairCount ?? '—' }}</Badge>
+            </div>
+
+            <RepairMarksSurfaceGallery
+              :board-type="detail.board.boardType || 'SURFBOARD'"
+              :canvas-height="760"
+              :canvas-width="500"
+              dual-surface-min-height-class="min-h-[24rem] xl:min-h-[34rem]"
+              :marks="detail.repairMarks"
+              single-surface-canvas-wrapper-class="mx-auto h-auto w-full max-w-[26rem] aspect-[500/760]"
+              single-surface-min-height-class="min-h-0"
+              surface-gap-class="gap-4"
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle>工單摘要</CardTitle>
+            <CardDescription>進件、預估完成、付款與報價摘要。</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+              <div v-for="field in summaryFields" :key="field.label" class="space-y-1">
+                <p class="text-sm text-muted-foreground">{{ field.label }}</p>
+                <p class="text-sm font-medium">{{ field.value }}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="gap-3 pb-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <CardTitle>報價資訊</CardTitle>
+              <CardDescription>目前工單上的初始與追加報價項目。</CardDescription>
+            </div>
+
+            <div class="space-y-1 text-left md:text-right">
+              <p class="text-sm text-muted-foreground">報價總額</p>
+              <p class="text-lg font-semibold">{{ formatCurrency(detail.quoteTotalAmount) }}</p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div v-if="detail.quoteItems.length > 0" class="space-y-3">
+              <div
+                v-for="quoteItem in detail.quoteItems"
+                :key="quoteItem.id ?? `${quoteItem.itemType}-${quoteItem.createdAt}`"
+                class="rounded-lg border bg-card p-4"
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div class="space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{{
+                        getQuoteItemTypeLabel(quoteItem.itemType)
+                      }}</Badge>
+                      <span class="font-medium">{{
+                        formatNullableText(quoteItem.description)
+                      }}</span>
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                      建立時間 {{ formatAdminDateTime(quoteItem.createdAt) }}
+                    </p>
+                  </div>
+
+                  <p class="text-base font-semibold">{{ formatCurrency(quoteItem.amount) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <p v-else class="text-sm text-muted-foreground">尚無報價項目。</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle>顧客資訊</CardTitle>
+            <CardDescription>目前綁定在這張工單上的顧客基本資料。</CardDescription>
+          </CardHeader>
+          <CardContent class="grid gap-4 sm:grid-cols-2">
+            <div v-for="field in customerFields" :key="field.label" class="space-y-1">
+              <p class="text-sm text-muted-foreground">{{ field.label }}</p>
+              <p class="text-sm font-medium">{{ field.value }}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader class="pb-3">
+            <CardTitle>狀態歷史</CardTitle>
+            <CardDescription
+              >狀態歷史採 append-only；目前僅顯示，不在 F5B 內提供編輯。</CardDescription
+            >
+          </CardHeader>
+          <CardContent>
+            <div v-if="detail.statusHistory.length > 0" class="space-y-3">
+              <div
+                v-for="statusEntry in detail.statusHistory"
+                :key="statusEntry.id ?? `${statusEntry.status}-${statusEntry.changedAt}`"
+                class="rounded-lg border bg-card p-4"
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div class="space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <WorkOrderStatusBadge :status="statusEntry.status" />
+                      <span class="text-sm text-muted-foreground">
+                        {{ formatAdminDateTime(statusEntry.changedAt) }}
+                      </span>
+                    </div>
+                    <p class="text-sm leading-6">{{ formatNullableText(statusEntry.note) }}</p>
+                  </div>
+
+                  <p class="text-sm text-muted-foreground">
+                    {{ getWorkOrderStatusLabel(statusEntry.status) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p v-else class="text-sm text-muted-foreground">尚無狀態歷史。</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card v-if="detailMode === 'edit'">
@@ -1870,7 +2661,7 @@ if (import.meta.client) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card v-if="detailMode === 'edit'">
         <CardHeader class="gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <CardTitle>報價資訊</CardTitle>
@@ -1909,7 +2700,7 @@ if (import.meta.client) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card v-if="detailMode === 'edit'">
         <CardHeader>
           <CardTitle>狀態歷史</CardTitle>
           <CardDescription
@@ -1953,6 +2744,14 @@ if (import.meta.client) {
         :repair-count-source="editForm.repairCountSource"
         :repair-marks="editForm.repairMarks"
         @save="handleRepairMarksSave"
+      />
+
+      <UnpaidDeliveryConfirmDialog
+        :is-submitting="isUnpaidDeliveryDialogSubmitting"
+        :open="unpaidDeliveryDialogOpen"
+        @mark-paid-and-deliver="handleDetailUnpaidDeliveryMarkPaidAndDeliver"
+        @proceed-without-payment="handleDetailUnpaidDeliveryProceedWithoutPayment"
+        @update:open="setUnpaidDeliveryDialogOpen"
       />
     </template>
   </div>

@@ -29,6 +29,10 @@ const isIssuing = ref(false);
 const isUnlinking = ref(false);
 const unlinkDialogOpen = ref(false);
 
+const setUnlinkDialogOpen = (open: boolean) => {
+  unlinkDialogOpen.value = open;
+};
+
 const fetchLineStatus = () =>
   getRequestFetch()<AdminWorkOrderLineStatusResponse>(
     `/api/admin/work-orders/${encodeURIComponent(props.workOrderId)}/line-status`,
@@ -278,7 +282,7 @@ const unlinkLineBinding = async () => {
       </template>
     </CardContent>
 
-    <Dialog :open="unlinkDialogOpen" @update:open="(open) => (unlinkDialogOpen = open)">
+    <Dialog :open="unlinkDialogOpen" @update:open="setUnlinkDialogOpen">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>解除 LINE 綁定？</DialogTitle>

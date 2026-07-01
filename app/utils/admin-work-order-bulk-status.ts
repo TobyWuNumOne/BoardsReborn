@@ -167,6 +167,17 @@ export const hasAdminBulkStatusSelectedSnowboards = (
   );
 };
 
+export const getAdminBulkStatusSelectedUnpaidItems = (
+  items: AdminWorkOrderResolveItem[],
+  selectedPaperOrderNos: string[],
+) => {
+  const selectedSet = new Set(selectedPaperOrderNos);
+
+  return items.filter(
+    (item) => selectedSet.has(item.paperOrderNo) && item.paymentReceived !== true,
+  );
+};
+
 export const groupAdminBulkStatusPreviewItems = (
   items: AdminWorkOrderResolveItem[],
   selectedPaperOrderNos: string[],

@@ -20,6 +20,7 @@ import {
 import { getAdminRouteGuardRedirect } from '~/utils/admin-session';
 import { summarizeRepairMarks } from '~/utils/repair-marks';
 import RepairMarksSurfaceGallery from '~/components/work-orders/RepairMarksSurfaceGallery.vue';
+import UnpaidDeliveryConfirmDialog from '~/components/work-orders/UnpaidDeliveryConfirmDialog.vue';
 import WorkOrderBoardColorSwatch from '~/components/work-orders/WorkOrderBoardColorSwatch.vue';
 import WorkOrderStatusBadge from '~/components/work-orders/WorkOrderStatusBadge.vue';
 import { Textarea } from '~/components/ui/textarea';
@@ -70,7 +71,7 @@ const showLookupResult = computed(() => lookupState.value === 'ready' && lookupR
 const showNotFoundState = computed(() => lookupState.value === 'not-found');
 const currentWorkOrderId = computed(() => lookupResult.value?.summary.id ?? '');
 const isReadyForPickup = computed(() => lookupResult.value?.summary.status === 'READY_FOR_PICKUP');
-const isUnpaid = computed(() => lookupResult.value?.summary.paymentReceived === false);
+const isUnpaid = computed(() => lookupResult.value?.summary.paymentReceived !== true);
 const repairMarksSummary = computed(() =>
   summarizeRepairMarks(lookupResult.value?.repairMarks ?? []),
 );
@@ -167,6 +168,14 @@ const clearSearch = async () => {
   lookupStatusMessage.value = '請掃描或輸入工單號';
   lastLookupCode.value = '';
   await focusAndSelectInput();
+};
+
+const setUnpaidDeliveryDialogOpen = (open: boolean) => {
+  unpaidDeliveryDialogOpen.value = open;
+};
+
+const setNoteDialogOpen = (open: boolean) => {
+  noteDialogOpen.value = open;
 };
 
 const openDetail = async () => {
@@ -486,7 +495,9 @@ onMounted(async () => {
               <div class="space-y-2">
                 <div class="flex items-center justify-between gap-3">
                   <p class="text-sm font-medium">更新狀態</p>
-                  <div class="inline-flex min-h-12 items-center rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-base font-semibold text-foreground shadow-sm">
+                  <div
+                    class="inline-flex min-h-12 items-center rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-base font-semibold text-foreground shadow-sm"
+                  >
                     <span class="text-sm font-medium text-muted-foreground">目前狀態：</span>
                     <span class="ml-2 text-base font-semibold">
                       {{ getWorkOrderStatusLabel(lookupResult.summary.status) }}
@@ -711,7 +722,7 @@ onMounted(async () => {
       </section>
     </template>
 
-    <Dialog :open="noteDialogOpen" @update:open="(open) => (noteDialogOpen = open)">
+    <Dialog :open="noteDialogOpen" @update:open="setNoteDialogOpen">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新增內部備註</DialogTitle>
@@ -733,34 +744,12 @@ onMounted(async () => {
       </DialogContent>
     </Dialog>
 
-    <Dialog
+    <UnpaidDeliveryConfirmDialog
+      :is-submitting="isMutating"
       :open="unpaidDeliveryDialogOpen"
-      @update:open="(open) => (unpaidDeliveryDialogOpen = open)"
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>此工單尚未標記付款，仍要交件嗎？</DialogTitle>
-          <DialogDescription>
-            可以先標記付款再交件，或直接標記交件；兩個動作會分開記錄。
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter class="flex-col gap-2 sm:flex-col sm:items-stretch">
-          <Button type="button" :disabled="isMutating" @click="handleMarkPaidAndDelivered">
-            先標記付款並交件
-          </Button>
-          <Button type="button" variant="outline" :disabled="isMutating" @click="deliverWorkOrder">
-            仍然交件
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            :disabled="isMutating"
-            @click="unpaidDeliveryDialogOpen = false"
-          >
-            取消
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      @mark-paid-and-deliver="handleMarkPaidAndDelivered"
+      @proceed-without-payment="deliverWorkOrder"
+      @update:open="setUnpaidDeliveryDialogOpen"
+    />
   </div>
 </template>

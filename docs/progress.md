@@ -12,7 +12,7 @@
 
 ## 目前快照
 
-- 最後更新：2026-06-30
+- 最後更新：2026-07-01
 - 目前階段：MVP 主流程與上線前最低資安防護已落地；目前重點是文件收斂、測試/驗證補強與現場穩定化
 - 整體狀態：進行中
 
@@ -88,7 +88,7 @@
 - `POST /api/admin/work-orders/{id}/quick-note`
 - `DELETE /api/admin/work-orders/{id}`
 - 自動數字工單號與 `99` 測試工單號 migration
-- 工單 detail / create / bulk status / scan 第一版 UI；scan 可用狀態操作會依板型排除雪板除濕
+- 工單 detail / create / bulk status / scan 第一版 UI；scan 可用狀態操作會依板型排除雪板除濕；scan / detail / bulk 交件入口會在未收款時先顯示確認流程
 
 仍待確認或補強：
 

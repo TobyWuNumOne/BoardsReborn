@@ -277,15 +277,28 @@ Table 欄位順序：
   - 目前狀態
   - 返回列表
   - mode toggle
-- F4 的 detail page 至少顯示：
-  - 工單摘要
-  - 列印狀態摘要
+- detail header 在 `READY_FOR_PICKUP` 時顯示「完成取件」快捷按鈕，直接透過 `POST /api/admin/work-orders/{id}/status` 切換到 `DELIVERED`，供現場快速交件使用。
+- detail 內所有切到 `DELIVERED` 的入口都需先確認付款狀態；只有 `paymentReceived === true` 可直接交件，其餘情況顯示共用未收款交件確認 dialog，可選「先標記付款並交件」或「仍然交件」。
+- `view` mode 依現場判讀優先序排列：
   - 顧客資訊
+  - 工單摘要（含報價總額）
+  - 受損位置
   - 板子資訊
-  - 報價資訊
   - 取件資訊
+  - 報價資訊
   - 狀態歷史
-- detail 的只讀 `受損位置` 預覽需獨立使用一整列，不與 `板子資訊` 共用同一排寬度，避免平板寬度下雙面預覽被擠壓裁切。
+  - 列印資訊
+  - LINE 資訊
+- `work` mode 依現場作業優先序排列：
+  - 現場狀態操作
+  - 受損位置
+  - 工單摘要
+  - 報價資訊
+  - 顧客資訊
+  - 狀態歷史
+  - 不顯示列印資訊與 LINE 資訊
+- detail 主要資訊卡以 `1100px` 作為雙欄斷點；iPad 11 直向維持單欄 N x 1，橫向開始雙欄 N x 2。`view` mode 的顧客資訊與工單摘要例外，橫向時仍維持上下排；工單摘要內的基本欄位與損傷描述 / 公開備註 / 內部備註在 `lg` 以上以三欄並排以節省垂直空間。
+- detail 的只讀 `受損位置` 預覽需獨立使用一整列，避免平板寬度下雙面預覽被擠壓裁切。
 - detail header 若顯示板型摘要，需一併顯示衝浪板長度分類摘要。
 - F5B 的 edit mode 規則：
   - 單一整頁表單與單一 Save / Reset
@@ -301,6 +314,8 @@ Table 欄位順序：
   - `note` 永遠包含在 request 中；空白送 `null`
   - `internalNote` 空白代表不變更既有內部備註；若要清空，改走 `mode=edit`
   - 成功後 refresh detail、清空 form，並保留在 `mode=work`
+  - 現場狀態操作卡需提供「下一進度」快捷按鈕：衝浪板 `RECEIVED` 時同時提供 `DRYING` 與 `REPAIRING`；雪板 `RECEIVED` 時跳過 `DRYING`，只提供 `REPAIRING`；其他狀態依序 `DRYING -> REPAIRING`、`REPAIRING -> READY_FOR_PICKUP`、`READY_FOR_PICKUP -> DELIVERED`。
+  - 手動選狀態、狀態備註與內部備註屬於進階設定，預設收合；送出驗證或 API 錯誤時自動展開，避免錯誤訊息被藏住。
 - detail 頁列印狀態卡使用 `GET /api/admin/print-summaries?workOrderId=...`，只刷新 summary，不因列印事件整頁重抓 work order detail。
 - detail 頁初始進入時，工單 detail 與列印摘要資料抓取不可阻塞路由切換；先顯示頁面 skeleton，再由 lazy fetch 補上 server 資料。
 - detail 頁列印狀態卡只顯示 summary + deep link，不嵌入完整 print timeline。
@@ -361,11 +376,14 @@ Table 欄位順序：
   - 支援換行、逗號、空白
   - trim
 - preview 區只保留掃碼後核對狀態所需的工單資料，不顯示列印摘要或列印操作。
+- preview item 需包含 `paymentReceived`，讓批量切到 `DELIVERED` 前可統計選取項目中的未收款工單。
+- 批量共享狀態或分組快捷切到 `DELIVERED` 時，若選取項目含未明確標記已收款的工單，顯示共用未收款交件確認 dialog；「先標記付款並交件」只補標未收款的選取工單，再交件全部選取工單。
 - recent batch result 區只顯示 updated / skipped 摘要與狀態結果，不顯示列印摘要。
 
 ## Scan Page
 
 - `/admin/scan` 是獨立的現場單張工單工具頁，不是 detail page 的 mode，也不取代列表或批量頁。
+- 掃描頁的交件按鈕需使用共用未收款交件確認 dialog；未明確標記已收款時提供「先標記付款並交件」與「仍然交件」。
 - 頁面頂部固定一個長駐搜尋欄，placeholder 固定為 `掃描或輸入工單號`。
 - keyboard wedge 規則：
   - 掃碼頁：`Enter` 代表立即查詢

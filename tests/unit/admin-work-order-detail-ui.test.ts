@@ -77,4 +77,13 @@ describe('admin work-order detail UI helpers', () => {
     );
     expect(detailPageSource).toContain('v-if="isInitialLoading"');
   });
+
+  it('does not let DOM events bypass unpaid delivery confirmation', () => {
+    expect(detailPageSource).toContain('bypassConfirmation === true');
+    expect(detailPageSource).not.toContain('if (bypassConfirmation ||');
+    expect(detailPageSource).toContain('@click="() => submitPickupQuickAction()"');
+    expect(detailPageSource).toContain('@click="() => submitWorkForm()"');
+    expect(detailPageSource).not.toContain('@click="submitPickupQuickAction"');
+    expect(detailPageSource).not.toContain('@click="submitWorkForm"');
+  });
 });
