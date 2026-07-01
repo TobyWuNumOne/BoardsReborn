@@ -175,6 +175,7 @@
 ## 下一步
 
 - 重新整理 `docs/line-release-verification.md`、`docs/deployment.md` 等文件，把一次性驗證紀錄與長期 runbook 拆清楚。
+- 完成 production domain ownership cutover：`admin` / `status` 子網域保留給本系統，根網域與 `www` 移交給官網 project，並保留 `/repair-status` 與必要後台舊書籤轉址。
 - 針對列印與 LINE 補更明確的 recovery / failure-mode runbook。
 - 補做實機掃碼驗證：不同條碼槍 suffix、連續掃描、錯誤碼處理與現場節奏。
 - 補做列印穩定化驗證：worker 重啟、自啟、印表機未連接、stale job recovery、retry 人工流程。

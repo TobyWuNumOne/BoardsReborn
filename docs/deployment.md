@@ -79,9 +79,9 @@ export SUPABASE_ACCESS_TOKEN="<paste-token-in-local-shell-only>"
 
 - `NUXT_PUBLIC_SITE_URL`
 
-### Production domain routing
+### Production system domains
 
-正式 Vercel product project 必須設定：
+正式 Vercel product project 只應長期保留系統子網域：
 
 ```text
 NUXT_PUBLIC_ADMIN_URL=https://admin.surfboards-reborn.com
@@ -89,7 +89,28 @@ NUXT_PUBLIC_STATUS_URL=https://status.surfboards-reborn.com
 NUXT_PUBLIC_APP_URL=https://status.surfboards-reborn.com
 ```
 
-Nuxt 會依 host 將 admin、status、主網域與 `www` 導向各自的 canonical route。所有網域導向目前固定使用 `302`，避免瀏覽器或 CDN 在品牌官網切換前保留永久 redirect。一般 preview 與獨立 staging project 不設定 admin/status URL，因此不啟用 production domain routing。
+Nuxt 會依 host 將 admin 與 status 導向各自的 canonical route。`surfboards-reborn.com` 與 `www.surfboards-reborn.com` 的目標 ownership 是獨立官網 project，不應長期綁在本系統 project。
+
+在根網域與 `www` 尚未移出本系統 project 前，本系統仍保留 `302` fallback，把主網域入口導向 `status.surfboards-reborn.com/repair-status`，避免舊 QR / 連結在切換期間斷掉。所有網域導向目前固定使用 `302`，避免瀏覽器或 CDN 在品牌官網切換前保留永久 redirect。一般 preview 與獨立 staging project 不設定 admin/status URL，因此不啟用 production domain routing。
+
+### Official website cutover
+
+將品牌官網切到主網域時，domain ownership 應調整為：
+
+```text
+admin.surfboards-reborn.com  -> BoardsReborn system project
+status.surfboards-reborn.com -> BoardsReborn system project
+surfboards-reborn.com        -> official website project
+www.surfboards-reborn.com    -> official website project or redirect to apex
+```
+
+切換順序：
+
+1. 先確認官網 project 已可用，並準備好 `surfboards-reborn.com` 與 `www.surfboards-reborn.com` 的 production deployment。
+2. 在官網 project 加入 `surfboards-reborn.com` 與 `www.surfboards-reborn.com`。
+3. 從 BoardsReborn system project 移除 `surfboards-reborn.com` 與 `www.surfboards-reborn.com`，只保留 `admin.surfboards-reborn.com`、`status.surfboards-reborn.com` 與 Vercel fallback domains。
+4. 在官網 project 保留兼容轉址：`/repair-status` 轉到 `https://status.surfboards-reborn.com/repair-status`；如需保護舊後台書籤，`/admin/**` 轉到 `https://admin.surfboards-reborn.com/admin/**`。
+5. 切換後 smoke test 主網域官網、`www`、`admin` login redirect、`status/repair-status`、`status/line/order-gate`、顧客留存聯 QR 與 LINE LIFF endpoint。
 
 ## Supabase Staging
 

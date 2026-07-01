@@ -51,11 +51,12 @@
 
 - `/repair-status`
 
-Production domain routing：
+Production domain ownership target：
 
-- `admin.surfboards-reborn.com` 承載 `/admin/**`、`/login` 與 `/forbidden`。
-- `status.surfboards-reborn.com` 承載 `/repair-status` 與 `/repair-status/**`。
-- `surfboards-reborn.com` 與 `www.surfboards-reborn.com` 暫時以 `302` 導向 status 查詢入口；舊 `/repair-status` path 與 query 會保留。
+- `admin.surfboards-reborn.com` 承載本系統的 `/admin/**`、`/login` 與 `/forbidden`。
+- `status.surfboards-reborn.com` 承載本系統的 `/repair-status`、`/repair-status/**` 與 `/line/order-gate/**`。
+- `surfboards-reborn.com` 與 `www.surfboards-reborn.com` 應由獨立官網 project 承載，不再作為本系統的主要入口。
+- 在根網域與 `www` 尚未從本系統 Vercel project 移出前，本系統仍以 `302` fallback 導向 status 查詢入口；舊 `/repair-status` path 與 query 會保留。
 - 跨網域導向保留 path 與 query；client-side navigation 在可取得時也保留 hash。SSR 首次請求不保證 hash，因為瀏覽器不會把 fragment 傳給 server。
 - localhost、staging、preview 與其他未知 host 不套用 production domain routing。
 
